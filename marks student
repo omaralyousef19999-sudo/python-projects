@@ -4,19 +4,31 @@ import json
 import os
 from datetime import datetime, timedelta
 from openpyxl import Workbook
+import shutil
+import re
 
 # ========== إعدادات الواجهة ==========
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("dark-blue")
 
 DATA_FILE = "students_data.json"
+BACKUP_FILE = "students_data_backup.json"
+MAX_GRADES = 100  # Maximum grade value
+EDIT_DAYS_LIMIT = 5  # Days allowed for editing student list
 
 # ============================================================
-# 🔹 دالة حفظ البيانات إلى ملف
+# 🔹 دالة حفظ البيانات إلى ملف مع نسخة احتياطية
 # ============================================================
 def save_data(data):
-    with open(DATA_FILE, "w") as f:
-        json.dump(data, f, indent=4)
+    try:
+        # Create a backup of the current file
+        if os.path.exists(DATA_FILE):
+            shutil.copy(DATA_FILE, BACKUP_FILE)
+        with open(DATA_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=4, ensure_ascii=False)
+    except Exception as e:
+        messagebox.showerror("خطأ", f"فشل حفظ البيانات: {str(e)}")
+        raise
 
 # ============================================================
 # 🔹 دالة تحميل البيانات من الملف
@@ -24,91 +36,171 @@ def save_data(data):
 def load_data():
     if not os.path.exists(DATA_FILE):
         return {}
-    with open(DATA_FILE, "r") as f:
-        return json.load(f)
+    try:
+        with open(DATA_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except json.JSONDecodeError:
+        messagebox.showerror("خطأ", "ملف البيانات تالف. سيتم إنشاء ملف جديد.")
+        return {}
+    except Exception as e:
+        messagebox.showerror("خطأ", f"فشل تحميل البيانات: {str(e)}")
+        return {}
 
 # ============================================================
 # 🔹 الواجهة الأولى: إنشاء الحساب
 # ============================================================
 class CreateAccountWindow(ctk.CTk):
-    def __init__(self):
+    def __init__(self, lang="ar"):
         super().__init__()
-        self.title("نظام المعهد - إنشاء حساب")
+        self.title("نظام المعهد - إنشاء حساب" if lang == "ar" else "Institute System - Create Account")
         self.geometry("600x400")
         self.resizable(False, False)
-
+        self.lang = lang
         self.data = load_data()
-
-        ctk.CTkLabel(self, text="إنشاء حساب أستاذ", font=("Cairo", 22, "bold")).pack(pady=20)
-
-        self.name_entry = ctk.CTkEntry(self, placeholder_text="اسم الأستاذ")
-        self.name_entry.pack(pady=10, padx=40, fill="x")
-
-        self.inst_entry = ctk.CTkEntry(self, placeholder_text="اسم المعهد")
-        self.inst_entry.pack(pady=10, padx=40, fill="x")
-
         self.students = []
 
-        self.add_students_btn = ctk.CTkButton(self, text="إضافة الطلاب", command=self.open_student_popup)
+        # UI Elements
+        ctk.CTkLabel(
+            self,
+            text="إنشاء حساب أستاذ" if lang == "ar" else "Create Teacher Account",
+            font=("Cairo" if lang == "ar" else "Arial", 22, "bold")
+        ).pack(pady=20)
+
+        self.name_entry = ctk.CTkEntry(self, placeholder_text="اسم الأستاذ" if lang == "ar" else "Teacher Name")
+        self.name_entry.pack(pady=10, padx=40, fill="x")
+
+        self.inst_entry = ctk.CTkEntry(self, placeholder_text="اسم المعهد" if lang == "ar" else "Institute Name")
+        self.inst_entry.pack(pady=10, padx=40, fill="x")
+
+        self.add_students_btn = ctk.CTkButton(
+            self,
+            text="إضافة الطلاب" if lang == "ar" else "Add Students",
+            command=self.open_student_popup
+        )
         self.add_students_btn.pack(pady=15)
 
-        self.create_btn = ctk.CTkButton(self, text="إنشاء الحساب", fg_color="#5E2A7E", command=self.create_account)
+        self.create_btn = ctk.CTkButton(
+            self,
+            text="إنشاء الحساب" if lang == "ar" else "Create Account",
+            fg_color="#5E2A7E",
+            command=self.create_account
+        )
         self.create_btn.pack(pady=25)
 
     def open_student_popup(self):
         popup = ctk.CTkToplevel(self)
-        popup.title("إدخال أسماء الطلاب")
+        popup.title("إدخال أسماء الطلاب" if self.lang == "ar" else "Enter Student Names")
         popup.geometry("400x400")
+        popup.transient(self)  # Keep popup on top of main window
+        popup.grab_set()  # Make popup modal
 
-        self.student_listbox = ctk.CTkTextbox(popup, width=350, height=220)
+        self.student_listbox = ctk.CTkTextbox(popup, width=350, height=220, state="disabled")
         self.student_listbox.pack(pady=15)
 
-        add_btn = ctk.CTkButton(popup, text="إضافة طالب", command=lambda: self.add_student(popup))
+        add_btn = ctk.CTkButton(
+            popup,
+            text="إضافة طالب" if self.lang == "ar" else "Add Student",
+            command=lambda: self.add_student(popup)
+        )
         add_btn.pack(pady=5)
 
-        remove_btn = ctk.CTkButton(popup, text="حذف طالب", fg_color="#AA3333", command=lambda: self.remove_student(popup))
+        remove_btn = ctk.CTkButton(
+            popup,
+            text="حذف طالب" if self.lang == "ar" else "Remove Student",
+            fg_color="#AA3333",
+            command=lambda: self.remove_student(popup)
+        )
         remove_btn.pack(pady=5)
 
-        save_btn = ctk.CTkButton(popup, text="حفظ القائمة", fg_color="#5E2A7E", command=lambda: self.save_students(popup))
+        save_btn = ctk.CTkButton(
+            popup,
+            text="حفظ القائمة" if self.lang == "ar" else "Save List",
+            fg_color="#5E2A7E",
+            command=lambda: self.save_students(popup)
+        )
         save_btn.pack(pady=15)
 
     def add_student(self, popup):
-        name = simpledialog.askstring("اسم الطالب", "أدخل اسم الطالب:")
-        if name:
+        name = simpledialog.askstring(
+            "اسم الطالب" if self.lang == "ar" else "Student Name",
+            "أدخل اسم الطالب:" if self.lang == "ar" else "Enter student name:"
+        )
+        if name and re.match(r"^[a-zA-Z\sأ-ي]+$", name):  # Validate name (letters only)
+            if any(s["name"] == name for s in self.students):
+                messagebox.showerror(
+                    "خطأ" if self.lang == "ar" else "Error",
+                    "اسم الطالب موجود بالفعل." if self.lang == "ar" else "Student name already exists."
+                )
+                return
             self.students.append({"name": name, "grades": [], "info": ""})
             self.refresh_students_display()
+            messagebox.showinfo(
+                "تم" if self.lang == "ar" else "Success",
+                f"تم إضافة الطالب {name} بنجاح." if self.lang == "ar" else f"Student {name} added successfully."
+            )
+        elif name:
+            messagebox.showerror(
+                "خطأ" if self.lang == "ar" else "Error",
+                "الاسم يجب أن يحتوي على حروف فقط." if self.lang == "ar" else "Name must contain letters only."
+            )
 
     def remove_student(self, popup):
-        name = simpledialog.askstring("حذف طالب", "أدخل اسم الطالب الذي تريد حذفه:")
-        self.students = [s for s in self.students if s["name"] != name]
-        self.refresh_students_display()
+        name = simpledialog.askstring(
+            "حذف طالب" if self.lang == "ar" else "Remove Student",
+            "أدخل اسم الطالب الذي تريد حذفه:" if self.lang == "ar" else "Enter student name to remove:"
+        )
+        if name and any(s["name"] == name for s in self.students):
+            self.students = [s for s in self.students if s["name"] != name]
+            self.refresh_students_display()
+            messagebox.showinfo(
+                "تم" if self.lang == "ar" else "Success",
+                f"تم حذف الطالب {name} بنجاح." if self.lang == "ar" else f"Student {name} removed successfully."
+            )
+        elif name:
+            messagebox.showerror(
+                "خطأ" if self.lang == "ar" else "Error",
+                "اسم الطالب غير موجود." if self.lang == "ar" else "Student name not found."
+            )
 
     def refresh_students_display(self):
+        self.student_listbox.configure(state="normal")
         text = "\n".join([s["name"] for s in self.students])
         self.student_listbox.delete("1.0", "end")
         self.student_listbox.insert("end", text)
+        self.student_listbox.configure(state="disabled")
 
     def save_students(self, popup):
         if not self.students:
-            messagebox.showerror("خطأ", "يجب إدخال طالب واحد على الأقل.")
+            messagebox.showerror(
+                "خطأ" if self.lang == "ar" else "Error",
+                "يجب إدخال طالب واحد على الأقل." if self.lang == "ar" else "At least one student must be added."
+            )
             return
         popup.destroy()
-        messagebox.showinfo("تم", "تم حفظ قائمة الطلاب بنجاح ✅")
+        messagebox.showinfo(
+            "تم" if self.lang == "ar" else "Success",
+            "تم حفظ قائمة الطلاب بنجاح ✅" if self.lang == "ar" else "Student list saved successfully ✅"
+        )
 
     def create_account(self):
         name = self.name_entry.get().strip()
         inst = self.inst_entry.get().strip()
 
         if not name or not inst:
-            messagebox.showerror("خطأ", "الرجاء إدخال جميع البيانات.")
+            messagebox.showerror(
+                "خطأ" if self.lang == "ar" else "Error",
+                "الرجاء إدخال جميع البيانات." if self.lang == "ar" else "Please enter all required fields."
+            )
             return
 
         if not self.students:
-            messagebox.showerror("خطأ", "الرجاء إضافة الطلاب أولاً.")
+            messagebox.showerror(
+                "خطأ" if self.lang == "ar" else "Error",
+                "الرجاء إضافة الطلاب أولاً." if self.lang == "ar" else "Please add students first."
+            )
             return
 
         creation_date = datetime.now().strftime("%Y-%m-%d")
-
         self.data = {
             "teacher": name,
             "institute": inst,
@@ -117,27 +209,55 @@ class CreateAccountWindow(ctk.CTk):
         }
 
         save_data(self.data)
-        messagebox.showinfo("تم", "تم إنشاء الحساب بنجاح 🎉")
+        messagebox.showinfo(
+            "تم" if self.lang == "ar" else "Success",
+            "تم إنشاء الحساب بنجاح 🎉" if self.lang == "ar" else "Account created successfully 🎉"
+        )
 
         self.destroy()
-        StudentWindow(self.data).mainloop()
-
+        StudentWindow(self.data, self.lang).mainloop()
 
 # ============================================================
-# 🔹 واجهة الطلاب
+# 🔹 واجهة إدارة الطلاب
 # ============================================================
 class StudentWindow(ctk.CTk):
-    def __init__(self, data):
+    def __init__(self, data, lang="ar"):
         super().__init__()
         self.data = data
-        self.title("إدارة الطلاب")
-        self.geometry("800x500")
+        self.lang = lang
+        self.title("إدارة الطلاب" if lang == "ar" else "Manage Students")
+        self.geometry("800x600")
         self.resizable(False, False)
 
-        ctk.CTkLabel(self, text=f"المعهد: {data['institute']}", font=("Cairo", 20, "bold")).pack(pady=10)
+        # Language toggle
+        self.lang_toggle = ctk.CTkButton(
+            self,
+            text="English" if lang == "ar" else "العربية",
+            command=self.toggle_language
+        )
+        self.lang_toggle.pack(anchor="ne", padx=10, pady=5)
 
-        # زر التصدير
-        export_btn = ctk.CTkButton(self, text="📊 تصدير إلى Excel", fg_color="#5E2A7E", command=self.export_to_excel)
+        ctk.CTkLabel(
+            self,
+            text=f"المعهد: {data['institute']}" if lang == "ar" else f"Institute: {data['institute']}",
+            font=("Cairo" if lang == "ar" else "Arial", 20, "bold")
+        ).pack(pady=10)
+
+        # Search bar
+        self.search_entry = ctk.CTkEntry(
+            self,
+            placeholder_text="ابحث عن طالب..." if lang == "ar" else "Search for a student..."
+        )
+        self.search_entry.pack(pady=5, padx=40, fill="x")
+        self.search_entry.bind("<KeyRelease>", self.filter_students)
+
+        # Export button
+        export_btn = ctk.CTkButton(
+            self,
+            text="📊 تصدير إلى Excel" if lang == "ar" else "📊 Export to Excel",
+            fg_color="#5E2A7E",
+            command=self.export_to_excel
+        )
         export_btn.pack(pady=5)
 
         self.frame = ctk.CTkScrollableFrame(self, width=700, height=400)
@@ -145,58 +265,155 @@ class StudentWindow(ctk.CTk):
 
         self.load_students()
 
-    def load_students(self):
+    def toggle_language(self):
+        new_lang = "en" if self.lang == "ar" else "ar"
+        self.destroy()
+        StudentWindow(self.data, new_lang).mainloop()
+
+    def filter_students(self, event=None):
+        search_term = self.search_entry.get().strip().lower()
+        filtered_students = [
+            s for s in self.data["students"]
+            if search_term in s["name"].lower()
+        ]
+        self.load_students(filtered_students if search_term else self.data["students"])
+
+    def load_students(self, students=None):
         for widget in self.frame.winfo_children():
             widget.destroy()
 
-        for i, student in enumerate(self.data["students"]):
+        students = students or self.data["students"]
+        for i, student in enumerate(students):
             total = sum(student.get("grades", []))
             row = ctk.CTkFrame(self.frame)
             row.pack(fill="x", pady=5, padx=10)
 
-            ctk.CTkLabel(row, text=f"{i+1}- {student['name']}", font=("Cairo", 16)).pack(side="left", padx=10)
-            ctk.CTkLabel(row, text=f"المجموع: {total}", font=("Cairo", 16)).pack(side="left", padx=20)
-            ctk.CTkButton(row, text="تعديل", width=70, command=lambda s=student: self.edit_student(s)).pack(side="right", padx=10)
+            ctk.CTkLabel(
+                row,
+                text=f"{i+1}- {student['name']}",
+                font=("Cairo" if self.lang == "ar" else "Arial", 16)
+            ).pack(side="left" if self.lang == "ar" else "right", padx=10)
+            ctk.CTkLabel(
+                row,
+                text=f"المجموع: {total}" if self.lang == "ar" else f"Total: {total}",
+                font=("Cairo" if self.lang == "ar" else "Arial", 16)
+            ).pack(side="left" if self.lang == "ar" else "right", padx=20)
+            ctk.CTkButton(
+                row,
+                text="تعديل" if self.lang == "ar" else "Edit",
+                width=70,
+                command=lambda s=student: self.edit_student(s)
+            ).pack(side="right" if self.lang == "ar" else "left", padx=10)
 
     def edit_student(self, student):
+        creation_date = datetime.strptime(self.data["created_at"], "%Y-%m-%d")
+        if datetime.now() > creation_date + timedelta(days=EDIT_DAYS_LIMIT):
+            messagebox.showinfo(
+                "تنبيه" if self.lang == "ar" else "Alert",
+                "انتهت فترة تعديل البيانات." if self.lang == "ar" else "Editing period has expired."
+            )
+            return
+
         popup = ctk.CTkToplevel(self)
-        popup.title(f"تعديل بيانات {student['name']}")
+        popup.title(f"تعديل بيانات {student['name']}" if self.lang == "ar" else f"Edit {student['name']} Data")
         popup.geometry("400x400")
+        popup.transient(self)
+        popup.grab_set()
 
-        grades_text = ctk.CTkTextbox(popup, width=350, height=100)
-        grades_text.insert("end", " ".join(map(str, student.get("grades", []))))
-        grades_text.pack(pady=15)
+        ctk.CTkLabel(
+            popup,
+            text="العلامات (مفصولة بمسافة):" if self.lang == "ar" else "Grades (space-separated):",
+            font=("Cairo" if self.lang == "ar" else "Arial", 14)
+        ).pack(pady=5)
+        grades_text = ctk.CTkEntry(popup, width=350)
+        grades_text.insert(0, " ".join(map(str, student.get("grades", []))))
+        grades_text.pack(pady=10)
 
+        ctk.CTkLabel(
+            popup,
+            text="ملاحظات:" if self.lang == "ar" else "Notes:",
+            font=("Cairo" if self.lang == "ar" else "Arial", 14)
+        ).pack(pady=5)
         info_entry = ctk.CTkTextbox(popup, width=350, height=80)
         info_entry.insert("end", student.get("info", ""))
         info_entry.pack(pady=10)
 
         def save_changes():
-            grades_str = grades_text.get("1.0", "end").strip()
+            grades_str = grades_text.get().strip()
             if grades_str:
-                student["grades"] = list(map(int, grades_str.split()))
-            student["info"] = info_entry.get("1.0", "end").strip()
+                try:
+                    grades = list(map(int, grades_str.split()))
+                    if any(g < 0 or g > MAX_GRADES for g in grades):
+                        messagebox.showerror(
+                            "خطأ" if self.lang == "ar" else "Error",
+                            f"العلامات يجب أن تكون بين 0 و {MAX_GRADES}." if self.lang == "ar" else f"Grades must be between 0 and {MAX_GRADES}."
+                        )
+                        return
+                    student["grades"] = grades
+                except ValueError:
+                    messagebox.showerror(
+                        "خطأ" if self.lang == "ar" else "Error",
+                        "يجب أن تكون العلامات أرقام صحيحة مفصولة بمسافة." if self.lang == "ar" else "Grades must be space-separated integers."
+                    )
+                    return
+            else:
+                student["grades"] = []
 
+            student["info"] = info_entry.get("1.0", "end").strip()
             save_data(self.data)
             popup.destroy()
             self.load_students()
+            messagebox.showinfo(
+                "تم" if self.lang == "ar" else "Success",
+                "تم حفظ التغييرات بنجاح ✅" if self.lang == "ar" else "Changes saved successfully ✅"
+            )
 
-        ctk.CTkButton(popup, text="💾 حفظ", fg_color="#5E2A7E", command=save_changes).pack(pady=10)
+        ctk.CTkButton(
+            popup,
+            text="💾 حفظ" if self.lang == "ar" else "💾 Save",
+            fg_color="#5E2A7E",
+            command=save_changes
+        ).pack(pady=10)
 
     def export_to_excel(self):
-        wb = Workbook()
-        ws = wb.active
-        ws.title = "Students"
+        self.attributes("-disabled", True)  # Disable window during export
+        try:
+            wb = Workbook()
+            ws = wb.active
+            ws.title = "Students"
+            ws.append([
+                "الاسم" if self.lang == "ar" else "Name",
+                "العلامات" if self.lang == "ar" else "Grades",
+                "المجموع" if self.lang == "ar" else "Total",
+                "ملاحظات" if self.lang == "ar" else "Notes"
+            ])
 
-        ws.append(["الاسم", "العلامات", "المجموع", "ملاحظات"])
+            for student in self.data["students"]:
+                total = sum(student.get("grades", []))
+                ws.append([
+                    student["name"],
+                    " ".join(map(str, student.get("grades", []))),
+                    total,
+                    student.get("info", "")
+                ])
 
-        for student in self.data["students"]:
-            total = sum(student.get("grades", []))
-            ws.append([student["name"], " ".join(map(str, student.get("grades", []))), total, student.get("info", "")])
-
-        wb.save("students_data.xlsx")
-        messagebox.showinfo("تم", "تم تصدير البيانات إلى ملف Excel بنجاح ✅")
-
+            wb.save("students_data.xlsx")
+            messagebox.showinfo(
+                "تم" if self.lang == "ar" else "Success",
+                "تم تصدير البيانات إلى ملف Excel بنجاح ✅" if self.lang == "ar" else "Data exported to Excel successfully ✅"
+            )
+        except PermissionError:
+            messagebox.showerror(
+                "خطأ" if self.lang == "ar" else "Error",
+                "الملف مفتوح في برنامج آخر. أغلق الملف وحاول مجدداً." if self.lang == "ar" else "File is open in another program. Close it and try again."
+            )
+        except Exception as e:
+            messagebox.showerror(
+                "خطأ" if self.lang == "ar" else "Error",
+                f"حدث خطأ أثناء التصدير: {str(e)}" if self.lang == "ar" else f"Error during export: {str(e)}"
+            )
+        finally:
+            self.attributes("-disabled", False)
 
 # ============================================================
 # 🟢 تشغيل التطبيق
@@ -204,10 +421,19 @@ class StudentWindow(ctk.CTk):
 if __name__ == "__main__":
     if os.path.exists(DATA_FILE):
         data = load_data()
-        creation_date = datetime.strptime(data["created_at"], "%Y-%m-%d")
-        if datetime.now() > creation_date + timedelta(days=5):
-            # قفل تعديل قائمة الطلاب بعد 5 أيام
-            messagebox.showinfo("تنبيه", "انتهت فترة تعديل قائمة الطلاب.")
-        StudentWindow(data).mainloop()
+        if not data:
+            CreateAccountWindow().mainloop()
+        else:
+            try:
+                creation_date = datetime.strptime(data["created_at"], "%Y-%m-%d")
+                if datetime.now() > creation_date + timedelta(days=EDIT_DAYS_LIMIT):
+                    messagebox.showinfo(
+                        "تنبيه",
+                        "انتهت فترة تعديل قائمة الطلاب."
+                    )
+                StudentWindow(data).mainloop()
+            except KeyError:
+                messagebox.showerror("خطأ", "بيانات الملف غير صحيحة. سيتم إنشاء حساب جديد.")
+                CreateAccountWindow().mainloop()
     else:
         CreateAccountWindow().mainloop()
