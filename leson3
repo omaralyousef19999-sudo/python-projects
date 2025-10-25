@@ -1,0 +1,8 @@
+print("pleas enter student's marks:")
+x=int(input())
+if x>50:
+    print("Successful")
+else:
+   print("failure ")
+
+
