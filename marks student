@@ -1,0 +1,213 @@
+import customtkinter as ctk
+from tkinter import messagebox, simpledialog
+import json
+import os
+from datetime import datetime, timedelta
+from openpyxl import Workbook
+
+# ========== إعدادات الواجهة ==========
+ctk.set_appearance_mode("dark")
+ctk.set_default_color_theme("dark-blue")
+
+DATA_FILE = "students_data.json"
+
+# ============================================================
+# 🔹 دالة حفظ البيانات إلى ملف
+# ============================================================
+def save_data(data):
+    with open(DATA_FILE, "w") as f:
+        json.dump(data, f, indent=4)
+
+# ============================================================
+# 🔹 دالة تحميل البيانات من الملف
+# ============================================================
+def load_data():
+    if not os.path.exists(DATA_FILE):
+        return {}
+    with open(DATA_FILE, "r") as f:
+        return json.load(f)
+
+# ============================================================
+# 🔹 الواجهة الأولى: إنشاء الحساب
+# ============================================================
+class CreateAccountWindow(ctk.CTk):
+    def __init__(self):
+        super().__init__()
+        self.title("نظام المعهد - إنشاء حساب")
+        self.geometry("600x400")
+        self.resizable(False, False)
+
+        self.data = load_data()
+
+        ctk.CTkLabel(self, text="إنشاء حساب أستاذ", font=("Cairo", 22, "bold")).pack(pady=20)
+
+        self.name_entry = ctk.CTkEntry(self, placeholder_text="اسم الأستاذ")
+        self.name_entry.pack(pady=10, padx=40, fill="x")
+
+        self.inst_entry = ctk.CTkEntry(self, placeholder_text="اسم المعهد")
+        self.inst_entry.pack(pady=10, padx=40, fill="x")
+
+        self.students = []
+
+        self.add_students_btn = ctk.CTkButton(self, text="إضافة الطلاب", command=self.open_student_popup)
+        self.add_students_btn.pack(pady=15)
+
+        self.create_btn = ctk.CTkButton(self, text="إنشاء الحساب", fg_color="#5E2A7E", command=self.create_account)
+        self.create_btn.pack(pady=25)
+
+    def open_student_popup(self):
+        popup = ctk.CTkToplevel(self)
+        popup.title("إدخال أسماء الطلاب")
+        popup.geometry("400x400")
+
+        self.student_listbox = ctk.CTkTextbox(popup, width=350, height=220)
+        self.student_listbox.pack(pady=15)
+
+        add_btn = ctk.CTkButton(popup, text="إضافة طالب", command=lambda: self.add_student(popup))
+        add_btn.pack(pady=5)
+
+        remove_btn = ctk.CTkButton(popup, text="حذف طالب", fg_color="#AA3333", command=lambda: self.remove_student(popup))
+        remove_btn.pack(pady=5)
+
+        save_btn = ctk.CTkButton(popup, text="حفظ القائمة", fg_color="#5E2A7E", command=lambda: self.save_students(popup))
+        save_btn.pack(pady=15)
+
+    def add_student(self, popup):
+        name = simpledialog.askstring("اسم الطالب", "أدخل اسم الطالب:")
+        if name:
+            self.students.append({"name": name, "grades": [], "info": ""})
+            self.refresh_students_display()
+
+    def remove_student(self, popup):
+        name = simpledialog.askstring("حذف طالب", "أدخل اسم الطالب الذي تريد حذفه:")
+        self.students = [s for s in self.students if s["name"] != name]
+        self.refresh_students_display()
+
+    def refresh_students_display(self):
+        text = "\n".join([s["name"] for s in self.students])
+        self.student_listbox.delete("1.0", "end")
+        self.student_listbox.insert("end", text)
+
+    def save_students(self, popup):
+        if not self.students:
+            messagebox.showerror("خطأ", "يجب إدخال طالب واحد على الأقل.")
+            return
+        popup.destroy()
+        messagebox.showinfo("تم", "تم حفظ قائمة الطلاب بنجاح ✅")
+
+    def create_account(self):
+        name = self.name_entry.get().strip()
+        inst = self.inst_entry.get().strip()
+
+        if not name or not inst:
+            messagebox.showerror("خطأ", "الرجاء إدخال جميع البيانات.")
+            return
+
+        if not self.students:
+            messagebox.showerror("خطأ", "الرجاء إضافة الطلاب أولاً.")
+            return
+
+        creation_date = datetime.now().strftime("%Y-%m-%d")
+
+        self.data = {
+            "teacher": name,
+            "institute": inst,
+            "created_at": creation_date,
+            "students": self.students
+        }
+
+        save_data(self.data)
+        messagebox.showinfo("تم", "تم إنشاء الحساب بنجاح 🎉")
+
+        self.destroy()
+        StudentWindow(self.data).mainloop()
+
+
+# ============================================================
+# 🔹 واجهة الطلاب
+# ============================================================
+class StudentWindow(ctk.CTk):
+    def __init__(self, data):
+        super().__init__()
+        self.data = data
+        self.title("إدارة الطلاب")
+        self.geometry("800x500")
+        self.resizable(False, False)
+
+        ctk.CTkLabel(self, text=f"المعهد: {data['institute']}", font=("Cairo", 20, "bold")).pack(pady=10)
+
+        # زر التصدير
+        export_btn = ctk.CTkButton(self, text="📊 تصدير إلى Excel", fg_color="#5E2A7E", command=self.export_to_excel)
+        export_btn.pack(pady=5)
+
+        self.frame = ctk.CTkScrollableFrame(self, width=700, height=400)
+        self.frame.pack(pady=10)
+
+        self.load_students()
+
+    def load_students(self):
+        for widget in self.frame.winfo_children():
+            widget.destroy()
+
+        for i, student in enumerate(self.data["students"]):
+            total = sum(student.get("grades", []))
+            row = ctk.CTkFrame(self.frame)
+            row.pack(fill="x", pady=5, padx=10)
+
+            ctk.CTkLabel(row, text=f"{i+1}- {student['name']}", font=("Cairo", 16)).pack(side="left", padx=10)
+            ctk.CTkLabel(row, text=f"المجموع: {total}", font=("Cairo", 16)).pack(side="left", padx=20)
+            ctk.CTkButton(row, text="تعديل", width=70, command=lambda s=student: self.edit_student(s)).pack(side="right", padx=10)
+
+    def edit_student(self, student):
+        popup = ctk.CTkToplevel(self)
+        popup.title(f"تعديل بيانات {student['name']}")
+        popup.geometry("400x400")
+
+        grades_text = ctk.CTkTextbox(popup, width=350, height=100)
+        grades_text.insert("end", " ".join(map(str, student.get("grades", []))))
+        grades_text.pack(pady=15)
+
+        info_entry = ctk.CTkTextbox(popup, width=350, height=80)
+        info_entry.insert("end", student.get("info", ""))
+        info_entry.pack(pady=10)
+
+        def save_changes():
+            grades_str = grades_text.get("1.0", "end").strip()
+            if grades_str:
+                student["grades"] = list(map(int, grades_str.split()))
+            student["info"] = info_entry.get("1.0", "end").strip()
+
+            save_data(self.data)
+            popup.destroy()
+            self.load_students()
+
+        ctk.CTkButton(popup, text="💾 حفظ", fg_color="#5E2A7E", command=save_changes).pack(pady=10)
+
+    def export_to_excel(self):
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Students"
+
+        ws.append(["الاسم", "العلامات", "المجموع", "ملاحظات"])
+
+        for student in self.data["students"]:
+            total = sum(student.get("grades", []))
+            ws.append([student["name"], " ".join(map(str, student.get("grades", []))), total, student.get("info", "")])
+
+        wb.save("students_data.xlsx")
+        messagebox.showinfo("تم", "تم تصدير البيانات إلى ملف Excel بنجاح ✅")
+
+
+# ============================================================
+# 🟢 تشغيل التطبيق
+# ============================================================
+if __name__ == "__main__":
+    if os.path.exists(DATA_FILE):
+        data = load_data()
+        creation_date = datetime.strptime(data["created_at"], "%Y-%m-%d")
+        if datetime.now() > creation_date + timedelta(days=5):
+            # قفل تعديل قائمة الطلاب بعد 5 أيام
+            messagebox.showinfo("تنبيه", "انتهت فترة تعديل قائمة الطلاب.")
+        StudentWindow(data).mainloop()
+    else:
+        CreateAccountWindow().mainloop()
