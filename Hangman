@@ -1,0 +1,155 @@
+import tkinter as tk
+from tkinter import messagebox
+import random
+
+# ========== إعدادات اللعبة ==========
+words = ['good', 'bad', 'ugly', 'python', 'shadow', 'dream']
+random_word = random.choice(words)
+display = ["_"] * len(random_word)
+lives = 6
+guessed_letters = []
+
+# ========= رسومات الرجل المشنوق =========
+art = [
+    """
+    --------
+           |
+           |
+           |
+           |
+    =======       
+    """,
+    """
+   --------
+      |   |
+          |
+          |
+          |
+   =======       
+    """,
+    """
+   --------
+      |   |
+      o   |
+          |
+          |
+   =======
+    """,
+    """
+   --------
+       |  |
+       o  |
+       |  |
+          |
+   ========
+    """,
+    """
+   --------
+       |  |
+       o  |
+      /|  |
+          |
+   ========
+    """,
+    """
+  ---------
+      |   |
+      o   |
+     /|\\  |
+          |
+   ========
+    """,
+    """
+   --------
+      |   |
+      o   |
+     /|\\  |
+     / \\  |
+   ========
+    """
+]
+
+# ========== واجهة اللعبة ==========
+window = tk.Tk()
+window.title("Hangman Game 🎮")
+window.geometry("720x600")
+window.configure(bg="#1A1B26")
+
+title_label = tk.Label(window, text="🎭 Hangman", fg="#A76EFF", bg="#1A1B26", font=("Orbitron", 32, "bold"))
+title_label.pack(pady=20)
+
+# عرض الكلمة
+word_label = tk.Label(window, text=' '.join(display), fg="white", bg="#1A1B26", font=("Consolas", 28))
+word_label.pack(pady=10)
+
+# عرض الأرواح
+lives_label = tk.Label(window, text=f"Lives: {lives}", fg="#FF6B6B", bg="#1A1B26", font=("Arial", 18, "bold"))
+lives_label.pack()
+
+# عرض الرجل المشنوق
+hangman_art = tk.Label(window, text=art[0], fg="#A76EFF", bg="#1A1B26", font=("Courier", 14, "bold"))
+hangman_art.pack(pady=10)
+
+# إطار للأزرار
+buttons_frame = tk.Frame(window, bg="#1A1B26")
+buttons_frame.pack(pady=10)
+
+# ========== دوال اللعبة ==========
+def check_letter(letter):
+    global lives
+
+    if letter in guessed_letters:
+        messagebox.showinfo("⚠️", f"You already guessed '{letter}'!")
+        return
+
+    guessed_letters.append(letter)
+
+    if letter in random_word:
+        for i in range(len(random_word)):
+            if random_word[i] == letter:
+                display[i] = letter
+        word_label.config(text=' '.join(display))
+    else:
+        lives -= 1
+        hangman_art.config(text=art[6 - lives])
+        lives_label.config(text=f"Lives: {lives}")
+
+    # فوز
+    if "_" not in display:
+        messagebox.showinfo("🎉 You Win!", f"The word was: {random_word.upper()}")
+        reset_game()
+    # خسارة
+    elif lives == 0:
+        messagebox.showerror("💀 Game Over", f"You Lost! The word was: {random_word.upper()}")
+        reset_game()
+
+def reset_game():
+    global random_word, display, lives, guessed_letters
+    random_word = random.choice(words)
+    display = ["_"] * len(random_word)
+    lives = 6
+    guessed_letters = []
+    word_label.config(text=' '.join(display))
+    lives_label.config(text=f"Lives: {lives}")
+    hangman_art.config(text=art[0])
+
+# ========== إنشاء أزرار الحروف ==========
+letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+row = 0
+col = 0
+for letter in letters:
+    btn = tk.Button(buttons_frame, text=letter, width=4, height=2, fg="#F7F7FF", bg="#5E2A7E",
+                    activebackground="#A76EFF", font=("Arial", 12, "bold"),
+                    command=lambda l=letter.lower(): check_letter(l))
+    btn.grid(row=row, column=col, padx=5, pady=5)
+    col += 1
+    if col == 9:
+        row += 1
+        col = 0
+
+# ========== زر إعادة ==========
+reset_btn = tk.Button(window, text="🔄 Restart", bg="#5E2A7E", fg="white", font=("Arial", 14, "bold"),
+                      command=reset_game)
+reset_btn.pack(pady=20)
+
+window.mainloop()
