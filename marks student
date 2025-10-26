@@ -588,7 +588,7 @@ class CreateAccountWindow(ctk.CTk):
         remove_btn.pack(side="right" if self.lang == "ar" else "left", padx=5)
 
         self.student_list_frame = ctk.CTkScrollableFrame(self.main_frame, corner_radius=8)
-        self.student_list_frame.pack(pady= => 10, padx=40, fill="both", expand=True)
+        self.student_list_frame.pack(pady = 10, padx=40, fill="both", expand=True)
         self.refresh_student_list()
 
     def add_student(self):
