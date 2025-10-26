@@ -1,6 +1,6 @@
 import customtkinter as ctk
 from tkinter import messagebox, Canvas
-from PIL import Image  # استيراد Image من Pillow
+from PIL import Image
 import json
 import os
 from datetime import datetime, timedelta
@@ -9,7 +9,8 @@ import shutil
 import re
 import random
 import time
-import pygame  # لتشغيل الصوت
+import pygame
+import hashlib  # لتشفير كلمات المرور
 
 # ========== إعدادات الواجهة ==========
 ctk.set_appearance_mode("dark")
@@ -19,8 +20,14 @@ DATA_FILE = "students_data.json"
 BACKUP_FILE = "students_data_backup.json"
 MAX_GRADES = 100
 EDIT_DAYS_LIMIT = 5
-FIREWORKS_SOUND = "fireworks.wav"  # اسم ملف الصوت
+FIREWORKS_SOUND = "fireworks.wav"
 EMAIL = "omar.alyousef.19999@gmail.com"
+
+# ============================================================
+# 🔹 دالة تشفير كلمة المرور
+# ============================================================
+def hash_password(password):
+    return hashlib.sha256(password.encode()).hexdigest()
 
 # ============================================================
 # 🔹 دالة حفظ البيانات
@@ -45,7 +52,7 @@ def load_data():
         with open(DATA_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
             if "accounts" not in data:
-                data = {"accounts": [data]}  # تحويل هيكل قديم إلى جديد
+                data = {"accounts": [data]}
             return data
     except json.JSONDecodeError:
         messagebox.showerror("خطأ", "ملف البيانات تالف. سيتم إنشاء ملف جديد.")
@@ -140,7 +147,6 @@ class AccountManagerWindow(ctk.CTk):
         window_height = int(screen_height * 0.8)
         self.wm_geometry(f"{window_width}x{window_height}+{int((screen_width - window_width) / 2)}+{int((screen_height - window_height) / 2)}")
 
-        # تحسين الخلفية: إضافة صورة
         try:
             self.background_image = ctk.CTkImage(dark_image=Image.open("background.png"), size=(window_width, window_height))
         except FileNotFoundError:
@@ -238,7 +244,7 @@ class AccountManagerWindow(ctk.CTk):
     def show_password_prompt(self, account):
         popup = ctk.CTkToplevel(self)
         popup.title("تأكيد كلمة المرور" if self.lang == "ar" else "Password Confirmation")
-        popup.geometry("400x250")
+        popup.geometry("400x300")
         popup.transient(self)
         popup.grab_set()
 
@@ -259,9 +265,8 @@ class AccountManagerWindow(ctk.CTk):
             height=40
         )
         password_entry.pack(pady=10, padx=20, fill="x")
-        password_entry.focus_set()  # وضع التركيز على حقل الإدخال
+        password_entry.focus_set()
 
-        # ربط مفتاح Enter مع دالة التحقق
         password_entry.bind("<Return>", lambda event: verify_password())
 
         show_password_switch = ctk.CTkSwitch(
@@ -274,7 +279,8 @@ class AccountManagerWindow(ctk.CTk):
 
         def verify_password():
             entered_password = password_entry.get().strip()
-            if entered_password == account.get("password", ""):
+            hashed_entered_password = hash_password(entered_password)
+            if hashed_entered_password == account.get("password", ""):
                 popup.destroy()
                 self.destroy()
                 StudentWindow(account, self.lang).mainloop()
@@ -284,7 +290,6 @@ class AccountManagerWindow(ctk.CTk):
                     "كلمة المرور غير صحيحة." if self.lang == "ar" else "Incorrect password."
                 )
 
-        # إضافة زر التحقق
         verify_btn = ctk.CTkButton(
             frame,
             text="تحقق" if self.lang == "ar" else "Verify",
@@ -294,7 +299,94 @@ class AccountManagerWindow(ctk.CTk):
             hover_color="#7B1FA2",
             corner_radius=8
         )
-        verify_btn.pack(pady=15)
+        verify_btn.pack(pady=10)
+
+        cancel_btn = ctk.CTkButton(
+            frame,
+            text="إلغاء" if self.lang == "ar" else "Cancel",
+            font=("Cairo" if self.lang == "ar" else "Arial", 14),
+            command=popup.destroy,
+            fg_color="#D32F2F",
+            hover_color="#F44336",
+            corner_radius=8
+        )
+        cancel_btn.pack(pady=5)
+
+        forgot_password_btn = ctk.CTkButton(
+            frame,
+            text="نسيت كلمة المرور؟" if self.lang == "ar" else "Forgot Password?",
+            font=("Cairo" if self.lang == "ar" else "Arial", 12),
+            command=lambda: self.show_forgot_password(account, popup),
+            fg_color="#0288D1",
+            hover_color="#03A9F4",
+            corner_radius=8
+        )
+        forgot_password_btn.pack(pady=10)
+
+    def show_forgot_password(self, account, parent_popup):
+        forgot_popup = ctk.CTkToplevel(self)
+        forgot_popup.title("نسيت كلمة المرور" if self.lang == "ar" else "Forgot Password")
+        forgot_popup.geometry("400x250")
+        forgot_popup.transient(self)
+        forgot_popup.grab_set()
+
+        frame = ctk.CTkFrame(forgot_popup, corner_radius=10)
+        frame.pack(pady=20, padx=20, fill="both", expand=True)
+
+        ctk.CTkLabel(
+            frame,
+            text="أدخل بريدك الإلكتروني:" if self.lang == "ar" else "Enter your email:",
+            font=("Cairo" if self.lang == "ar" else "Arial", 14)
+        ).pack(pady=10)
+
+        email_entry = ctk.CTkEntry(
+            frame,
+            placeholder_text="البريد الإلكتروني" if self.lang == "ar" else "Email",
+            font=("Cairo" if self.lang == "ar" else "Arial", 14),
+            corner_radius=8,
+            height=40
+        )
+        email_entry.pack(pady=10, padx=20, fill="x")
+        email_entry.focus_set()
+
+        def verify_email():
+            entered_email = email_entry.get().strip()
+            if entered_email == EMAIL:
+                parent_popup.destroy()  # إغلاق نافذة كلمة المرور
+                forgot_popup.destroy()  # إغلاق نافذة البريد
+                messagebox.showinfo(
+                    "تم" if self.lang == "ar" else "Success",
+                    f"كلمة المرور الخاصة بك هي: {account.get('raw_password', 'غير متوفرة')}" if self.lang == "ar" else f"Your password is: {account.get('raw_password', 'Not available')}"
+                )
+            else:
+                messagebox.showerror(
+                    "خطأ" if self.lang == "ar" else "Error",
+                    "البريد الإلكتروني غير صحيح." if self.lang == "ar" else "Incorrect email."
+                )
+
+        email_entry.bind("<Return>", lambda event: verify_email())
+
+        verify_email_btn = ctk.CTkButton(
+            frame,
+            text="تحقق" if self.lang == "ar" else "Verify",
+            font=("Cairo" if self.lang == "ar" else "Arial", 14),
+            command=verify_email,
+            fg_color="#5E2A7E",
+            hover_color="#7B1FA2",
+            corner_radius=8
+        )
+        verify_email_btn.pack(pady=15)
+
+        cancel_email_btn = ctk.CTkButton(
+            frame,
+            text="إلغاء" if self.lang == "ar" else "Cancel",
+            font=("Cairo" if self.lang == "ar" else "Arial", 14),
+            command=forgot_popup.destroy,
+            fg_color="#D32F2F",
+            hover_color="#F44336",
+            corner_radius=8
+        )
+        cancel_email_btn.pack(pady=5)
 
     def delete_account(self, index):
         if messagebox.askyesno(
@@ -327,7 +419,6 @@ class CreateAccountWindow(ctk.CTk):
         window_height = int(screen_height * 0.8)
         self.wm_geometry(f"{window_width}x{window_height}+{int((screen_width - window_width) / 2)}+{int((screen_height - window_height) / 2)}")
 
-        # تحسين الخلفية: إضافة صورة
         try:
             self.background_image = ctk.CTkImage(dark_image=Image.open("background.png"), size=(window_width, window_height))
         except FileNotFoundError:
@@ -455,7 +546,6 @@ class CreateAccountWindow(ctk.CTk):
             )
 
     def open_student_input(self):
-        # إنشاء إطار إدخال الطلاب
         self.student_input_frame = ctk.CTkFrame(self.main_frame, corner_radius=10)
         self.student_input_frame.pack(pady=10, padx=40, fill="x")
 
@@ -473,7 +563,7 @@ class CreateAccountWindow(ctk.CTk):
             height=40
         )
         self.student_entry.pack(side="left" if self.lang == "ar" else "right", padx=5, fill="x", expand=True)
-        self.student_entry.bind("<Return>", lambda event: self.add_student())  # ربط مفتاح Enter
+        self.student_entry.bind("<Return>", lambda event: self.add_student())
 
         add_btn = ctk.CTkButton(
             self.student_input_frame,
@@ -497,14 +587,13 @@ class CreateAccountWindow(ctk.CTk):
         )
         remove_btn.pack(side="right" if self.lang == "ar" else "left", padx=5)
 
-        # إنشاء إطار قائمة الطلاب
         self.student_list_frame = ctk.CTkScrollableFrame(self.main_frame, corner_radius=8)
         self.student_list_frame.pack(pady=10, padx=40, fill="both", expand=True)
         self.refresh_student_list()
 
     def add_student(self):
         name = self.student_entry.get().strip()
-        print(f"محاولة إضافة طالب: {name}")  # طباعة تصحيحية للتحقق من الإدخال
+        print(f"محاولة إضافة طالب: {name}")
         if not name:
             messagebox.showerror(
                 "خطأ" if self.lang == "ar" else "Error",
@@ -524,9 +613,8 @@ class CreateAccountWindow(ctk.CTk):
             )
             return
 
-        # إضافة الطالب إلى القائمة
         self.students.append({"name": name, "grades": [], "info": ""})
-        print(f"تمت إضافة الطالب: {name}, القائمة الآن: {self.students}")  # طباعة تصحيحية
+        print(f"تمت إضافة الطالب: {name}, القائمة الآن: {self.students}")
         self.student_entry.delete(0, "end")
         self.refresh_student_list()
         messagebox.showinfo(
@@ -548,7 +636,7 @@ class CreateAccountWindow(ctk.CTk):
             self.refresh_student_list()
             messagebox.showinfo(
                 "تم" if self.lang == "ar" else "Success",
-                f"تم حذف الطالب {name} بنجاح." if self.lang == "ar" else f"Student {name} removed successfully."
+                f"تم删除 الطالب {name} بنجاح." if self.lang == "ar" else f"Student {name} removed successfully."
             )
         else:
             messagebox.showerror(
@@ -557,11 +645,9 @@ class CreateAccountWindow(ctk.CTk):
             )
 
     def refresh_student_list(self):
-        # مسح القائمة الحالية
         for widget in self.student_list_frame.winfo_children():
             widget.destroy()
 
-        # إضافة الطلاب إلى الواجهة
         if not self.students:
             ctk.CTkLabel(
                 self.student_list_frame,
@@ -579,35 +665,36 @@ class CreateAccountWindow(ctk.CTk):
                     font=("Cairo" if self.lang == "ar" else "Arial", 14),
                     anchor="w" if self.lang == "ar" else "e"
                 ).pack(pady=5, padx=10, fill="x")
-        print(f"تم تحديث قائمة الطلاب: {self.students}")  # طباعة تصحيحية
+        print(f"تم تحديث قائمة الطلاب: {self.students}")
 
     def create_account(self):
         name = self.name_entry.get().strip()
         inst = self.inst_entry.get().strip()
-        password = self.password_entry.get().strip()
+        raw_password = self.password_entry.get().strip()
 
-        if not name or not inst or not password:
+        if not name or not inst or not raw_password:
             messagebox.showerror(
                 "خطأ" if self.lang == "ar" else "Error",
-                "الرجاء إدخال جميع البيانات بما في ذلك كلمة المرور." if self.lang == "ar" else "Please enter all fields including password."
+                "الرجاء إدخل جميع البيانات بما في ذلك كلمة المرور." if self.lang == "ar" else "Please enter all fields including password."
             )
             return
 
         if not self.students:
-            messagebox.endpoint == "POST":
-                messagebox.showerror(
-                    "خطأ" if self.lang == "ar" else "Error",
-                    "الرجاء إضافة الطلاب أولاً." if self.lang == "ar" else "Please add students first."
-                )
+            messagebox.showerror(
+                "خطأ" if self.lang == "ar" else "Error",
+                "الرجاء إضافة الطلاب أولاً." if self.lang == "ar" else "Please add students first."
+            )
             return
 
+        hashed_password = hash_password(raw_password)
         creation_date = datetime.now().strftime("%Y-%m-%d")
         new_account = {
             "teacher": name,
             "institute": inst,
             "created_at": creation_date,
             "students": self.students,
-            "password": password
+            "password": hashed_password,
+            "raw_password": raw_password  # لعرضه في ميزة "نسيت كلمة المرور"
         }
 
         self.data["accounts"].append(new_account)
@@ -636,7 +723,6 @@ class StudentWindow(ctk.CTk):
         window_height = int(screen_height * 0.8)
         self.wm_geometry(f"{window_width}x{window_height}+{int((screen_width - window_width) / 2)}+{int((screen_height - window_height) / 2)}")
 
-        # تحسين الخلفية: إضافة صورة
         try:
             self.background_image = ctk.CTkImage(dark_image=Image.open("background.png"), size=(window_width, window_height))
         except FileNotFoundError:
