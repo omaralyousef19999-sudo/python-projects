@@ -238,19 +238,31 @@ class AccountManagerWindow(ctk.CTk):
     def show_password_prompt(self, account):
         popup = ctk.CTkToplevel(self)
         popup.title("تأكيد كلمة المرور" if self.lang == "ar" else "Password Confirmation")
-        popup.geometry("300x150")
+        popup.geometry("400x250")
         popup.transient(self)
         popup.grab_set()
 
         frame = ctk.CTkFrame(popup, corner_radius=10)
         frame.pack(pady=20, padx=20, fill="both", expand=True)
 
-        ctk.CTkLabel(frame, text="أدخل كلمة المرور:" if self.lang == "ar" else "Enter Password:",
-                     font=("Cairo" if self.lang == "ar" else "Arial", 14)).pack(pady=10)
+        ctk.CTkLabel(
+            frame,
+            text="أدخل كلمة المرور:" if self.lang == "ar" else "Enter Password:",
+            font=("Cairo" if self.lang == "ar" else "Arial", 14)
+        ).pack(pady=10)
 
-        password_entry = ctk.CTkEntry(frame, show="*", font=("Cairo" if self.lang == "ar" else "Arial", 14),
-                                      corner_radius=8, height=40)
-        password_entry.pack(pady=10)
+        password_entry = ctk.CTkEntry(
+            frame,
+            show="*",
+            font=("Cairo" if self.lang == "ar" else "Arial", 14),
+            corner_radius=8,
+            height=40
+        )
+        password_entry.pack(pady=10, padx=20, fill="x")
+        password_entry.focus_set()  # وضع التركيز على حقل الإدخال
+
+        # ربط مفتاح Enter مع دالة التحقق
+        password_entry.bind("<Return>", lambda event: verify_password())
 
         show_password_switch = ctk.CTkSwitch(
             frame,
@@ -258,7 +270,7 @@ class AccountManagerWindow(ctk.CTk):
             command=lambda: password_entry.configure(show="" if show_password_switch.get() else "*"),
             font=("Cairo" if self.lang == "ar" else "Arial", 12)
         )
-        show_password_switch.pack(pady=5)
+        show_password_switch.pack(pady=10)
 
         def verify_password():
             entered_password = password_entry.get().strip()
@@ -272,10 +284,17 @@ class AccountManagerWindow(ctk.CTk):
                     "كلمة المرور غير صحيحة." if self.lang == "ar" else "Incorrect password."
                 )
 
-        ctk.CTkButton(frame, text="تأكيد" if self.lang == "ar" else "Confirm",
-                      font=("Cairo" if self.lang == "ar" else "Arial", 14),
-                      command=verify_password, fg_color="#5E2A7E", hover_color="#7B1FA2",
-                      corner_radius=8).pack(pady=10)
+        # إضافة زر التحقق
+        verify_btn = ctk.CTkButton(
+            frame,
+            text="تحقق" if self.lang == "ar" else "Verify",
+            font=("Cairo" if self.lang == "ar" else "Arial", 14),
+            command=verify_password,
+            fg_color="#5E2A7E",
+            hover_color="#7B1FA2",
+            corner_radius=8
+        )
+        verify_btn.pack(pady=15)
 
     def delete_account(self, index):
         if messagebox.askyesno(
@@ -575,10 +594,11 @@ class CreateAccountWindow(ctk.CTk):
             return
 
         if not self.students:
-            messagebox.showerror(
-                "خطأ" if self.lang == "ar" else "Error",
-                "الرجاء إضافة الطلاب أولاً." if self.lang == "ar" else "Please add students first."
-            )
+            messagebox.endpoint == "POST":
+                messagebox.showerror(
+                    "خطأ" if self.lang == "ar" else "Error",
+                    "الرجاء إضافة الطلاب أولاً." if self.lang == "ar" else "Please add students first."
+                )
             return
 
         creation_date = datetime.now().strftime("%Y-%m-%d")
