@@ -1,5 +1,6 @@
 import customtkinter as ctk
-from tkinter import messagebox, simpledialog, Canvas
+from tkinter import messagebox, simpledialog, Canvas, PhotoImage
+from PIL import Image  # استيراد Image من Pillow لتحميل صورة الخلفية
 import json
 import os
 from datetime import datetime, timedelta
@@ -139,11 +140,20 @@ class AccountManagerWindow(ctk.CTk):
         window_height = int(screen_height * 0.8)
         self.wm_geometry(f"{window_width}x{window_height}+{int((screen_width - window_width) / 2)}+{int((screen_height - window_height) / 2)}")
 
-        # تحسين الخلفية: إضافة صورة أو لون مع خاصية المود البلوري
-        self.background_image = ctk.CTkImage(dark_image=PhotoImage(file="background.png"), size=(window_width, window_height))
-        self.canvas = Canvas(self, width=window_width, height=window_height)
+        # تحسين الخلفية: إضافة صورة
+        try:
+            self.background_image = ctk.CTkImage(dark_image=Image(file="background.png"), size=(window_width, window_height))
+        except FileNotFoundError:
+            messagebox.showwarning(
+                "تحذير" if lang == "ar" else "Warning",
+                "ملف الخلفية غير موجود." if lang == "ar" else "Background image not found."
+            )
+            self.background_image = None
+
+        self.canvas = Canvas(self, width=window_width, height=window_height, bg="#1E1E1E" if not self.background_image else None)
         self.canvas.pack(fill="both", expand=True)
-        self.canvas.create_image(0, 0, anchor="nw", image=self.background_image)
+        if self.background_image:
+            self.canvas.create_image(0, 0, anchor="nw", image=self.background_image)
         self.main_frame = ctk.CTkFrame(self, corner_radius=10)
         self.main_frame.place(relx=0.5, rely=0.5, anchor="center")
 
@@ -298,11 +308,20 @@ class CreateAccountWindow(ctk.CTk):
         window_height = int(screen_height * 0.8)
         self.wm_geometry(f"{window_width}x{window_height}+{int((screen_width - window_width) / 2)}+{int((screen_height - window_height) / 2)}")
 
-        # تحسين الخلفية: إضافة صورة أو لون مع خاصية المود البلوري
-        self.background_image = ctk.CTkImage(dark_image=PhotoImage(file="background.png"), size=(window_width, window_height))
-        self.canvas = Canvas(self, width=window_width, height=window_height)
+        # تحسين الخلفية: إضافة صورة
+        try:
+            self.background_image = ctk.CTkImage(dark_image=Image(file="background.png"), size=(window_width, window_height))
+        except FileNotFoundError:
+            messagebox.showwarning(
+                "تحذير" if lang == "ar" else "Warning",
+                "ملف الخلفية غير موجود." if lang == "ar" else "Background image not found."
+            )
+            self.background_image = None
+
+        self.canvas = Canvas(self, width=window_width, height=window_height, bg="#1E1E1E" if not self.background_image else None)
         self.canvas.pack(fill="both", expand=True)
-        self.canvas.create_image(0, 0, anchor="nw", image=self.background_image)
+        if self.background_image:
+            self.canvas.create_image(0, 0, anchor="nw", image=self.background_image)
         self.main_frame = ctk.CTkFrame(self, corner_radius=10)
         self.main_frame.place(relx=0.5, rely=0.5, anchor="center")
 
@@ -428,8 +447,8 @@ class CreateAccountWindow(ctk.CTk):
 
         self.student_entry = ctk.CTkEntry(
             self.student_input_frame,
-            placeholder_text="اسم الطالب" if self.lang == "ar" else "Student Name",
-            font=("Cairo" if self.lang == "ar" else "Arial", 14),
+            placeholder_text="اسم الطالب" if lang == "ar" else "Student Name",
+            font=("Cairo" if lang == "ar" else "Arial", 14),
             corner_radius=8,
             height=40
         )
@@ -539,7 +558,7 @@ class CreateAccountWindow(ctk.CTk):
             "institute": inst,
             "created_at": creation_date,
             "students": self.students,
-            "password": password  # إضافة كلمة المرور
+            "password": password
         }
 
         self.data["accounts"].append(new_account)
@@ -568,11 +587,20 @@ class StudentWindow(ctk.CTk):
         window_height = int(screen_height * 0.8)
         self.wm_geometry(f"{window_width}x{window_height}+{int((screen_width - window_width) / 2)}+{int((screen_height - window_height) / 2)}")
 
-        # تحسين الخلفية: إضافة صورة أو لون مع خاصية المود البلوري
-        self.background_image = ctk.CTkImage(dark_image=PhotoImage(file="background.png"), size=(window_width, window_height))
-        self.canvas = Canvas(self, width=window_width, height=window_height)
+        # تحسين الخلفية: إضافة صورة
+        try:
+            self.background_image = ctk.CTkImage(dark_image=Image(file="background.png"), size=(window_width, window_height))
+        except FileNotFoundError:
+            messagebox.showwarning(
+                "تحذير" if lang == "ar" else "Warning",
+                "ملف الخلفية غير موجود." if lang == "ar" else "Background image not found."
+            )
+            self.background_image = None
+
+        self.canvas = Canvas(self, width=window_width, height=window_height, bg="#1E1E1E" if not self.background_image else None)
         self.canvas.pack(fill="both", expand=True)
-        self.canvas.create_image(0, 0, anchor="nw", image=self.background_image)
+        if self.background_image:
+            self.canvas.create_image(0, 0, anchor="nw", image=self.background_image)
         self.main_frame = ctk.CTkFrame(self, corner_radius=10)
         self.main_frame.place(relx=0.5, rely=0.5, anchor="center")
 
@@ -678,7 +706,7 @@ class StudentWindow(ctk.CTk):
         save_btn.pack(side="right" if self.lang == "ar" else "left", padx=5)
 
         button_frame = ctk.CTkFrame(self.main_frame, corner_radius=10)
-        button_frame.pack(pdy=10, fill="x")
+        button_frame.pack(pady=10, fill="x")
 
         export_btn = ctk.CTkButton(
             button_frame,
