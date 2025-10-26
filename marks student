@@ -303,7 +303,7 @@ class CreateAccountWindow(ctk.CTk):
 
         lang_btn = ctk.CTkButton(
             button_frame,
-            text="🇬🇧 English" if lang == "ar" else "🇸🇦 العربية",
+            text="🇬ب English" if lang == "ar" else "🇸🇦 العربية",
             font=("Cairo" if lang == "ar" else "Arial", 12),
             command=self.toggle_language,
             fg_color="#0288D1",
@@ -560,6 +560,17 @@ class StudentWindow(ctk.CTk):
         button_frame = ctk.CTkFrame(main_frame, corner_radius=10)
         button_frame.pack(pady=10, fill="x")
 
+        add_students_btn = ctk.CTkButton(
+            button_frame,
+            text="➕ إضافة طلاب" if lang == "ar" else "➕ Add Students",
+            font=("Cairo" if lang == "ar" else "Arial", 14),
+            command=self.open_add_students_popup,
+            fg_color="#2E7D32",
+            hover_color="#4CAF50",
+            corner_radius=8
+        )
+        add_students_btn.pack(side="right" if lang == "ar" else "left", padx=5)
+
         export_btn = ctk.CTkButton(
             button_frame,
             text="📊 تصدير إلى Excel" if lang == "ar" else "📊 Export to Excel",
@@ -695,6 +706,145 @@ class StudentWindow(ctk.CTk):
                 corner_radius=8
             ).pack(side="right" if self.lang == "ar" else "left", padx=5)
 
+    def open_add_students_popup(self):
+        popup = ctk.CTkToplevel(self)
+        popup.title("إدخال أسماء الطلاب" if self.lang == "ar" else "Enter Student Names")
+        screen_width = self.winfo_screenwidth()
+        screen_height = self.winfo_screenheight()
+        window_width = int(screen_width * 0.5)
+        window_height = int(screen_height * 0.7)
+        popup.wm_geometry(f"{window_width}x{window_height}+{int((screen_width - window_width) / 2)}+{int((screen_height - window_height) / 2)}")
+        popup.transient(self)
+        popup.grab_set()
+
+        students_frame = ctk.CTkFrame(popup, corner_radius=10)
+        students_frame.pack(pady=10, padx=10, fill="both", expand=True)
+
+        ctk.CTkLabel(
+            students_frame,
+            text="قائمة الطلاب" if self.lang == "ar" else "Student List",
+            font=("Cairo" if self.lang == "ar" else "Arial", 16, "bold")
+        ).pack(pady=10)
+
+        student_frame = ctk.CTkScrollableFrame(students_frame, corner_radius=8)
+        student_frame.pack(pady=10, padx=10, fill="both", expand=True)
+
+        button_frame = ctk.CTkFrame(students_frame, corner_radius=10)
+        button_frame.pack(pady=10, fill="x", padx=10)
+
+        add_btn = ctk.CTkButton(
+            button_frame,
+            text="➕ إضافة طالب" if self.lang == "ar" else "➕ Add Student",
+            font=("Cairo" if self.lang == "ar" else "Arial", 14),
+            command=lambda: self.add_student(popup, student_frame),
+            fg_color="#2E7D32",
+            hover_color="#4CAF50",
+            corner_radius=8
+        )
+        add_btn.pack(side="right" if self.lang == "ar" else "left", padx=5)
+
+        remove_btn = ctk.CTkButton(
+            button_frame,
+            text="🗑️ حذف طالب" if self.lang == "ar" else "🗑️ Remove Student",
+            font=("Cairo" if self.lang == "ar" else "Arial", 14),
+            command=lambda: self.remove_student(popup, student_frame),
+            fg_color="#D32F2F",
+            hover_color="#F44336",
+            corner_radius=8
+        )
+        remove_btn.pack(side="right" if self.lang == "ar" else "left", padx=5)
+
+        save_btn = ctk.CTkButton(
+            button_frame,
+            text="💾 حفظ القائمة" if self.lang == "ar" else "💾 Save List",
+            font=("Cairo" if self.lang == "ar" else "Arial", 14),
+            command=lambda: self.save_students(popup, student_frame),
+            fg_color="#5E2A7E",
+            hover_color="#7B1FA2",
+            corner_radius=8
+        )
+        save_btn.pack(side="right" if self.lang == "ar" else "left", padx=5)
+
+        self.refresh_students_display(student_frame)
+
+    def add_student(self, popup, student_frame):
+        name = simpledialog.askstring(
+            "اسم الطالب" if self.lang == "ar" else "Student Name",
+            "أدخل اسم الطالب:" if self.lang == "ar" else "Enter student name:"
+        )
+        if name and re.match(r"^[a-zA-Z\sأ-ي]+$", name):
+            if any(s["name"] == name for s in self.account["students"]):
+                messagebox.showerror(
+                    "خطأ" if self.lang == "ar" else "Error",
+                    "اسم الطالب موجود بالفعل." if self.lang == "ar" else "Student name already exists."
+                )
+                return
+            self.account["students"].append({"name": name, "grades": [], "info": ""})
+            self.refresh_students_display(student_frame)
+            messagebox.showinfo(
+                "تم" if self.lang == "ar" else "Success",
+                f"تم إضافة الطالب {name} بنجاح." if self.lang == "ar" else f"Student {name} added successfully."
+            )
+        elif name:
+            messagebox.showerror(
+                "خطأ" if self.lang == "ar" else "Error",
+                "الاسم يجب أن يحتوي على حروف فقط." if self.lang == "ar" else "Name must contain letters only."
+            )
+
+    def remove_student(self, popup, student_frame):
+        name = simpledialog.askstring(
+            "حذف طالب" if self.lang == "ar" else "Remove Student",
+            "أدخل اسم الطالب الذي تريد حذفه:" if self.lang == "ar" else "Enter student name to remove:"
+        )
+        if name and any(s["name"] == name for s in self.account["students"]):
+            self.account["students"] = [s for s in self.account["students"] if s["name"] != name]
+            self.refresh_students_display(student_frame)
+            messagebox.showinfo(
+                "تم" if self.lang == "ar" else "Success",
+                f"تم حذف الطالب {name} بنجاح." if self.lang == "ar" else f"Student {name} removed successfully."
+            )
+        elif name:
+            messagebox.showerror(
+                "خطأ" if self.lang == "ar" else "Error",
+                "اسم الطالب غير موجود." if self.lang == "ar" else "Student name not found."
+            )
+
+    def refresh_students_display(self, student_frame):
+        for widget in student_frame.winfo_children():
+            widget.destroy()
+
+        for i, student in enumerate(self.account["students"]):
+            row = ctk.CTkFrame(student_frame, corner_radius=5, fg_color="#424242")
+            row.pack(fill="x", pady=5, padx=5)
+            ctk.CTkLabel(
+                row,
+                text=f"{i+1}. {student['name']}",
+                font=("Cairo" if self.lang == "ar" else "Arial", 14),
+                anchor="w" if self.lang == "ar" else "e"
+            ).pack(pady=5, padx=10, fill="x")
+
+    def save_students(self, popup, student_frame):
+        self.update_data()
+        popup.destroy()
+        self.load_students()
+        messagebox.showinfo(
+            "تم" if self.lang == "ar" else "Success",
+            "تم حفظ قائمة الطلاب بنجاح ✅" if self.lang == "ar" else "Student list saved successfully ✅"
+        )
+
+    def restart_students(self):
+        if messagebox.askyesno(
+            "تأكيد" if self.lang == "ar" else "Confirm",
+            "هل تريد إعادة بدء وتفريغ قائمة الطلاب؟" if self.lang == "ar" else "Do you want to restart and clear the student list?"
+        ):
+            self.account["students"] = []
+            self.update_data()
+            self.load_students()
+            messagebox.showinfo(
+                "تم" if self.lang == "ar" else "Success",
+                "تم تفريغ قائمة الطلاب بنجاح." if self.lang == "ar" else "Student list cleared successfully."
+            )
+
     def edit_student(self, student):
         creation_date = datetime.strptime(self.account["created_at"], "%Y-%m-%d")
         if datetime.now() > creation_date + timedelta(days=EDIT_DAYS_LIMIT):
@@ -811,16 +961,6 @@ class StudentWindow(ctk.CTk):
             hover_color="#7B1FA2",
             corner_radius=8
         ).pack(pady=15)
-
-    def restart_students(self):
-        if messagebox.askyesno(
-            "تأكيد" if self.lang == "ar" else "Confirm",
-            "هل تريد إعادة بدء وإدخال طلاب جدد؟" if self.lang == "ar" else "Do you want to restart and enter new students?"
-        ):
-            self.account["students"] = []
-            self.update_data()
-            self.destroy()
-            CreateAccountWindow(self.lang).mainloop()
 
     def back_to_manager(self):
         self.destroy()
