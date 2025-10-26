@@ -1,5 +1,5 @@
 import customtkinter as ctk
-from tkinter import messagebox, simpledialog, Canvas
+from tkinter import messagebox, simpledialog, Canvas, PhotoImage
 import json
 import os
 from datetime import datetime, timedelta
@@ -19,6 +19,7 @@ BACKUP_FILE = "students_data_backup.json"
 MAX_GRADES = 100
 EDIT_DAYS_LIMIT = 5
 FIREWORKS_SOUND = "fireworks.wav"  # اسم ملف الصوت
+EMAIL = "omar.alyousef.19999@gmail.com"
 
 # ============================================================
 # 🔹 دالة حفظ البيانات
@@ -177,6 +178,17 @@ class AccountManagerWindow(ctk.CTk):
 
         self.load_accounts()
 
+        # إضافة البريد الإلكتروني أسفل النافذة
+        email_label = ctk.CTkLabel(
+            main_frame,
+            text=EMAIL,
+            font=("Cairo" if lang == "ar" else "Arial", 12, "underline"),
+            text_color="#00BFFF"
+        )
+        email_label.pack(pady=10, side="bottom")
+        email_label.configure(cursor="hand2")
+        email_label.bind("<Button-1>", lambda e: os.system(f"start mailto:{EMAIL}"))
+
     def load_accounts(self):
         for widget in self.account_frame.winfo_children():
             widget.destroy()
@@ -281,6 +293,24 @@ class CreateAccountWindow(ctk.CTk):
         )
         self.inst_entry.pack(pady=10, padx=40, fill="x")
 
+        self.password_entry = ctk.CTkEntry(
+            main_frame,
+            placeholder_text="كلمة المرور" if lang == "ar" else "Password",
+            font=("Cairo" if lang == "ar" else "Arial", 14),
+            corner_radius=8,
+            height=40,
+            show="*"
+        )
+        self.password_entry.pack(pady=10, padx=40, fill="x")
+
+        self.show_password_switch = ctk.CTkSwitch(
+            main_frame,
+            text="إظهار كلمة المرور" if lang == "ar" else "Show Password",
+            command=self.toggle_password_visibility,
+            font=("Cairo" if lang == "ar" else "Arial", 14)
+        )
+        self.show_password_switch.pack(pady=5)
+
         button_frame = ctk.CTkFrame(main_frame, corner_radius=10)
         button_frame.pack(pady=10, fill="x", padx=10)
 
@@ -328,6 +358,23 @@ class CreateAccountWindow(ctk.CTk):
         )
         lang_btn.pack(side="right" if lang == "ar" else "left", padx=5)
 
+        # إضافة البريد الإلكتروني أسفل النافذة
+        email_label = ctk.CTkLabel(
+            main_frame,
+            text=EMAIL,
+            font=("Cairo" if lang == "ar" else "Arial", 12, "underline"),
+            text_color="#00BFFF"
+        )
+        email_label.pack(pady=10, side="bottom")
+        email_label.configure(cursor="hand2")
+        email_label.bind("<Button-1>", lambda e: os.system(f"start mailto:{EMAIL}"))
+
+    def toggle_password_visibility(self):
+        if self.show_password_switch.get():
+            self.password_entry.configure(show="")
+        else:
+            self.password_entry.configure(show="*")
+
     def toggle_language(self):
         new_lang = "en" if self.lang == "ar" else "ar"
         self.destroy()
@@ -361,6 +408,7 @@ class CreateAccountWindow(ctk.CTk):
             height=40
         )
         self.student_entry.pack(side="left" if self.lang == "ar" else "right", padx=5, fill="x", expand=True)
+        self.student_entry.bind("<Return>", lambda event: self.add_student())
 
         add_btn = ctk.CTkButton(
             self.student_input_frame,
@@ -443,11 +491,12 @@ class CreateAccountWindow(ctk.CTk):
     def create_account(self):
         name = self.name_entry.get().strip()
         inst = self.inst_entry.get().strip()
+        password = self.password_entry.get().strip()
 
-        if not name or not inst:
+        if not name or not inst or not password:
             messagebox.showerror(
                 "خطأ" if self.lang == "ar" else "Error",
-                "الرجاء إدخال جميع البيانات." if self.lang == "ar" else "Please enter all required fields."
+                "الرجاء إدخال جميع البيانات بما في ذلك كلمة المرور." if self.lang == "ar" else "Please enter all fields including password."
             )
             return
 
@@ -463,7 +512,8 @@ class CreateAccountWindow(ctk.CTk):
             "teacher": name,
             "institute": inst,
             "created_at": creation_date,
-            "students": self.students
+            "students": self.students,
+            "password": password  # إضافة كلمة المرور
         }
 
         self.data["accounts"].append(new_account)
@@ -575,6 +625,7 @@ class StudentWindow(ctk.CTk):
             height=40
         )
         self.student_entry.pack(side="left" if self.lang == "ar" else "right", padx=5, fill="x", expand=True)
+        self.student_entry.bind("<Return>", lambda event: self.add_student())
 
         add_btn = ctk.CTkButton(
             student_input_frame,
@@ -667,6 +718,17 @@ class StudentWindow(ctk.CTk):
 
         self.load_students()
 
+        # إضافة البريد الإلكتروني أسفل النافذة
+        email_label = ctk.CTkLabel(
+            main_frame,
+            text=EMAIL,
+            font=("Cairo" if lang == "ar" else "Arial", 12, "underline"),
+            text_color="#00BFFF"
+        )
+        email_label.pack(pady=10, side="bottom")
+        email_label.configure(cursor="hand2")
+        email_label.bind("<Button-1>", lambda e: os.system(f"start mailto:{EMAIL}"))
+
     def update_stats(self):
         students = self.account["students"]
         count = len(students)
@@ -705,7 +767,7 @@ class StudentWindow(ctk.CTk):
             widget.destroy()
 
         students = students or self.account["students"]
-        sorted_students = sorted(students, key=lambda x: sum(x.get("grades", [])), reverse=True)
+        sorted_students = sorted(students, key=lambda x: sum(x.get("grades", [])) , reverse=True)
 
         for i, student in enumerate(sorted_students):
             total = sum(student.get("grades", []))
@@ -768,6 +830,17 @@ class StudentWindow(ctk.CTk):
             ).pack(side="right" if self.lang == "ar" else "left", padx=5)
 
         self.update_stats()
+
+        # إضافة البريد الإلكتروني أسفل النافذة
+        email_label = ctk.CTkLabel(
+            main_frame,
+            text=EMAIL,
+            font=("Cairo" if lang == "ar" else "Arial", 12, "underline"),
+            text_color="#00BFFF"
+        )
+        email_label.pack(pady=10, side="bottom")
+        email_label.configure(cursor="hand2")
+        email_label.bind("<Button-1>", lambda e: os.system(f"start mailto:{EMAIL}"))
 
     def add_student(self):
         name = self.student_entry.get().strip()
