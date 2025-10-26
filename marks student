@@ -55,11 +55,16 @@ class AccountManagerWindow(ctk.CTk):
     def __init__(self, lang="ar"):
         super().__init__()
         self.title("إدارة الحسابات" if lang == "ar" else "Account Manager")
-        self.geometry("800x600")
-        self.resizable(False, False)
         self.lang = lang
         self.data = load_data()
         self.accounts = self.data.get("accounts", [])
+
+        # ضبط حجم النافذة بناءً على الشاشة
+        screen_width = self.winfo_screenwidth()
+        screen_height = self.winfo_screenheight()
+        window_width = int(screen_width * 0.8)
+        window_height = int(screen_height * 0.8)
+        self.wm_geometry(f"{window_width}x{window_height}+{int((screen_width - window_width) / 2)}+{int((screen_height - window_height) / 2)}")
 
         main_frame = ctk.CTkFrame(self, corner_radius=10)
         main_frame.pack(pady=20, padx=20, fill="both", expand=True)
@@ -70,11 +75,23 @@ class AccountManagerWindow(ctk.CTk):
             font=("Cairo" if lang == "ar" else "Arial", 24, "bold")
         ).pack(pady=15)
 
-        self.account_frame = ctk.CTkScrollableFrame(main_frame, width=700, height=300, corner_radius=8)
-        self.account_frame.pack(pady=10, fill="both")
+        self.account_frame = ctk.CTkScrollableFrame(main_frame, corner_radius=8)
+        self.account_frame.pack(pady=10, fill="both", expand=True)
 
         button_frame = ctk.CTkFrame(main_frame, corner_radius=10)
         button_frame.pack(pady=10, fill="x", padx=10)
+
+        # زر تبديل اللغة
+        lang_btn = ctk.CTkButton(
+            button_frame,
+            text="🇬🇧 English" if lang == "ar" else "🇸🇦 العربية",
+            font=("Cairo" if lang == "ar" else "Arial", 12),
+            command=self.toggle_language,
+            fg_color="#0288D1",
+            hover_color="#03A9F4",
+            corner_radius=8
+        )
+        lang_btn.pack(side="right" if lang == "ar" else "left", padx=5)
 
         add_btn = ctk.CTkButton(
             button_frame,
@@ -122,6 +139,11 @@ class AccountManagerWindow(ctk.CTk):
             )
             delete_btn.pack(side="right" if self.lang == "ar" else "left", padx=5)
 
+    def toggle_language(self):
+        new_lang = "en" if self.lang == "ar" else "ar"
+        self.destroy()
+        AccountManagerWindow(new_lang).mainloop()
+
     def create_new_account(self):
         self.destroy()
         CreateAccountWindow(self.lang).mainloop()
@@ -151,11 +173,16 @@ class CreateAccountWindow(ctk.CTk):
     def __init__(self, lang="ar"):
         super().__init__()
         self.title("نظام المعهد - إنشاء حساب" if lang == "ar" else "Institute System - Create Account")
-        self.geometry("700x500")
-        self.resizable(False, False)
         self.lang = lang
         self.data = load_data()
         self.students = []
+
+        # ضبط حجم النافذة بناءً على الشاشة
+        screen_width = self.winfo_screenwidth()
+        screen_height = self.winfo_screenheight()
+        window_width = int(screen_width * 0.8)
+        window_height = int(screen_height * 0.8)
+        self.wm_geometry(f"{window_width}x{window_height}+{int((screen_width - window_width) / 2)}+{int((screen_height - window_height) / 2)}")
 
         main_frame = ctk.CTkFrame(self, corner_radius=10)
         main_frame.pack(pady=20, padx=20, fill="both", expand=True)
@@ -184,8 +211,11 @@ class CreateAccountWindow(ctk.CTk):
         )
         self.inst_entry.pack(pady=10, padx=40, fill="x")
 
+        button_frame = ctk.CTkFrame(main_frame, corner_radius=10)
+        button_frame.pack(pady=10, fill="x", padx=10)
+
         self.add_students_btn = ctk.CTkButton(
-            main_frame,
+            button_frame,
             text="➕ إضافة الطلاب" if lang == "ar" else "➕ Add Students",
             font=("Cairo" if lang == "ar" else "Arial", 14),
             command=self.open_student_popup,
@@ -193,10 +223,10 @@ class CreateAccountWindow(ctk.CTk):
             hover_color="#4CAF50",
             corner_radius=8
         )
-        self.add_students_btn.pack(pady=15)
+        self.add_students_btn.pack(side="right" if lang == "ar" else "left", padx=5)
 
         self.create_btn = ctk.CTkButton(
-            main_frame,
+            button_frame,
             text="✅ إنشاء الحساب" if lang == "ar" else "✅ Create Account",
             font=("Cairo" if lang == "ar" else "Arial", 14),
             command=self.create_account,
@@ -204,12 +234,55 @@ class CreateAccountWindow(ctk.CTk):
             hover_color="#7B1FA2",
             corner_radius=8
         )
-        self.create_btn.pack(pady=15)
+        self.create_btn.pack(side="right" if lang == "ar" else "left", padx=5)
+
+        self.manager_btn = ctk.CTkButton(
+            button_frame,
+            text="📋 إدارة الحسابات" if lang == "ar" else "📋 Manage Accounts",
+            font=("Cairo" if lang == "ar" else "Arial", 14),
+            command=self.goto_account_manager,
+            fg_color="#0288D1",
+            hover_color="#03A9F4",
+            corner_radius=8
+        )
+        self.manager_btn.pack(side="right" if lang == "ar" else "left", padx=5)
+
+        # زر تبديل اللغة
+        lang_btn = ctk.CTkButton(
+            button_frame,
+            text="🇬🇧 English" if lang == "ar" else "🇸🇦 العربية",
+            font=("Cairo" if lang == "ar" else "Arial", 12),
+            command=self.toggle_language,
+            fg_color="#0288D1",
+            hover_color="#03A9F4",
+            corner_radius=8
+        )
+        lang_btn.pack(side="right" if lang == "ar" else "left", padx=5)
+
+    def toggle_language(self):
+        new_lang = "en" if self.lang == "ar" else "ar"
+        self.destroy()
+        CreateAccountWindow(new_lang).mainloop()
+
+    def goto_account_manager(self):
+        if self.data["accounts"]:
+            self.destroy()
+            AccountManagerWindow(self.lang).mainloop()
+        else:
+            messagebox.showinfo(
+                "تنبيه" if self.lang == "ar" else "Alert",
+                "لم يتم إنشاء أي حساب بعد." if self.lang == "ar" else "No accounts have been created yet."
+            )
 
     def open_student_popup(self):
         popup = ctk.CTkToplevel(self)
         popup.title("إدخال أسماء الطلاب" if self.lang == "ar" else "Enter Student Names")
-        popup.geometry("500x600")
+        # ضبط حجم النافذة المنبثقة
+        screen_width = self.winfo_screenwidth()
+        screen_height = self.winfo_screenheight()
+        window_width = int(screen_width * 0.5)
+        window_height = int(screen_height * 0.7)
+        popup.wm_geometry(f"{window_width}x{window_height}+{int((screen_width - window_width) / 2)}+{int((screen_height - window_height) / 2)}")
         popup.transient(self)
         popup.grab_set()
 
@@ -222,8 +295,8 @@ class CreateAccountWindow(ctk.CTk):
             font=("Cairo" if self.lang == "ar" else "Arial", 16, "bold")
         ).pack(pady=10)
 
-        self.student_frame = ctk.CTkScrollableFrame(students_frame, width=450, height=300, corner_radius=8)
-        self.student_frame.pack(pady=10, padx=10, fill="both")
+        self.student_frame = ctk.CTkScrollableFrame(students_frame, corner_radius=8)
+        self.student_frame.pack(pady=10, padx=10, fill="both", expand=True)
 
         button_frame = ctk.CTkFrame(students_frame, corner_radius=10)
         button_frame.pack(pady=10, fill="x", padx=10)
@@ -377,14 +450,22 @@ class StudentWindow(ctk.CTk):
         self.account = account
         self.lang = lang
         self.title("إدارة الطلاب" if lang == "ar" else "Manage Students")
-        self.geometry("900x700")
-        self.resizable(False, False)
+
+        # ضبط حجم النافذة بناءً على الشاشة
+        screen_width = self.winfo_screenwidth()
+        screen_height = self.winfo_screenheight()
+        window_width = int(screen_width * 0.8)
+        window_height = int(screen_height * 0.8)
+        self.wm_geometry(f"{window_width}x{window_height}+{int((screen_width - window_width) / 2)}+{int((screen_height - window_height) / 2)}")
 
         main_frame = ctk.CTkFrame(self, corner_radius=10)
         main_frame.pack(pady=20, padx=20, fill="both", expand=True)
 
-        self.lang_toggle = ctk.CTkButton(
-            main_frame,
+        button_frame_top = ctk.CTkFrame(main_frame, corner_radius=10)
+        button_frame_top.pack(pady=5, fill="x")
+
+        lang_btn = ctk.CTkButton(
+            button_frame_top,
             text="🇬🇧 English" if lang == "ar" else "🇸🇦 العربية",
             font=("Cairo" if lang == "ar" else "Arial", 12),
             command=self.toggle_language,
@@ -392,7 +473,7 @@ class StudentWindow(ctk.CTk):
             hover_color="#03A9F4",
             corner_radius=8
         )
-        self.lang_toggle.pack(anchor="ne", padx=10, pady=5)
+        lang_btn.pack(side="right" if lang == "ar" else "left", padx=5)
 
         ctk.CTkLabel(
             main_frame,
@@ -460,8 +541,8 @@ class StudentWindow(ctk.CTk):
         )
         return_btn.pack(side="right" if lang == "ar" else "left", padx=5)
 
-        self.table_frame = ctk.CTkScrollableFrame(main_frame, width=800, height=400, corner_radius=8)
-        self.table_frame.pack(pady=10, fill="both")
+        self.table_frame = ctk.CTkScrollableFrame(main_frame, corner_radius=8)
+        self.table_frame.pack(pady=10, fill="both", expand=True)
 
         header_frame = ctk.CTkFrame(self.table_frame, fg_color="#37474F")
         header_frame.pack(fill="x", pady=5, padx=5)
@@ -569,7 +650,12 @@ class StudentWindow(ctk.CTk):
 
         popup = ctk.CTkToplevel(self)
         popup.title(f"تعديل بيانات {student['name']}" if self.lang == "ar" else f"Edit {student['name']} Data")
-        popup.geometry("500x600")
+        # ضبط حجم النافذة المنبثقة
+        screen_width = self.winfo_screenwidth()
+        screen_height = self.winfo_screenheight()
+        window_width = int(screen_width * 0.5)
+        window_height = int(screen_height * 0.7)
+        popup.wm_geometry(f"{window_width}x{window_height}+{int((screen_width - window_width) / 2)}+{int((screen_height - window_height) / 2)}")
         popup.transient(self)
         popup.grab_set()
 
