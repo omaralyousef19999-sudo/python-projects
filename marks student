@@ -1,5 +1,5 @@
 import customtkinter as ctk
-from tkinter import messagebox, simpledialog, Canvas, PhotoImage
+from tkinter import messagebox, Canvas
 from PIL import Image  # استيراد Image من Pillow
 import json
 import os
@@ -436,6 +436,7 @@ class CreateAccountWindow(ctk.CTk):
             )
 
     def open_student_input(self):
+        # إنشاء إطار إدخال الطلاب
         self.student_input_frame = ctk.CTkFrame(self.main_frame, corner_radius=10)
         self.student_input_frame.pack(pady=10, padx=40, fill="x")
 
@@ -447,13 +448,13 @@ class CreateAccountWindow(ctk.CTk):
 
         self.student_entry = ctk.CTkEntry(
             self.student_input_frame,
-            placeholder_text="اسم الطالب" if lang == "ar" else "Student Name",
-            font=("Cairo" if lang == "ar" else "Arial", 14),
+            placeholder_text="اسم الطالب" if self.lang == "ar" else "Student Name",
+            font=("Cairo" if self.lang == "ar" else "Arial", 14),
             corner_radius=8,
             height=40
         )
         self.student_entry.pack(side="left" if self.lang == "ar" else "right", padx=5, fill="x", expand=True)
-        self.student_entry.bind("<Return>", lambda event: self.add_student())
+        self.student_entry.bind("<Return>", lambda event: self.add_student())  # ربط مفتاح Enter
 
         add_btn = ctk.CTkButton(
             self.student_input_frame,
@@ -477,35 +478,52 @@ class CreateAccountWindow(ctk.CTk):
         )
         remove_btn.pack(side="right" if self.lang == "ar" else "left", padx=5)
 
+        # إنشاء إطار قائمة الطلاب
         self.student_list_frame = ctk.CTkScrollableFrame(self.main_frame, corner_radius=8)
         self.student_list_frame.pack(pady=10, padx=40, fill="both", expand=True)
         self.refresh_student_list()
 
     def add_student(self):
         name = self.student_entry.get().strip()
-        if name and re.match(r"^[a-zA-Z\sأ-ي]+$", name):
-            if any(s["name"] == name for s in self.students):
-                messagebox.showerror(
-                    "خطأ" if self.lang == "ar" else "Error",
-                    "اسم الطالب موجود بالفعل." if self.lang == "ar" else "Student name already exists."
-                )
-                return
-            self.students.append({"name": name, "grades": [], "info": ""})
-            self.student_entry.delete(0, "end")
-            self.refresh_student_list()
-            messagebox.showinfo(
-                "تم" if self.lang == "ar" else "Success",
-                f"تم إضافة الطالب {name} بنجاح." if self.lang == "ar" else f"Student {name} added successfully."
-            )
-        elif name:
+        print(f"محاولة إضافة طالب: {name}")  # طباعة تصحيحية للتحقق من الإدخال
+        if not name:
             messagebox.showerror(
                 "خطأ" if self.lang == "ar" else "Error",
-                "الاسم يجب أن يحتوي على حروف فقط." if self.lang == "ar" else "Name must contain letters only."
+                "الرجاء إدخال اسم الطالب." if self.lang == "ar" else "Please enter a student name."
             )
+            return
+        if not re.match(r"^[a-zA-Z\sأ-ي]+$", name):
+            messagebox.showerror(
+                "خطأ" if self.lang == "ar" else "Error",
+                "الاسم يجب أن يحتوي على حروف فقط (بدون أرقام أو رموز)." if self.lang == "ar" else "Name must contain letters only (no numbers or symbols)."
+            )
+            return
+        if any(s["name"] == name for s in self.students):
+            messagebox.showerror(
+                "خطأ" if self.lang == "ar" else "Error",
+                "اسم الطالب موجود بالفعل." if self.lang == "ar" else "Student name already exists."
+            )
+            return
+
+        # إضافة الطالب إلى القائمة
+        self.students.append({"name": name, "grades": [], "info": ""})
+        print(f"تمت إضافة الطالب: {name}, القائمة الآن: {self.students}")  # طباعة تصحيحية
+        self.student_entry.delete(0, "end")
+        self.refresh_student_list()
+        messagebox.showinfo(
+            "تم" if self.lang == "ar" else "Success",
+            f"تم إضافة الطالب {name} بنجاح." if self.lang == "ar" else f"Student {name} added successfully."
+        )
 
     def remove_student(self):
         name = self.student_entry.get().strip()
-        if name and any(s["name"] == name for s in self.students):
+        if not name:
+            messagebox.showerror(
+                "خطأ" if self.lang == "ar" else "Error",
+                "الرجاء إدخال اسم الطالب لحذفه." if self.lang == "ar" else "Please enter a student name to remove."
+            )
+            return
+        if any(s["name"] == name for s in self.students):
             self.students = [s for s in self.students if s["name"] != name]
             self.student_entry.delete(0, "end")
             self.refresh_student_list()
@@ -513,25 +531,36 @@ class CreateAccountWindow(ctk.CTk):
                 "تم" if self.lang == "ar" else "Success",
                 f"تم حذف الطالب {name} بنجاح." if self.lang == "ar" else f"Student {name} removed successfully."
             )
-        elif name:
+        else:
             messagebox.showerror(
                 "خطأ" if self.lang == "ar" else "Error",
                 "اسم الطالب غير موجود." if self.lang == "ar" else "Student name not found."
             )
 
     def refresh_student_list(self):
+        # مسح القائمة الحالية
         for widget in self.student_list_frame.winfo_children():
             widget.destroy()
 
-        for i, student in enumerate(self.students):
-            row = ctk.CTkFrame(self.student_list_frame, corner_radius=5, fg_color="#424242")
-            row.pack(fill="x", pady=5, padx=5)
+        # إضافة الطلاب إلى الواجهة
+        if not self.students:
             ctk.CTkLabel(
-                row,
-                text=f"{i+1}. {student['name']}",
+                self.student_list_frame,
+                text="لا يوجد طلاب مضافين بعد." if self.lang == "ar" else "No students added yet.",
                 font=("Cairo" if self.lang == "ar" else "Arial", 14),
-                anchor="w" if self.lang == "ar" else "e"
-            ).pack(pady=5, padx=10, fill="x")
+                text_color="gray"
+            ).pack(pady=10)
+        else:
+            for i, student in enumerate(self.students):
+                row = ctk.CTkFrame(self.student_list_frame, corner_radius=5, fg_color="#424242")
+                row.pack(fill="x", pady=5, padx=5)
+                ctk.CTkLabel(
+                    row,
+                    text=f"{i+1}. {student['name']}",
+                    font=("Cairo" if self.lang == "ar" else "Arial", 14),
+                    anchor="w" if self.lang == "ar" else "e"
+                ).pack(pady=5, padx=10, fill="x")
+        print(f"تم تحديث قائمة الطلاب: {self.students}")  # طباعة تصحيحية
 
     def create_account(self):
         name = self.name_entry.get().strip()
