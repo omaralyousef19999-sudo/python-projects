@@ -1,6 +1,6 @@
 import customtkinter as ctk
 from tkinter import messagebox, simpledialog, Canvas, PhotoImage
-from PIL import Image  # استيراد Image من Pillow لتحميل صورة الخلفية
+from PIL import Image  # استيراد Image من Pillow
 import json
 import os
 from datetime import datetime, timedelta
@@ -142,7 +142,7 @@ class AccountManagerWindow(ctk.CTk):
 
         # تحسين الخلفية: إضافة صورة
         try:
-            self.background_image = ctk.CTkImage(dark_image=Image(file="background.png"), size=(window_width, window_height))
+            self.background_image = ctk.CTkImage(dark_image=Image.open("background.png"), size=(window_width, window_height))
         except FileNotFoundError:
             messagebox.showwarning(
                 "تحذير" if lang == "ar" else "Warning",
@@ -310,7 +310,7 @@ class CreateAccountWindow(ctk.CTk):
 
         # تحسين الخلفية: إضافة صورة
         try:
-            self.background_image = ctk.CTkImage(dark_image=Image(file="background.png"), size=(window_width, window_height))
+            self.background_image = ctk.CTkImage(dark_image=Image.open("background.png"), size=(window_width, window_height))
         except FileNotFoundError:
             messagebox.showwarning(
                 "تحذير" if lang == "ar" else "Warning",
@@ -589,7 +589,7 @@ class StudentWindow(ctk.CTk):
 
         # تحسين الخلفية: إضافة صورة
         try:
-            self.background_image = ctk.CTkImage(dark_image=Image(file="background.png"), size=(window_width, window_height))
+            self.background_image = ctk.CTkImage(dark_image=Image.open("background.png"), size=(window_width, window_height))
         except FileNotFoundError:
             messagebox.showwarning(
                 "تحذير" if lang == "ar" else "Warning",
