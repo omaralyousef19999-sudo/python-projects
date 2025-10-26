@@ -594,17 +594,6 @@ class StudentWindow(ctk.CTk):
         button_frame = ctk.CTkFrame(main_frame, corner_radius=10)
         button_frame.pack(pady=10, fill="x")
 
-        chart_btn = ctk.CTkButton(
-            button_frame,
-            text="📊 عرض الرسم البياني" if lang == "ar" else "📊 Show Grades Chart",
-            font=("Cairo" if lang == "ar" else "Arial", 14),
-            command=self.show_grades_chart,
-            fg_color="#FF9800",
-            hover_color="#FFB300",
-            corner_radius=8
-        )
-        chart_btn.pack(side="right" if lang == "ar" else "left", padx=5)
-
         add_students_btn = ctk.CTkButton(
             button_frame,
             text="➕ إضافة طلاب" if lang == "ar" else "➕ Add Students",
@@ -690,78 +679,6 @@ class StudentWindow(ctk.CTk):
 
         for key, label in self.stats_labels.items():
             label.configure(text=stats_text[key])
-
-    def show_grades_chart(self):
-        if not self.account["students"]:
-            messagebox.showerror(
-                "خطأ" if self.lang == "ar" else "Error",
-                "لا يوجد طلاب لعرض الرسم البياني." if self.lang == "ar" else "No students to display the chart."
-            )
-            return
-
-        popup = ctk.CTkToplevel(self)
-        popup.title("رسم بياني لعلامات الطلاب" if self.lang == "ar" else "Student Grades Chart")
-        screen_width = self.winfo_screenwidth()
-        screen_height = self.winfo_screenheight()
-        window_width = int(screen_width * 0.6)
-        window_height = int(screen_height * 0.5)
-        popup.wm_geometry(f"{window_width}x{window_height}+{int((screen_width - window_width) / 2)}+{int((screen_height - window_height) / 2)}")
-        popup.transient(self)
-        popup.grab_set()
-
-        chart_frame = ctk.CTkFrame(popup, corner_radius=10)
-        chart_frame.pack(pady=20, padx=20, fill="both", expand=True)
-
-        ctk.CTkLabel(
-            chart_frame,
-            text="توزيع علامات الطلاب" if self.lang == "ar" else "Distribution of Student Grades",
-            font=("Cairo" if self.lang == "ar" else "Arial", 16, "bold")
-        ).pack(pady=10)
-
-        names = [s["name"] for s in self.account["students"]]
-        totals = [sum(s.get("grades", [])) for s in self.account["students"]]
-
-        ```chartjs
-        {
-            "type": "bar",
-            "data": {
-                "labels": names,
-                "datasets": [{
-                    "label": "مجموع العلامات" if self.lang == "ar" else "Total Grades",
-                    "data": totals,
-                    "backgroundColor": ["#2196F3", "#4CAF50", "#F44336", "#FF9800", "#9C27B0", "#FFEB3B"],
-                    "borderColor": ["#1976D2", "#388E3C", "#D32F2F", "#F57C00", "#7B1FA2", "#FBC02D"],
-                    "borderWidth": 1
-                }]
-            },
-            "options": {
-                "scales": {
-                    "y": {
-                        "beginAtZero": true,
-                        "title": {
-                            "display": true,
-                            "text": "مجموع العلامات" if self.lang == "ar" else "Total Grades"
-                        }
-                    },
-                    "x": {
-                        "title": {
-                            "display": true,
-                            "text": "أسماء الطلاب" if self.lang == "ar" else "Student Names"
-                        }
-                    }
-                },
-                "plugins": {
-                    "legend": {
-                        "display": false
-                    },
-                    "title": {
-                        "display": true,
-                        "text": "توزيع علامات الطلاب" if self.lang == "ar" else "Student Grades Distribution"
-                    }
-                }
-            }
-        }
-        ```
 
     def toggle_language(self):
         new_lang = "en" if self.lang == "ar" else "ar"
