@@ -8,6 +8,7 @@ import shutil
 import re
 import random
 import time
+import pygame  # لتشغيل الصوت
 
 # ========== إعدادات الواجهة ==========
 ctk.set_appearance_mode("dark")
@@ -17,6 +18,7 @@ DATA_FILE = "students_data.json"
 BACKUP_FILE = "students_data_backup.json"
 MAX_GRADES = 100
 EDIT_DAYS_LIMIT = 5
+FIREWORKS_SOUND = "fireworks.wav"  # اسم ملف الصوت
 
 # ============================================================
 # 🔹 دالة حفظ البيانات
@@ -54,6 +56,22 @@ def load_data():
 # 🔹 دالة عرض الألعاب النارية
 # ============================================================
 def show_fireworks(master, lang):
+    try:
+        pygame.mixer.init()
+        if os.path.exists(FIREWORKS_SOUND):
+            pygame.mixer.music.load(FIREWORKS_SOUND)
+            pygame.mixer.music.play()
+        else:
+            messagebox.showwarning(
+                "تحذير" if lang == "ar" else "Warning",
+                f"ملف الصوت {FIREWORKS_SOUND} غير موجود." if lang == "ar" else f"Sound file {FIREWORKS_SOUND} not found."
+            )
+    except Exception as e:
+        messagebox.showerror(
+            "خطأ" if lang == "ar" else "Error",
+            f"فشل تشغيل الصوت: {str(e)}" if lang == "ar" else f"Failed to play sound: {str(e)}"
+        )
+
     popup = ctk.CTkToplevel(master)
     popup.title("الألعاب النارية" if lang == "ar" else "Fireworks")
     screen_width = master.winfo_screenwidth()
@@ -101,7 +119,7 @@ def show_fireworks(master, lang):
     for _ in range(10):
         particles.append(create_particle())
     animate()
-    popup.after(3000, popup.destroy)  # إغلاق النافذة بعد 3 ثوانٍ
+    popup.after(3000, lambda: [pygame.mixer.music.stop(), popup.destroy()])
 
 # ============================================================
 # 🔹 واجهة إدارة الحسابات
@@ -114,7 +132,6 @@ class AccountManagerWindow(ctk.CTk):
         self.data = load_data()
         self.accounts = self.data.get("accounts", [])
 
-        # ضبط حجم النافذة بناءً على الشاشة
         screen_width = self.winfo_screenwidth()
         screen_height = self.winfo_screenheight()
         window_width = int(screen_width * 0.8)
@@ -231,7 +248,6 @@ class CreateAccountWindow(ctk.CTk):
         self.data = load_data()
         self.students = []
 
-        # ضبط حجم النافذة بناءً على الشاشة
         screen_width = self.winfo_screenwidth()
         screen_height = self.winfo_screenheight()
         window_width = int(screen_width * 0.8)
@@ -303,7 +319,7 @@ class CreateAccountWindow(ctk.CTk):
 
         lang_btn = ctk.CTkButton(
             button_frame,
-            text="🇬ب English" if lang == "ar" else "🇸🇦 العربية",
+            text="🇬🇧 English" if lang == "ar" else "🇸🇦 العربية",
             font=("Cairo" if lang == "ar" else "Arial", 12),
             command=self.toggle_language,
             fg_color="#0288D1",
@@ -367,7 +383,7 @@ class CreateAccountWindow(ctk.CTk):
         remove_btn = ctk.CTkButton(
             button_frame,
             text="🗑️ حذف طالب" if self.lang == "ar" else "🗑️ Remove Student",
-            font=("Cairo" if self.lang == "ar" else "Arial", 14),
+            font=("Cairo" if lang == "ar" else "Arial", 14),
             command=lambda: self.remove_student(popup),
             fg_color="#D32F2F",
             hover_color="#F44336",
@@ -378,7 +394,7 @@ class CreateAccountWindow(ctk.CTk):
         save_btn = ctk.CTkButton(
             button_frame,
             text="💾 حفظ القائمة" if self.lang == "ar" else "💾 Save List",
-            font=("Cairo" if self.lang == "ar" else "Arial", 14),
+            font=("Cairo" if lang == "ar" else "Arial", 14),
             command=lambda: self.save_students(popup),
             fg_color="#5E2A7E",
             hover_color="#7B1FA2",
@@ -503,7 +519,6 @@ class StudentWindow(ctk.CTk):
         self.lang = lang
         self.title("إدارة الطلاب" if lang == "ar" else "Manage Students")
 
-        # ضبط حجم النافذة بناءً على الشاشة
         screen_width = self.winfo_screenwidth()
         screen_height = self.winfo_screenheight()
         window_width = int(screen_width * 0.8)
@@ -557,8 +572,38 @@ class StudentWindow(ctk.CTk):
         )
         search_btn.pack(side="right" if lang == "ar" else "left", padx=5)
 
+        self.stats_frame = ctk.CTkFrame(main_frame, corner_radius=10, fg_color="#37474F")
+        self.stats_frame.pack(pady=10, padx=40, fill="x")
+
+        ctk.CTkLabel(
+            self.stats_frame,
+            text="📈 الإحصائيات" if lang == "ar" else "📈 Statistics",
+            font=("Cairo" if lang == "ar" else "Arial", 16, "bold")
+        ).pack(pady=5)
+
+        self.stats_labels = {
+            "count": ctk.CTkLabel(self.stats_frame, text="", font=("Cairo" if lang == "ar" else "Arial", 14)),
+            "avg": ctk.CTkLabel(self.stats_frame, text="", font=("Cairo" if lang == "ar" else "Arial", 14)),
+            "max": ctk.CTkLabel(self.stats_frame, text="", font=("Cairo" if lang == "ar" else "Arial", 14)),
+            "min": ctk.CTkLabel(self.stats_frame, text="", font=("Cairo" if lang == "ar" else "Arial", 14)),
+            "above_90": ctk.CTkLabel(self.stats_frame, text="", font=("Cairo" if lang == "ar" else "Arial", 14))
+        }
+        for label in self.stats_labels.values():
+            label.pack(pady=2, anchor="w" if lang == "ar" else "e")
+
         button_frame = ctk.CTkFrame(main_frame, corner_radius=10)
         button_frame.pack(pady=10, fill="x")
+
+        chart_btn = ctk.CTkButton(
+            button_frame,
+            text="📊 عرض الرسم البياني" if lang == "ar" else "📊 Show Grades Chart",
+            font=("Cairo" if lang == "ar" else "Arial", 14),
+            command=self.show_grades_chart,
+            fg_color="#FF9800",
+            hover_color="#FFB300",
+            corner_radius=8
+        )
+        chart_btn.pack(side="right" if lang == "ar" else "left", padx=5)
 
         add_students_btn = ctk.CTkButton(
             button_frame,
@@ -625,6 +670,98 @@ class StudentWindow(ctk.CTk):
             ).pack(side="right" if self.lang == "ar" else "left", padx=5)
 
         self.load_students()
+
+    def update_stats(self):
+        students = self.account["students"]
+        count = len(students)
+        totals = [sum(s.get("grades", [])) for s in students]
+        avg = sum(totals) / count if count > 0 else 0
+        max_grade = max(totals) if totals else 0
+        min_grade = min(totals) if totals else 0
+        above_90 = sum(1 for t in totals if (t / MAX_GRADES) * 100 >= 90) if totals else 0
+
+        stats_text = {
+            "count": f"عدد الطلاب: {count}" if self.lang == "ar" else f"Number of Students: {count}",
+            "avg": f"متوسط العلامات: {avg:.2f}" if self.lang == "ar" else f"Average Grade: {avg:.2f}",
+            "max": f"أعلى درجة: {max_grade}" if self.lang == "ar" else f"Highest Grade: {max_grade}",
+            "min": f"أدنى درجة: {min_grade}" if self.lang == "ar" else f"Lowest Grade: {min_grade}",
+            "above_90": f"الطلاب فوق 90%: {above_90}" if self.lang == "ar" else f"Students above 90%: {above_90}"
+        }
+
+        for key, label in self.stats_labels.items():
+            label.configure(text=stats_text[key])
+
+    def show_grades_chart(self):
+        if not self.account["students"]:
+            messagebox.showerror(
+                "خطأ" if self.lang == "ar" else "Error",
+                "لا يوجد طلاب لعرض الرسم البياني." if self.lang == "ar" else "No students to display the chart."
+            )
+            return
+
+        popup = ctk.CTkToplevel(self)
+        popup.title("رسم بياني لعلامات الطلاب" if self.lang == "ar" else "Student Grades Chart")
+        screen_width = self.winfo_screenwidth()
+        screen_height = self.winfo_screenheight()
+        window_width = int(screen_width * 0.6)
+        window_height = int(screen_height * 0.5)
+        popup.wm_geometry(f"{window_width}x{window_height}+{int((screen_width - window_width) / 2)}+{int((screen_height - window_height) / 2)}")
+        popup.transient(self)
+        popup.grab_set()
+
+        chart_frame = ctk.CTkFrame(popup, corner_radius=10)
+        chart_frame.pack(pady=20, padx=20, fill="both", expand=True)
+
+        ctk.CTkLabel(
+            chart_frame,
+            text="توزيع علامات الطلاب" if self.lang == "ar" else "Distribution of Student Grades",
+            font=("Cairo" if self.lang == "ar" else "Arial", 16, "bold")
+        ).pack(pady=10)
+
+        names = [s["name"] for s in self.account["students"]]
+        totals = [sum(s.get("grades", [])) for s in self.account["students"]]
+
+        ```chartjs
+        {
+            "type": "bar",
+            "data": {
+                "labels": names,
+                "datasets": [{
+                    "label": "مجموع العلامات" if self.lang == "ar" else "Total Grades",
+                    "data": totals,
+                    "backgroundColor": ["#2196F3", "#4CAF50", "#F44336", "#FF9800", "#9C27B0", "#FFEB3B"],
+                    "borderColor": ["#1976D2", "#388E3C", "#D32F2F", "#F57C00", "#7B1FA2", "#FBC02D"],
+                    "borderWidth": 1
+                }]
+            },
+            "options": {
+                "scales": {
+                    "y": {
+                        "beginAtZero": true,
+                        "title": {
+                            "display": true,
+                            "text": "مجموع العلامات" if self.lang == "ar" else "Total Grades"
+                        }
+                    },
+                    "x": {
+                        "title": {
+                            "display": true,
+                            "text": "أسماء الطلاب" if self.lang == "ar" else "Student Names"
+                        }
+                    }
+                },
+                "plugins": {
+                    "legend": {
+                        "display": false
+                    },
+                    "title": {
+                        "display": true,
+                        "text": "توزيع علامات الطلاب" if self.lang == "ar" else "Student Grades Distribution"
+                    }
+                }
+            }
+        }
+        ```
 
     def toggle_language(self):
         new_lang = "en" if self.lang == "ar" else "ar"
@@ -705,6 +842,8 @@ class StudentWindow(ctk.CTk):
                 hover_color="#03A9F4",
                 corner_radius=8
             ).pack(side="right" if self.lang == "ar" else "left", padx=5)
+
+        self.update_stats()
 
     def open_add_students_popup(self):
         popup = ctk.CTkToplevel(self)
@@ -827,6 +966,7 @@ class StudentWindow(ctk.CTk):
         self.update_data()
         popup.destroy()
         self.load_students()
+        self.update_stats()
         messagebox.showinfo(
             "تم" if self.lang == "ar" else "Success",
             "تم حفظ قائمة الطلاب بنجاح ✅" if self.lang == "ar" else "Student list saved successfully ✅"
@@ -840,6 +980,7 @@ class StudentWindow(ctk.CTk):
             self.account["students"] = []
             self.update_data()
             self.load_students()
+            self.update_stats()
             messagebox.showinfo(
                 "تم" if self.lang == "ar" else "Success",
                 "تم تفريغ قائمة الطلاب بنجاح." if self.lang == "ar" else "Student list cleared successfully."
@@ -947,6 +1088,7 @@ class StudentWindow(ctk.CTk):
             self.update_data()
             popup.destroy()
             self.load_students()
+            self.update_stats()
             messagebox.showinfo(
                 "تم" if self.lang == "ar" else "Success",
                 "تم حفظ التغييرات بنجاح ✅" if self.lang == "ar" else "Changes saved successfully ✅"
