@@ -10,7 +10,7 @@ import re
 import random
 import time
 import pygame
-import hashlib  # لتشفير كلمات المرور
+import hashlib
 
 # ========== إعدادات الواجهة ==========
 ctk.set_appearance_mode("dark")
@@ -352,8 +352,8 @@ class AccountManagerWindow(ctk.CTk):
         def verify_email():
             entered_email = email_entry.get().strip()
             if entered_email == EMAIL:
-                parent_popup.destroy()  # إغلاق نافذة كلمة المرور
-                forgot_popup.destroy()  # إغلاق نافذة البريد
+                parent_popup.destroy()
+                forgot_popup.destroy()
                 messagebox.showinfo(
                     "تم" if self.lang == "ar" else "Success",
                     f"كلمة المرور الخاصة بك هي: {account.get('raw_password', 'غير متوفرة')}" if self.lang == "ar" else f"Your password is: {account.get('raw_password', 'Not available')}"
@@ -588,7 +588,7 @@ class CreateAccountWindow(ctk.CTk):
         remove_btn.pack(side="right" if self.lang == "ar" else "left", padx=5)
 
         self.student_list_frame = ctk.CTkScrollableFrame(self.main_frame, corner_radius=8)
-        self.student_list_frame.pack(pady=10, padx=40, fill="both", expand=True)
+        self.student_list_frame.pack(pady= => 10, padx=40, fill="both", expand=True)
         self.refresh_student_list()
 
     def add_student(self):
@@ -636,7 +636,7 @@ class CreateAccountWindow(ctk.CTk):
             self.refresh_student_list()
             messagebox.showinfo(
                 "تم" if self.lang == "ar" else "Success",
-                f"تم删除 الطالب {name} بنجاح." if self.lang == "ar" else f"Student {name} removed successfully."
+                f"تم حذف الطالب {name} بنجاح." if self.lang == "ar" else f"Student {name} removed successfully."
             )
         else:
             messagebox.showerror(
@@ -694,7 +694,7 @@ class CreateAccountWindow(ctk.CTk):
             "created_at": creation_date,
             "students": self.students,
             "password": hashed_password,
-            "raw_password": raw_password  # لعرضه في ميزة "نسيت كلمة المرور"
+            "raw_password": raw_password
         }
 
         self.data["accounts"].append(new_account)
@@ -876,25 +876,29 @@ class StudentWindow(ctk.CTk):
         )
         return_btn.pack(side="right" if lang == "ar" else "left", padx=5)
 
-        self.table_frame = ctk.CTkScrollableFrame(self.main_frame, corner_radius=8)
+        self.table_frame = ctk.CTkScrollableFrame(self.main_frame, corner_radius=8, width=window_width - 100)
         self.table_frame.pack(pady=10, fill="both", expand=True)
 
+        # إعداد الرأس باستخدام grid
         header_frame = ctk.CTkFrame(self.table_frame, fg_color="#37474F")
-        header_frame.pack(fill="x", pady=5, padx=5)
+        header_frame.grid(row=0, column=0, sticky="ew", pady=5, padx=5)
+        header_frame.grid_columnconfigure((0, 1, 2, 3, 4), weight=1)
+
         headers = [
             ("رقم" if self.lang == "ar" else "No.", 50),
             ("الاسم" if self.lang == "ar" else "Name", 200),
             ("المجموع" if self.lang == "ar" else "Total", 100),
-            ("الملاحظات" if self.lang == "ar" else "Notes", 300),
+            ("ملاحظات" if self.lang == "ar" else "Notes", 300),
             ("إجراءات" if self.lang == "ar" else "Actions", 100)
         ]
-        for text, width in headers:
+
+        for col, (text, width) in enumerate(headers):
             ctk.CTkLabel(
                 header_frame,
                 text=text,
                 font=("Cairo" if self.lang == "ar" else "Arial", 14, "bold"),
                 width=width
-            ).pack(side="right" if self.lang == "ar" else "left", padx=5)
+            ).grid(row=0, column=col, padx=5, sticky="ew")
 
         self.load_students()
 
@@ -932,16 +936,20 @@ class StudentWindow(ctk.CTk):
         self.load_students(filtered_students if search_term else self.account["students"])
 
     def load_students(self, students=None):
+        # إزالة جميع العناصر باستثناء الرأس
         for widget in self.table_frame.winfo_children()[1:]:
             widget.destroy()
 
         students = students or self.account["students"]
         sorted_students = sorted(students, key=lambda x: sum(x.get("grades", [])), reverse=True)
 
+        # إعداد grid للصفوف
+        self.table_frame.grid_columnconfigure((0, 1, 2, 3, 4), weight=1)
         for i, student in enumerate(sorted_students):
             total = sum(student.get("grades", []))
             row = ctk.CTkFrame(self.table_frame, corner_radius=5, fg_color="#424242")
-            row.pack(fill="x", pady=2, padx=5)
+            row.grid(row=i+1, column=0, sticky="ew", pady=2, padx=5)
+            row.grid_columnconfigure((0, 1, 2, 3, 4), weight=1)
 
             rank_icon = ""
             if i == 0 and len(sorted_students) >= 1:
@@ -958,7 +966,7 @@ class StudentWindow(ctk.CTk):
                 text=str(i+1),
                 font=("Cairo" if self.lang == "ar" else "Arial", 14),
                 width=50
-            ).pack(side="right" if self.lang == "ar" else "left", padx=5)
+            ).grid(row=0, column=0, padx=5, sticky="ew")
 
             name_label = ctk.CTkLabel(
                 row,
@@ -967,7 +975,7 @@ class StudentWindow(ctk.CTk):
                 width=200,
                 anchor="w" if self.lang == "ar" else "e"
             )
-            name_label.pack(side="right" if self.lang == "ar" else "left", padx=5)
+            name_label.grid(row=0, column=1, padx=5, sticky="ew")
             if rank_icon == "🥇":
                 name_label.configure(cursor="hand2")
                 name_label.bind("<Button-1>", lambda e: show_fireworks(self, self.lang))
@@ -977,7 +985,7 @@ class StudentWindow(ctk.CTk):
                 text=str(total),
                 font=("Cairo" if self.lang == "ar" else "Arial", 14),
                 width=100
-            ).pack(side="right" if self.lang == "ar" else "left", padx=5)
+            ).grid(row=0, column=2, padx=5, sticky="ew")
 
             ctk.CTkLabel(
                 row,
@@ -985,7 +993,7 @@ class StudentWindow(ctk.CTk):
                 font=("Cairo" if self.lang == "ar" else "Arial", 14),
                 width=300,
                 anchor="w" if self.lang == "ar" else "e"
-            ).pack(side="right" if self.lang == "ar" else "left", padx=5)
+            ).grid(row=0, column=3, padx=5, sticky="ew")
 
             ctk.CTkButton(
                 row,
@@ -996,7 +1004,7 @@ class StudentWindow(ctk.CTk):
                 fg_color="#0288D1",
                 hover_color="#03A9F4",
                 corner_radius=8
-            ).pack(side="right" if self.lang == "ar" else "left", padx=5)
+            ).grid(row=0, column=4, padx=5, sticky="ew")
 
         self.update_stats()
 
