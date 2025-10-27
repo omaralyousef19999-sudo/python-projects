@@ -622,7 +622,7 @@ class CreateAccountWindow(ctk.CTk):
             )
             return
 
-        self.students.append({"name": name, "grades": [], "info": ""})
+        self.students.append({"name": name, "grades": [], "info": "", "attendance": []})
         print(f"تمت إضافة الطالب: {name}, القائمة الآن: {self.students}")
         self.student_entry.delete(0, "end")
         self.refresh_student_list()
@@ -703,7 +703,8 @@ class CreateAccountWindow(ctk.CTk):
             "created_at": creation_date,
             "students": self.students,
             "password": hashed_password,
-            "raw_password": raw_password
+            "raw_password": raw_password,
+            "course_days": 5  # default value, can be changed later
         }
 
         self.data["accounts"].append(new_account)
@@ -715,6 +716,169 @@ class CreateAccountWindow(ctk.CTk):
 
         self.destroy()
         AccountManagerWindow(self.lang, self.mode).mainloop()
+
+# ============================================================
+# 🔹 واجهة إدارة الحضور
+# ============================================================
+class AttendanceWindow(ctk.CTkToplevel):
+    def __init__(self, master, account, lang="ar", mode="dark"):
+        super().__init__(master)
+        ctk.set_appearance_mode(mode)
+        self.account = account
+        self.lang = lang
+        self.mode = mode
+        self.title("إدارة الحضور" if lang == "ar" else "Manage Attendance")
+
+        screen_width = self.winfo_screenwidth()
+        screen_height = self.winfo_screenheight()
+        window_width = int(screen_width * 0.8)
+        window_height = int(screen_height * 0.8)
+        self.wm_geometry(f"{window_width}x{window_height}+{int((screen_width - window_width) / 2)}+{int((screen_height - window_height) / 2)}")
+
+        self.main_frame = ctk.CTkFrame(self, corner_radius=10)
+        self.main_frame.pack(fill="both", expand=True)
+
+        # Left section: Students list for attendance
+        left_frame = ctk.CTkFrame(self.main_frame, corner_radius=10)
+        left_frame.pack(side="left" if lang == "ar" else "right", fill="both", expand=True, padx=10, pady=10)
+
+        ctk.CTkLabel(
+            left_frame,
+            text="قائمة الطلاب" if lang == "ar" else "Students List",
+            font=("Cairo" if lang == "ar" else "Arial", 18, "bold")
+        ).pack(pady=10)
+
+        self.attendance_frame = ctk.CTkScrollableFrame(left_frame, corner_radius=8)
+        self.attendance_frame.pack(fill="both", expand=True, pady=10)
+
+        self.load_attendance_students()
+
+        save_attendance_btn = ctk.CTkButton(
+            left_frame,
+            text="💾 حفظ الحضور" if lang == "ar" else "💾 Save Attendance",
+            command=self.save_attendance,
+            fg_color="#5E2A7E",
+            hover_color="#7B1FA2",
+            corner_radius=8
+        )
+        save_attendance_btn.pack(pady=10)
+
+        # Right section: Date, day, sessions per week
+        right_frame = ctk.CTkFrame(self.main_frame, corner_radius=10, width=300)
+        right_frame.pack(side="right" if lang == "ar" else "left", fill="y", padx=10, pady=10)
+
+        ctk.CTkLabel(
+            right_frame,
+            text="إعدادات اليوم" if lang == "ar" else "Day Settings",
+            font=("Cairo" if lang == "ar" else "Arial", 18, "bold")
+        ).pack(pady=10)
+
+        today = datetime.now()
+        ctk.CTkLabel(
+            right_frame,
+            text=f"التاريخ: {today.strftime('%Y-%m-%d')}" if lang == "ar" else f"Date: {today.strftime('%Y-%m-%d')}",
+            font=("Cairo" if lang == "ar" else "Arial", 14)
+        ).pack(pady=5)
+
+        day_name = today.strftime("%A")
+        arabic_days = {"Monday": "الإثنين", "Tuesday": "الثلاثاء", "Wednesday": "الأربعاء", "Thursday": "الخميس", "Friday": "الجمعة", "Saturday": "السبت", "Sunday": "الأحد"}
+        ctk.CTkLabel(
+            right_frame,
+            text=f"اليوم: {arabic_days.get(day_name, day_name)}" if lang == "ar" else f"Day: {day_name}",
+            font=("Cairo" if lang == "ar" else "Arial", 14)
+        ).pack(pady=5)
+
+        ctk.CTkLabel(
+            right_frame,
+            text="عدد الجلسات في الأسبوع:" if lang == "ar" else "Sessions per Week:",
+            font=("Cairo" if lang == "ar" else "Arial", 14)
+        ).pack(pady=5)
+
+        self.sessions_entry = ctk.CTkEntry(
+            right_frame,
+            font=("Cairo" if lang == "ar" else "Arial", 14),
+            corner_radius=8,
+            height=40
+        )
+        self.sessions_entry.insert(0, str(self.account.get("course_days", 5)))
+        self.sessions_entry.pack(pady=5)
+
+        update_sessions_btn = ctk.CTkButton(
+            right_frame,
+            text="تحديث" if lang == "ar" else "Update",
+            command=self.update_sessions,
+            fg_color="#0288D1",
+            hover_color="#03A9F4",
+            corner_radius=8
+        )
+        update_sessions_btn.pack(pady=10)
+
+    def load_attendance_students(self):
+        for widget in self.attendance_frame.winfo_children():
+            widget.destroy()
+
+        today = datetime.now().strftime("%Y-%m-%d")
+        for i, student in enumerate(self.account["students"]):
+            row = ctk.CTkFrame(self.attendance_frame, corner_radius=5, fg_color="#424242")
+            row.pack(fill="x", pady=5, padx=5)
+
+            ctk.CTkLabel(
+                row,
+                text=f"{i+1}. {student['name']}",
+                font=("Cairo" if self.lang == "ar" else "Arial", 14),
+                anchor="w" if self.lang == "ar" else "e"
+            ).pack(side="left" if self.lang == "ar" else "right", padx=10, fill="x", expand=True)
+
+            present_switch = ctk.CTkSwitch(
+                row,
+                text="حاضر" if self.lang == "ar" else "Present",
+                command=lambda s=student, sw=present_switch: self.toggle_attendance(s, today, sw.get())
+            )
+            # Check if already marked
+            if any(a["date"] == today and a["present"] for a in student.get("attendance", [])):
+                present_switch.select()
+            present_switch.pack(side="right" if self.lang == "ar" else "left", padx=5)
+
+    def toggle_attendance(self, student, date, present):
+        attendance = student.get("attendance", [])
+        # Remove existing for today if any
+        attendance = [a for a in attendance if a["date"] != date]
+        attendance.append({"date": date, "present": bool(present)})
+        student["attendance"] = attendance
+
+    def save_attendance(self):
+        full_data = load_data()
+        for acc in full_data["accounts"]:
+            if acc["institute"] == self.account["institute"] and acc["teacher"] == self.account["teacher"]:
+                acc["students"] = self.account["students"]
+                break
+        save_data(full_data)
+        messagebox.showinfo(
+            "تم" if self.lang == "ar" else "Success",
+            "تم حفظ الحضور بنجاح ✅" if self.lang == "ar" else "Attendance saved successfully ✅"
+        )
+
+    def update_sessions(self):
+        try:
+            sessions = int(self.sessions_entry.get())
+            if sessions < 1:
+                raise ValueError
+            self.account["course_days"] = sessions
+            full_data = load_data()
+            for acc in full_data["accounts"]:
+                if acc["institute"] == self.account["institute"] and acc["teacher"] == self.account["teacher"]:
+                    acc["course_days"] = sessions
+                    break
+            save_data(full_data)
+            messagebox.showinfo(
+                "تم" if self.lang == "ar" else "Success",
+                "تم تحديث عدد الجلسات بنجاح ✅" if self.lang == "ar" else "Sessions updated successfully ✅"
+            )
+        except ValueError:
+            messagebox.showerror(
+                "خطأ" if self.lang == "ar" else "Error",
+                "يرجى إدخال رقم صحيح إيجابي." if self.lang == "ar" else "Please enter a positive integer."
+            )
 
 # ============================================================
 # 🔹 واجهة إدارة الطلاب
@@ -841,6 +1005,17 @@ class StudentWindow(ctk.CTk):
         button_frame = ctk.CTkFrame(self.main_frame, corner_radius=10)
         button_frame.pack(pady=10, fill="x")
 
+        attendance_btn = ctk.CTkButton(
+            button_frame,
+            text="📅 إدارة الحضور" if lang == "ar" else "📅 Manage Attendance",
+            font=("Cairo" if lang == "ar" else "Arial", 14),
+            command=self.open_attendance_window,
+            fg_color="#0288D1",
+            hover_color="#03A9F4",
+            corner_radius=8
+        )
+        attendance_btn.pack(side="right" if lang == "ar" else "left", padx=5)
+
         export_btn = ctk.CTkButton(
             button_frame,
             text="📊 تصدير إلى Excel" if lang == "ar" else "📊 Export to Excel",
@@ -922,17 +1097,20 @@ class StudentWindow(ctk.CTk):
 
         self.load_students()
 
+    def open_attendance_window(self):
+        AttendanceWindow(self, self.account, self.lang, self.mode)
+
     def update_stats(self):
         students = self.account["students"]
         count = len(students)
-        totals = [sum(s.get("grades", [])) for s in students]
+        totals = [sum(g["grade"] for g in s.get("grades", [])) for s in students]
         avg = sum(totals) / count if count > 0 else 0
         max_grade = max(totals) if totals else 0
         min_grade = min(totals) if totals else 0
         above_90 = sum(1 for t in totals if (t / MAX_GRADES) * 100 >= 90) if totals else 0
 
-        max_students = [s["name"] for s in students if sum(s.get("grades", [])) == max_grade]
-        min_students = [s["name"] for s in students if sum(s.get("grades", [])) == min_grade]
+        max_students = [s["name"] for s in students if sum(g["grade"] for g in s.get("grades", [])) == max_grade]
+        min_students = [s["name"] for s in students if sum(g["grade"] for g in s.get("grades", [])) == min_grade]
 
         stats_text = {
             "count": f"عدد الطلاب: {count}" if self.lang == "ar" else f"Number of Students: {count}",
@@ -969,12 +1147,12 @@ class StudentWindow(ctk.CTk):
             widget.destroy()
 
         students = students or self.account["students"]
-        sorted_students = sorted(students, key=lambda x: sum(x.get("grades", [])), reverse=True)
+        sorted_students = sorted(students, key=lambda x: sum(g["grade"] for g in x.get("grades", [])), reverse=True)
 
         # إعداد grid للصفوف
         self.table_frame.grid_columnconfigure((0, 1, 2, 3, 4), weight=1)
         for i, student in enumerate(sorted_students):
-            total = sum(student.get("grades", []))
+            total = sum(g["grade"] for g in student.get("grades", []))
             row = ctk.CTkFrame(self.table_frame, corner_radius=5, fg_color="#424242")
             row.grid(row=i+1, column=0, sticky="ew", pady=2, padx=5)
             row.grid_columnconfigure((0, 1, 2, 3, 4), weight=1)
@@ -1045,7 +1223,7 @@ class StudentWindow(ctk.CTk):
                     "اسم الطالب موجود بالفعل." if self.lang == "ar" else "Student name already exists."
                 )
                 return
-            self.account["students"].append({"name": name, "grades": [], "info": ""})
+            self.account["students"].append({"name": name, "grades": [], "info": "", "attendance": []})
             self.student_entry.delete(0, "end")
             self.load_students()
             self.update_stats()
@@ -1138,73 +1316,50 @@ class StudentWindow(ctk.CTk):
         name_entry.insert(0, student["name"])
         name_entry.pack(pady=10)
 
+        # Grades section
         ctk.CTkLabel(
             edit_frame,
-            text="العلامات (مفصولة بمسافة):" if self.lang == "ar" else "Grades (space-separated):",
+            text="العلامات:" if self.lang == "ar" else "Grades:",
             font=("Cairo" if self.lang == "ar" else "Arial", 14)
         ).pack(pady=5)
-        grades_text = ctk.CTkEntry(
-            edit_frame,
-            width=400,
-            font=("Cairo" if self.lang == "ar" else "Arial", 14),
-            corner_radius=8,
-            height=40
+
+        grades_frame = ctk.CTkScrollableFrame(edit_frame, corner_radius=8, height=150)
+        grades_frame.pack(fill="x", pady=10)
+
+        self.grade_rows = []
+        self.load_grades(grades_frame, student)
+
+        add_grade_frame = ctk.CTkFrame(edit_frame, corner_radius=10)
+        add_grade_frame.pack(fill="x", pady=10)
+
+        self.grade_entry = ctk.CTkEntry(
+            add_grade_frame,
+            placeholder_text="العلامة" if self.lang == "ar" else "Grade",
+            width=100
         )
-        grades_text.insert(0, " ".join(map(str, student.get("grades", []))))
-        grades_text.pack(pady=10)
+        self.grade_entry.pack(side="left" if self.lang == "ar" else "right", padx=5)
 
-        summary_frame = ctk.CTkFrame(edit_frame, corner_radius=10)
-        summary_frame.pack(pady=10, fill="x")
+        self.date_entry = ctk.CTkEntry(
+            add_grade_frame,
+            placeholder_text="التاريخ (YYYY-MM-DD)" if self.lang == "ar" else "Date (YYYY-MM-DD)",
+            width=150
+        )
+        self.date_entry.insert(0, datetime.now().strftime("%Y-%m-%d"))
+        self.date_entry.pack(side="left" if self.lang == "ar" else "right", padx=5)
 
-        ctk.CTkLabel(
-            summary_frame,
-            text="الخلاصة:" if self.lang == "ar" else "Summary:",
-            font=("Cairo" if self.lang == "ar" else "Arial", 14, "bold")
-        ).pack(pady=5)
+        self.reason_entry = ctk.CTkEntry(
+            add_grade_frame,
+            placeholder_text="السبب (اختياري)" if self.lang == "ar" else "Reason (optional)",
+            width=200
+        )
+        self.reason_entry.pack(side="left" if self.lang == "ar" else "right", padx=5)
 
-        total_label = ctk.CTkLabel(summary_frame, text="", font=("Cairo" if self.lang == "ar" else "Arial", 14))
-        total_label.pack(anchor="w" if self.lang == "ar" else "e")
-
-        avg_label = ctk.CTkLabel(summary_frame, text="", font=("Cairo" if self.lang == "ar" else "Arial", 14))
-        avg_label.pack(anchor="w" if self.lang == "ar" else "e")
-
-        count_label = ctk.CTkLabel(summary_frame, text="", font=("Cairo" if self.lang == "ar" else "Arial", 14))
-        count_label.pack(anchor="w" if self.lang == "ar" else "e")
-
-        grades_table = ctk.CTkScrollableFrame(edit_frame, corner_radius=8, height=100)
-        grades_table.pack(pady=10, fill="x")
-
-        grades_labels = []
-
-        def update_grades_display(*args):
-            for lbl in grades_labels:
-                lbl.destroy()
-            grades_labels.clear()
-
-            grades_str = grades_text.get().strip()
-            try:
-                grades = list(map(int, grades_str.split())) if grades_str else []
-                total = sum(grades)
-                count = len(grades)
-                avg = total / count if count else 0
-
-                total_label.configure(text=f"المجموع: {total}" if self.lang == "ar" else f"Total: {total}")
-                avg_label.configure(text=f"المتوسط: {avg:.2f}" if self.lang == "ar" else f"Average: {avg:.2f}")
-                count_label.configure(text=f"عدد العلامات: {count}" if self.lang == "ar" else f"Number of grades: {count}")
-
-                for i, g in enumerate(grades):
-                    lbl = ctk.CTkLabel(
-                        grades_table,
-                        text=f"اليوم {i+1}: {g}" if self.lang == "ar" else f"Day {i+1}: {g}",
-                        font=("Cairo" if self.lang == "ar" else "Arial", 14)
-                    )
-                    lbl.pack(anchor="w" if self.lang == "ar" else "e")
-                    grades_labels.append(lbl)
-            except ValueError:
-                pass
-
-        grades_text.bind("<KeyRelease>", update_grades_display)
-        update_grades_display()
+        add_grade_btn = ctk.CTkButton(
+            add_grade_frame,
+            text="➕ إضافة علامة" if self.lang == "ar" else "➕ Add Grade",
+            command=lambda: self.add_grade(student, grades_frame)
+        )
+        add_grade_btn.pack(side="right" if self.lang == "ar" else "left", padx=5)
 
         ctk.CTkLabel(
             edit_frame,
@@ -1232,25 +1387,7 @@ class StudentWindow(ctk.CTk):
                 )
                 return
 
-            grades_str = grades_text.get().strip()
-            if grades_str:
-                try:
-                    grades = list(map(int, grades_str.split()))
-                    if any(g < 0 or g > MAX_GRADES for g in grades):
-                        messagebox.showerror(
-                            "خطأ" if self.lang == "ar" else "Error",
-                            f"العلامات يجب أن تكون بين 0 و {MAX_GRADES}." if self.lang == "ar" else f"Grades must be between 0 and {MAX_GRADES}."
-                        )
-                        return
-                    student["grades"] = grades
-                except ValueError:
-                    messagebox.showerror(
-                        "خطأ" if self.lang == "ar" else "Error",
-                        "يجب أن تكون العلامات أرقام صحيحة مفصولة بمسافة." if self.lang == "ar" else "Grades must be space-separated integers."
-                    )
-                    return
-            else:
-                student["grades"] = []
+            # Grades are already updated in student["grades"] via add/edit/delete
 
             student["info"] = info_entry.get("1.0", "end").strip()
             self.load_students()
@@ -1271,6 +1408,103 @@ class StudentWindow(ctk.CTk):
             corner_radius=8
         ).pack(pady=15)
 
+    def load_grades(self, frame, student):
+        for widget in frame.winfo_children():
+            widget.destroy()
+
+        self.grade_rows = []
+        for idx, g in enumerate(student.get("grades", [])):
+            row = ctk.CTkFrame(frame, corner_radius=5)
+            row.pack(fill="x", pady=5)
+
+            grade_label = ctk.CTkLabel(row, text=str(g["grade"]), width=50)
+            grade_label.pack(side="left" if self.lang == "ar" else "right", padx=5)
+
+            date_label = ctk.CTkLabel(row, text=g["date"], width=100)
+            date_label.pack(side="left" if self.lang == "ar" else "right", padx=5)
+
+            reason_label = ctk.CTkLabel(row, text=g.get("reason", ""), width=150)
+            reason_label.pack(side="left" if self.lang == "ar" else "right", padx=5)
+
+            edit_btn = ctk.CTkButton(
+                row,
+                text="✏️" ,
+                width=30,
+                command=lambda i=idx: self.edit_grade(student, i, frame)
+            )
+            edit_btn.pack(side="right" if self.lang == "ar" else "left", padx=5)
+
+            delete_btn = ctk.CTkButton(
+                row,
+                text="🗑️",
+                width=30,
+                fg_color="#D32F2F",
+                hover_color="#F44336",
+                command=lambda i=idx: self.delete_grade(student, i, frame)
+            )
+            delete_btn.pack(side="right" if self.lang == "ar" else "left", padx=5)
+
+            self.grade_rows.append(row)
+
+    def add_grade(self, student, frame):
+        try:
+            grade = int(self.grade_entry.get())
+            if grade < 0 or grade > MAX_GRADES:
+                raise ValueError
+            date = self.date_entry.get()
+            datetime.strptime(date, "%Y-%m-%d")  # validate date
+            reason = self.reason_entry.get().strip()
+
+            student["grades"].append({"grade": grade, "date": date, "reason": reason})
+            self.grade_entry.delete(0, "end")
+            self.reason_entry.delete(0, "end")
+            self.load_grades(frame, student)
+        except ValueError:
+            messagebox.showerror(
+                "خطأ" if self.lang == "ar" else "Error",
+                "العلامة غير صالحة أو التاريخ غير صحيح." if self.lang == "ar" else "Invalid grade or date."
+            )
+
+    def edit_grade(self, student, idx, frame):
+        g = student["grades"][idx]
+        edit_popup = ctk.CTkToplevel(self)
+        edit_popup.title("تعديل العلامة" if self.lang == "ar" else "Edit Grade")
+        edit_popup.geometry("300x200")
+
+        grade_entry = ctk.CTkEntry(edit_popup, placeholder_text="العلامة")
+        grade_entry.insert(0, str(g["grade"]))
+        grade_entry.pack(pady=10)
+
+        date_entry = ctk.CTkEntry(edit_popup, placeholder_text="التاريخ")
+        date_entry.insert(0, g["date"])
+        date_entry.pack(pady=10)
+
+        reason_entry = ctk.CTkEntry(edit_popup, placeholder_text="السبب")
+        reason_entry.insert(0, g.get("reason", ""))
+        reason_entry.pack(pady=10)
+
+        def save_edit():
+            try:
+                grade = int(grade_entry.get())
+                if grade < 0 or grade > MAX_GRADES:
+                    raise ValueError
+                date = date_entry.get()
+                datetime.strptime(date, "%Y-%m-%d")
+                reason = reason_entry.get().strip()
+                student["grades"][idx] = {"grade": grade, "date": date, "reason": reason}
+                self.load_grades(frame, student)
+                edit_popup.destroy()
+            except ValueError:
+                messagebox.showerror("خطأ", "بيانات غير صالحة.")
+
+        save_btn = ctk.CTkButton(edit_popup, text="حفظ", command=save_edit)
+        save_btn.pack(pady=10)
+
+    def delete_grade(self, student, idx, frame):
+        if messagebox.askyesno("تأكيد", "هل تريد حذف هذه العلامة؟"):
+            del student["grades"][idx]
+            self.load_grades(frame, student)
+
     def back_to_manager(self):
         self.destroy()
         AccountManagerWindow(self.lang, self.mode).mainloop()
@@ -1289,10 +1523,11 @@ class StudentWindow(ctk.CTk):
             ])
 
             for student in self.account["students"]:
-                total = sum(student.get("grades", []))
+                grades_str = " ".join([f"{g['grade']} ({g['date']}, {g.get('reason', '')})" for g in student.get("grades", [])])
+                total = sum(g["grade"] for g in student.get("grades", []))
                 ws.append([
                     student["name"],
-                    " ".join(map(str, student.get("grades", []))),
+                    grades_str,
                     total,
                     student.get("info", "")
                 ])
