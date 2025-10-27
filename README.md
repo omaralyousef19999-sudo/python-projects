@@ -339,4 +339,369 @@ class StudentWindow(ctk.CTk):
         elif name:
             messagebox.showerror(
                 "خطأ" if self.lang == "ar" else "Error",
-                "الاسم يجب أن يحتوي على حروف فقط." if self.lang ==
+                "الاسم يجب أن يحتوي على حروف فقط." if self.lang == "ar" else "Name must contain letters only."
+            )
+
+    def remove_student(self):
+        name = self.student_entry.get().strip()
+        if name and any(s["name"] == name for s in self.account["students"]):
+            self.account["students"] = [s for s in self.account["students"] if s["name"] != name]
+            self.student_entry.delete(0, "end")
+            self.load_students()
+            self.update_stats()
+            messagebox.showinfo(
+                "تم" if self.lang == "ar" else "Success",
+                f"تم حذف الطالب {name} بنجاح." if self.lang == "ar" else f"Student {name} removed successfully."
+            )
+        elif name:
+            messagebox.showerror(
+                "خطأ" if self.lang == "ar" else "Error",
+                "اسم الطالب غير موجود." if self.lang == "ar" else "Student name not found."
+            )
+
+    def save_students(self):
+        full_data = load_data()
+        for acc in full_data["accounts"]:
+            if acc["institute"] == self.account["institute"] and acc["teacher"] == self.account["teacher"]:
+                acc["students"] = self.account["students"]
+                break
+        save_data(full_data)
+        messagebox.showinfo(
+            "تم" if self.lang == "ar" else "Success",
+            "تم حفظ قائمة الطلاب بنجاح ✅" if self.lang == "ar" else "Student list saved successfully ✅"
+        )
+
+    def restart_students(self):
+        if messagebox.askyesno(
+            "تأكيد" if self.lang == "ar" else "Confirm",
+            "هل تريد إعادة بدء وتفريغ قائمة الطلاب؟" if self.lang == "ar" else "Do you want to restart and clear the student list?"
+        ):
+            self.account["students"] = []
+            self.load_students()
+            self.update_stats()
+            messagebox.showinfo(
+                "تم" if self.lang == "ar" else "Success",
+                "تم تفريغ قائمة الطلاب بنجاح." if self.lang == "ar" else "Student list cleared successfully."
+            )
+
+    def edit_student(self, student):
+        creation_date = datetime.strptime(self.account["created_at"], "%Y-%m-%d")
+        if datetime.now() > creation_date + timedelta(days=EDIT_DAYS_LIMIT):
+            messagebox.showinfo(
+                "تنبيه" if self.lang == "ar" else "Alert",
+                "انتهت فترة تعديل البيانات." if self.lang == "ar" else "Editing period has expired."
+            )
+            return
+
+        popup = ctk.CTkToplevel(self)
+        popup.title(f"تعديل بيانات {student['name']}" if self.lang == "ar" else f"Edit {student['name']} Data")
+        screen_width = self.winfo_screenwidth()
+        screen_height = self.winfo_screenheight()
+        window_width = int(screen_width * 0.5)
+        window_height = int(screen_height * 0.7)
+        popup.wm_geometry(f"{window_width}x{window_height}+{int((screen_width - window_width) / 2)}+{int((screen_height - window_height) / 2)}")
+        popup.transient(self)
+        popup.grab_set()
+
+        edit_frame = ctk.CTkFrame(popup, corner_radius=10)
+        edit_frame.pack(pady=20, padx=20, fill="both", expand=True)
+
+        ctk.CTkLabel(
+            edit_frame,
+            text="اسم الطالب:" if self.lang == "ar" else "Student Name:",
+            font=("Cairo" if self.lang == "ar" else "Arial", 14)
+        ).pack(pady=5)
+
+        name_entry = ctk.CTkEntry(
+            edit_frame,
+            width=400,
+            font=("Cairo" if self.lang == "ar" else "Arial", 14),
+            corner_radius=8,
+            height=40
+        )
+        name_entry.insert(0, student["name"])
+        name_entry.pack(pady=10, side="right" if self.lang == "ar" else "left")
+
+        # Grades section
+        ctk.CTkLabel(
+            edit_frame,
+            text="العلامات:" if self.lang == "ar" else "Grades:",
+            font=("Cairo" if self.lang == "ar" else "Arial", 14)
+        ).pack(pady=5)
+
+        grades_frame = ctk.CTkScrollableFrame(edit_frame, corner_radius=8, height=150)
+        grades_frame.pack(fill="x", pady=10)
+
+        self.grade_rows = []
+        self.load_grades(grades_frame, student)
+
+        add_grade_frame = ctk.CTkFrame(edit_frame, corner_radius=10)
+        add_grade_frame.pack(fill="x", pady=10)
+
+        self.grade_entry = ctk.CTkEntry(
+            add_grade_frame,
+            placeholder_text="العلامة" if self.lang == "ar" else "Grade",
+            width=100,
+            font=("Cairo" if self.lang == "ar" else "Arial", 14)
+        )
+        self.grade_entry.pack(side="right" if self.lang == "ar" else "left", padx=5)
+
+        self.date_entry = ctk.CTkEntry(
+            add_grade_frame,
+            placeholder_text="التاريخ (YYYY-MM-DD)" if self.lang == "ar" else "Date (YYYY-MM-DD)",
+            width=150,
+            font=("Cairo" if self.lang == "ar" else "Arial", 14)
+        )
+        self.date_entry.insert(0, datetime.now().strftime("%Y-%m-%d"))
+        self.date_entry.pack(side="right" if self.lang == "ar" else "left", padx=5)
+
+        self.reason_entry = ctk.CTkEntry(
+            add_grade_frame,
+            placeholder_text="السبب (اختياري)" if self.lang == "ar" else "Reason (optional)",
+            width=200,
+            font=("Cairo" if self.lang == "ar" else "Arial", 14)
+        )
+        self.reason_entry.pack(side="right" if self.lang == "ar" else "left", padx=5)
+
+        add_grade_btn = ctk.CTkButton(
+            add_grade_frame,
+            text="➕ إضافة علامة" if self.lang == "ar" else "➕ Add Grade",
+            font=("Cairo" if self.lang == "ar" else "Arial", 14),
+            command=lambda: self.add_grade(student, grades_frame),
+            fg_color="#2E7D32",
+            hover_color="#4CAF50",
+            corner_radius=8
+        )
+        add_grade_btn.pack(side="left" if self.lang == "ar" else "right", padx=5)
+
+        save_grades_btn = ctk.CTkButton(
+            add_grade_frame,
+            text="💾 حفظ" if self.lang == "ar" else "💾 Save",
+            font=("Cairo" if self.lang == "ar" else "Arial", 14),
+            command=lambda: self.save_grades(student, grades_frame, popup),
+            fg_color="#5E2A7E",
+            hover_color="#7B1FA2",
+            corner_radius=8
+        )
+        save_grades_btn.pack(side="left" if self.lang == "ar" else "right", padx=5)
+
+        ctk.CTkLabel(
+            edit_frame,
+            text="ملاحظات:" if self.lang == "ar" else "Notes:",
+            font=("Cairo" if self.lang == "ar" else "Arial", 14)
+        ).pack(pady=5)
+
+        info_entry = ctk.CTkTextbox(
+            edit_frame,
+            width=400,
+            height=120,
+            font=("Cairo" if self.lang == "ar" else "Arial", 14),
+            corner_radius=8
+        )
+        info_entry.insert("end", student.get("info", ""))
+        info_entry.pack(pady=10, side="right" if self.lang == "ar" else "left")
+
+        def save_changes():
+            new_name = name_entry.get().strip()
+            if new_name and re.match(r"^[a-zA-Z\sأ-ي]+$", new_name):
+                student["name"] = new_name
+            else:
+                messagebox.showerror(
+                    "خطأ" if self.lang == "ar" else "Error",
+                    "اسم الطالب غير صالح." if self.lang == "ar" else "Invalid student name."
+                )
+                return
+
+            student["info"] = info_entry.get("1.0", "end").strip()
+            self.load_students()
+            self.update_stats()
+            popup.destroy()
+            messagebox.showinfo(
+                "تم" if self.lang == "ar" else "Success",
+                "تم حفظ التغييرات بنجاح ✅" if self.lang == "ar" else "Changes saved successfully ✅"
+            )
+
+        ctk.CTkButton(
+            edit_frame,
+            text="💾 حفظ" if self.lang == "ar" else "💾 Save",
+            font=("Cairo" if self.lang == "ar" else "Arial", 14),
+            command=save_changes,
+            fg_color="#5E2A7E",
+            hover_color="#7B1FA2",
+            corner_radius=8
+        ).pack(pady=15, side="left" if self.lang == "ar" else "right")
+
+    def save_grades(self, student, grades_frame, popup):
+        today = datetime.now().strftime("%Y-%m-%d")
+        full_data = load_data()
+        total_daily_grade = sum(g["grade"] for g in student["grades"] if g["date"] == today)
+
+        for acc in full_data["accounts"]:
+            if acc["institute"] == self.account["institute"] and acc["teacher"] == self.account["teacher"]:
+                for s in acc["students"]:
+                    if s["name"] == student["name"]:
+                        s["grades"] = student["grades"]
+                        break
+                break
+        save_data(full_data)
+        messagebox.showinfo(
+            "تم" if self.lang == "ar" else "Success",
+            f"تم حفظ العلامات بنجاح ✅\nإجمالي العلامات لليوم: {total_daily_grade}" if self.lang == "ar" else f"Grades saved successfully ✅\nTotal grades for today: {total_daily_grade}"
+        )
+        self.load_grades(grades_frame, student)
+        popup.destroy()
+
+    def load_grades(self, frame, student):
+        for widget in frame.winfo_children():
+            widget.destroy()
+
+        self.grade_rows = []
+        from collections import defaultdict
+        daily_grades = defaultdict(list)
+        for g in student.get("grades", []):
+            daily_grades[g["date"]].append(g)
+
+        for date, grades in sorted(daily_grades.items()):
+            total_daily = sum(g["grade"] for g in grades)
+            row = ctk.CTkFrame(frame, corner_radius=5)
+            row.pack(fill="x", pady=5)
+
+            date_label = ctk.CTkLabel(row, text=f"{date}: {total_daily}", width=150, font=("Cairo" if self.lang == "ar" else "Arial", 14), anchor="e" if self.lang == "ar" else "w")
+            date_label.pack(side="right" if self.lang == "ar" else "left", padx=5)
+
+            for idx, g in enumerate(grades):
+                sub_row = ctk.CTkFrame(row)
+                sub_row.pack(fill="x", padx=20)
+
+                grade_label = ctk.CTkLabel(sub_row, text=str(g["grade"]), width=50, font=("Cairo" if self.lang == "ar" else "Arial", 14), anchor="e" if self.lang == "ar" else "w")
+                grade_label.pack(side="right" if self.lang == "ar" else "left", padx=5)
+
+                reason_label = ctk.CTkLabel(sub_row, text=g.get("reason", ""), width=150, font=("Cairo" if self.lang == "ar" else "Arial", 14), anchor="e" if self.lang == "ar" else "w")
+                reason_label.pack(side="right" if self.lang == "ar" else "left", padx=5)
+
+                global_idx = student["grades"].index(g)
+                edit_btn = ctk.CTkButton(
+                    sub_row,
+                    text="✏️",
+                    width=30,
+                    font=("Cairo" if self.lang == "ar" else "Arial", 12),
+                    command=lambda gi=global_idx: self.edit_grade(student, gi, frame)
+                )
+                edit_btn.pack(side="left" if self.lang == "ar" else "right", padx=5)
+
+                delete_btn = ctk.CTkButton(
+                    sub_row,
+                    text="🗑️",
+                    width=30,
+                    fg_color="#D32F2F",
+                    hover_color="#F44336",
+                    font=("Cairo" if self.lang == "ar" else "Arial", 12),
+                    command=lambda gi=global_idx: self.delete_grade(student, gi, frame)
+                )
+                delete_btn.pack(side="left" if self.lang == "ar" else "right", padx=5)
+
+            self.grade_rows.append(row)
+
+    def add_grade(self, student, frame):
+        try:
+            grade = int(self.grade_entry.get())
+            if grade < 0 or grade > MAX_GRADES:
+                raise ValueError
+            date = self.date_entry.get()
+            datetime.strptime(date, "%Y-%m-%d")  # validate date
+            reason = self.reason_entry.get().strip()
+
+            student["grades"].append({"grade": grade, "date": date, "reason": reason})
+            self.grade_entry.delete(0, "end")
+            self.reason_entry.delete(0, "end")
+            self.load_grades(frame, student)
+        except ValueError:
+            messagebox.showerror(
+                "خطأ" if self.lang == "ar" else "Error",
+                "العلامة غير صالحة أو التاريخ غير صحيح." if self.lang == "ar" else "Invalid grade or date."
+            )
+
+    def edit_grade(self, student, idx, frame):
+        g = student["grades"][idx]
+        edit_popup = ctk.CTkToplevel(self)
+        edit_popup.title("تعديل العلامة" if self.lang == "ar" else "Edit Grade")
+        edit_popup.geometry("300x200")
+
+        grade_entry = ctk.CTkEntry(edit_popup, placeholder_text="العلامة", font=("Cairo" if self.lang == "ar" else "Arial", 14))
+        grade_entry.insert(0, str(g["grade"]))
+        grade_entry.pack(pady=10, side="right" if self.lang == "ar" else "left")
+
+        date_entry = ctk.CTkEntry(edit_popup, placeholder_text="التاريخ", font=("Cairo" if self.lang == "ar" else "Arial", 14))
+        date_entry.insert(0, g["date"])
+        date_entry.pack(pady=10, side="right" if self.lang == "ar" else "left")
+
+        reason_entry = ctk.CTkEntry(edit_popup, placeholder_text="السبب", font=("Cairo" if self.lang == "ar" else "Arial", 14))
+        reason_entry.insert(0, g.get("reason", ""))
+        reason_entry.pack(pady=10, side="right" if self.lang == "ar" else "left")
+
+        def save_edit():
+            try:
+                grade = int(grade_entry.get())
+                if grade < 0 or grade > MAX_GRADES:
+                    raise ValueError
+                date = date_entry.get()
+                datetime.strptime(date, "%Y-%m-%d")
+                reason = reason_entry.get().strip()
+                student["grades"][idx] = {"grade": grade, "date": date, "reason": reason}
+                self.load_grades(frame, student)
+                edit_popup.destroy()
+            except ValueError:
+                messagebox.showerror("خطأ" if self.lang == "ar" else "Error", "بيانات غير صالحة." if self.lang == "ar" else "Invalid data.")
+
+        save_btn = ctk.CTkButton(edit_popup, text="حفظ" if self.lang == "ar" else "Save", font=("Cairo" if self.lang == "ar" else "Arial", 14), command=save_edit)
+        save_btn.pack(pady=10, side="left" if self.lang == "ar" else "right")
+
+    def delete_grade(self, student, idx, frame):
+        if messagebox.askyesno("تأكيد" if self.lang == "ar" else "Confirm", "هل تريد حذف هذه العلامة؟" if self.lang == "ar" else "Do you want to delete this grade?"):
+            del student["grades"][idx]
+            self.load_grades(frame, student)
+
+    def back_to_manager(self):
+        self.destroy()
+        AccountManagerWindow(self.lang, self.mode).mainloop()
+
+    def export_to_excel(self):
+        self.attributes("-disabled", True)
+        try:
+            wb = Workbook()
+            ws = wb.active
+            ws.title = "Students"
+            ws.append([
+                "الاسم" if self.lang == "ar" else "Name",
+                "العلامات" if self.lang == "ar" else "Grades",
+                "المجموع" if self.lang == "ar" else "Total",
+                "ملاحظات" if self.lang == "ar" else "Notes"
+            ])
+
+            for student in self.account["students"]:
+                grades_str = " ".join([f"{g['grade']} ({g['date']}, {g.get('reason', '')})" for g in student.get("grades", [])])
+                total = sum(g["grade"] for g in student.get("grades", []))
+                ws.append([
+                    student["name"],
+                    grades_str,
+                    total,
+                    student.get("info", "")
+                ])
+
+            wb.save("students_data.xlsx")
+            messagebox.showinfo(
+                "تم" if self.lang == "ar" else "Success",
+                "تم تصدير البيانات إلى ملف Excel بنجاح ✅" if self.lang == "ar" else "Data exported to Excel successfully ✅"
+            )
+        except PermissionError:
+            messagebox.showerror(
+                "خطأ" if self.lang == "ar" else "Error",
+                "الملف مفتوح في برنامج آخر. أغلق الملف وحاول مجدداً." if self.lang == "ar" else "File is open in another program. Close it and try again."
+            )
+        except Exception as e:
+            messagebox.showerror(
+                "خطأ" if self.lang == "ar" else "Error",
+                f"حدث خطأ أثناء التصدير: {str(e)}" if self.lang == "ar" else f"Error during export: {str(e)}"
+            )
+        finally:
+            self.attributes("-disabled", False)
