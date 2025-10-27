@@ -13,7 +13,6 @@ import pygame
 import hashlib
 
 # ========== إعدادات الواجهة ==========
-ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
 
 DATA_FILE = "students_data.json"
@@ -134,10 +133,12 @@ def show_fireworks(master, lang):
 # 🔹 واجهة إدارة الحسابات
 # ============================================================
 class AccountManagerWindow(ctk.CTk):
-    def __init__(self, lang="ar"):
+    def __init__(self, lang="ar", mode="dark"):
         super().__init__()
+        ctk.set_appearance_mode(mode)
         self.title("إدارة الحسابات" if lang == "ar" else "Account Manager")
         self.lang = lang
+        self.mode = mode
         self.data = load_data()
         self.accounts = self.data.get("accounts", [])
 
@@ -147,19 +148,6 @@ class AccountManagerWindow(ctk.CTk):
         window_height = int(screen_height * 0.8)
         self.wm_geometry(f"{window_width}x{window_height}+{int((screen_width - window_width) / 2)}+{int((screen_height - window_height) / 2)}")
 
-        try:
-            self.background_image = ctk.CTkImage(dark_image=Image.open("background.png"), size=(window_width, window_height))
-        except FileNotFoundError:
-            messagebox.showwarning(
-                "تحذير" if lang == "ar" else "Warning",
-                "ملف الخلفية غير موجود." if lang == "ar" else "Background image not found."
-            )
-            self.background_image = None
-
-        self.canvas = Canvas(self, width=window_width, height=window_height, bg="#1E1E1E" if not self.background_image else None)
-        self.canvas.pack(fill="both", expand=True)
-        if self.background_image:
-            self.canvas.create_image(0, 0, anchor="nw", image=self.background_image)
         self.main_frame = ctk.CTkFrame(self, corner_radius=10)
         self.main_frame.place(relx=0.5, rely=0.5, anchor="center")
 
@@ -185,6 +173,17 @@ class AccountManagerWindow(ctk.CTk):
             corner_radius=8
         )
         lang_btn.pack(side="right" if lang == "ar" else "left", padx=5)
+
+        mode_btn = ctk.CTkButton(
+            button_frame,
+            text="☀️ الوضع النهاري" if lang == "ar" and mode == "dark" else "🌙 الوضع الليلي" if lang == "ar" and mode == "light" else "☀️ Light Mode" if mode == "dark" else "🌙 Dark Mode",
+            font=("Cairo" if lang == "ar" else "Arial", 12),
+            command=self.toggle_mode,
+            fg_color="#0288D1",
+            hover_color="#03A9F4",
+            corner_radius=8
+        )
+        mode_btn.pack(side="right" if lang == "ar" else "left", padx=5)
 
         add_btn = ctk.CTkButton(
             button_frame,
@@ -235,11 +234,16 @@ class AccountManagerWindow(ctk.CTk):
     def toggle_language(self):
         new_lang = "en" if self.lang == "ar" else "ar"
         self.destroy()
-        AccountManagerWindow(new_lang).mainloop()
+        AccountManagerWindow(new_lang, self.mode).mainloop()
+
+    def toggle_mode(self):
+        new_mode = "light" if self.mode == "dark" else "dark"
+        self.destroy()
+        AccountManagerWindow(self.lang, new_mode).mainloop()
 
     def create_new_account(self):
         self.destroy()
-        CreateAccountWindow(self.lang).mainloop()
+        CreateAccountWindow(self.lang, self.mode).mainloop()
 
     def show_password_prompt(self, account):
         popup = ctk.CTkToplevel(self)
@@ -283,7 +287,7 @@ class AccountManagerWindow(ctk.CTk):
             if hashed_entered_password == account.get("password", ""):
                 popup.destroy()
                 self.destroy()
-                StudentWindow(account, self.lang).mainloop()
+                StudentWindow(account, self.lang, self.mode).mainloop()
             else:
                 messagebox.showerror(
                     "خطأ" if self.lang == "ar" else "Error",
@@ -406,10 +410,12 @@ class AccountManagerWindow(ctk.CTk):
 # 🔹 واجهة إنشاء الحساب
 # ============================================================
 class CreateAccountWindow(ctk.CTk):
-    def __init__(self, lang="ar"):
+    def __init__(self, lang="ar", mode="dark"):
         super().__init__()
+        ctk.set_appearance_mode(mode)
         self.title("نظام المعهد - إنشاء حساب" if lang == "ar" else "Institute System - Create Account")
         self.lang = lang
+        self.mode = mode
         self.data = load_data()
         self.students = []
 
@@ -419,19 +425,6 @@ class CreateAccountWindow(ctk.CTk):
         window_height = int(screen_height * 0.8)
         self.wm_geometry(f"{window_width}x{window_height}+{int((screen_width - window_width) / 2)}+{int((screen_height - window_height) / 2)}")
 
-        try:
-            self.background_image = ctk.CTkImage(dark_image=Image.open("background.png"), size=(window_width, window_height))
-        except FileNotFoundError:
-            messagebox.showwarning(
-                "تحذير" if lang == "ar" else "Warning",
-                "ملف الخلفية غير موجود." if lang == "ar" else "Background image not found."
-            )
-            self.background_image = None
-
-        self.canvas = Canvas(self, width=window_width, height=window_height, bg="#1E1E1E" if not self.background_image else None)
-        self.canvas.pack(fill="both", expand=True)
-        if self.background_image:
-            self.canvas.create_image(0, 0, anchor="nw", image=self.background_image)
         self.main_frame = ctk.CTkFrame(self, corner_radius=10)
         self.main_frame.place(relx=0.5, rely=0.5, anchor="center")
 
@@ -524,6 +517,17 @@ class CreateAccountWindow(ctk.CTk):
         )
         lang_btn.pack(side="right" if lang == "ar" else "left", padx=5)
 
+        mode_btn = ctk.CTkButton(
+            button_frame,
+            text="☀️ الوضع النهاري" if lang == "ar" and mode == "dark" else "🌙 الوضع الليلي" if lang == "ar" and mode == "light" else "☀️ Light Mode" if mode == "dark" else "🌙 Dark Mode",
+            font=("Cairo" if lang == "ar" else "Arial", 12),
+            command=self.toggle_mode,
+            fg_color="#0288D1",
+            hover_color="#03A9F4",
+            corner_radius=8
+        )
+        mode_btn.pack(side="right" if lang == "ar" else "left", padx=5)
+
     def toggle_password_visibility(self):
         if self.show_password_switch.get():
             self.password_entry.configure(show="")
@@ -533,12 +537,17 @@ class CreateAccountWindow(ctk.CTk):
     def toggle_language(self):
         new_lang = "en" if self.lang == "ar" else "ar"
         self.destroy()
-        CreateAccountWindow(new_lang).mainloop()
+        CreateAccountWindow(new_lang, self.mode).mainloop()
+
+    def toggle_mode(self):
+        new_mode = "light" if self.mode == "dark" else "dark"
+        self.destroy()
+        CreateAccountWindow(self.lang, new_mode).mainloop()
 
     def goto_account_manager(self):
         if self.data["accounts"]:
             self.destroy()
-            AccountManagerWindow(self.lang).mainloop()
+            AccountManagerWindow(self.lang, self.mode).mainloop()
         else:
             messagebox.showinfo(
                 "تنبيه" if self.lang == "ar" else "Alert",
@@ -705,16 +714,18 @@ class CreateAccountWindow(ctk.CTk):
         )
 
         self.destroy()
-        AccountManagerWindow(self.lang).mainloop()
+        AccountManagerWindow(self.lang, self.mode).mainloop()
 
 # ============================================================
 # 🔹 واجهة إدارة الطلاب
 # ============================================================
 class StudentWindow(ctk.CTk):
-    def __init__(self, account, lang="ar"):
+    def __init__(self, account, lang="ar", mode="dark"):
         super().__init__()
+        ctk.set_appearance_mode(mode)
         self.account = account
         self.lang = lang
+        self.mode = mode
         self.title("إدارة الطلاب" if lang == "ar" else "Manage Students")
 
         screen_width = self.winfo_screenwidth()
@@ -723,19 +734,6 @@ class StudentWindow(ctk.CTk):
         window_height = int(screen_height * 0.8)
         self.wm_geometry(f"{window_width}x{window_height}+{int((screen_width - window_width) / 2)}+{int((screen_height - window_height) / 2)}")
 
-        try:
-            self.background_image = ctk.CTkImage(dark_image=Image.open("background.png"), size=(window_width, window_height))
-        except FileNotFoundError:
-            messagebox.showwarning(
-                "تحذير" if lang == "ar" else "Warning",
-                "ملف الخلفية غير موجود." if lang == "ar" else "Background image not found."
-            )
-            self.background_image = None
-
-        self.canvas = Canvas(self, width=window_width, height=window_height, bg="#1E1E1E" if not self.background_image else None)
-        self.canvas.pack(fill="both", expand=True)
-        if self.background_image:
-            self.canvas.create_image(0, 0, anchor="nw", image=self.background_image)
         self.main_frame = ctk.CTkFrame(self, corner_radius=10)
         self.main_frame.place(relx=0.5, rely=0.5, anchor="center")
 
@@ -876,6 +874,28 @@ class StudentWindow(ctk.CTk):
         )
         return_btn.pack(side="right" if lang == "ar" else "left", padx=5)
 
+        lang_btn = ctk.CTkButton(
+            button_frame,
+            text="🇬🇧 English" if lang == "ar" else "🇸🇦 العربية",
+            font=("Cairo" if lang == "ar" else "Arial", 12),
+            command=self.toggle_language,
+            fg_color="#0288D1",
+            hover_color="#03A9F4",
+            corner_radius=8
+        )
+        lang_btn.pack(side="right" if lang == "ar" else "left", padx=5)
+
+        mode_btn = ctk.CTkButton(
+            button_frame,
+            text="☀️ الوضع النهاري" if lang == "ar" and mode == "dark" else "🌙 الوضع الليلي" if lang == "ar" and mode == "light" else "☀️ Light Mode" if mode == "dark" else "🌙 Dark Mode",
+            font=("Cairo" if lang == "ar" else "Arial", 12),
+            command=self.toggle_mode,
+            fg_color="#0288D1",
+            hover_color="#03A9F4",
+            corner_radius=8
+        )
+        mode_btn.pack(side="right" if lang == "ar" else "left", padx=5)
+
         self.table_frame = ctk.CTkScrollableFrame(self.main_frame, corner_radius=8, width=window_width - 100)
         self.table_frame.pack(pady=10, fill="both", expand=True)
 
@@ -911,11 +931,14 @@ class StudentWindow(ctk.CTk):
         min_grade = min(totals) if totals else 0
         above_90 = sum(1 for t in totals if (t / MAX_GRADES) * 100 >= 90) if totals else 0
 
+        max_students = [s["name"] for s in students if sum(s.get("grades", [])) == max_grade]
+        min_students = [s["name"] for s in students if sum(s.get("grades", [])) == min_grade]
+
         stats_text = {
             "count": f"عدد الطلاب: {count}" if self.lang == "ar" else f"Number of Students: {count}",
             "avg": f"متوسط العلامات: {avg:.2f}" if self.lang == "ar" else f"Average Grade: {avg:.2f}",
-            "max": f"أعلى درجة: {max_grade}" if self.lang == "ar" else f"Highest Grade: {max_grade}",
-            "min": f"أدنى درجة: {min_grade}" if self.lang == "ar" else f"Lowest Grade: {min_grade}",
+            "max": f"أعلى درجة: {max_grade} ({', '.join(max_students)})" if self.lang == "ar" else f"Highest Grade: {max_grade} ({', '.join(max_students)})",
+            "min": f"أدنى درجة: {min_grade} ({', '.join(min_students)})" if self.lang == "ar" else f"Lowest Grade: {min_grade} ({', '.join(min_students)})",
             "above_90": f"الطلاب فوق 90%: {above_90}" if self.lang == "ar" else f"Students above 90%: {above_90}"
         }
 
@@ -925,7 +948,12 @@ class StudentWindow(ctk.CTk):
     def toggle_language(self):
         new_lang = "en" if self.lang == "ar" else "ar"
         self.destroy()
-        StudentWindow(self.account, new_lang).mainloop()
+        StudentWindow(self.account, new_lang, self.mode).mainloop()
+
+    def toggle_mode(self):
+        new_mode = "light" if self.mode == "dark" else "dark"
+        self.destroy()
+        StudentWindow(self.account, self.lang, new_mode).mainloop()
 
     def filter_students(self):
         search_term = self.search_entry.get().strip().lower()
@@ -1125,6 +1153,59 @@ class StudentWindow(ctk.CTk):
         grades_text.insert(0, " ".join(map(str, student.get("grades", []))))
         grades_text.pack(pady=10)
 
+        summary_frame = ctk.CTkFrame(edit_frame, corner_radius=10)
+        summary_frame.pack(pady=10, fill="x")
+
+        ctk.CTkLabel(
+            summary_frame,
+            text="الخلاصة:" if self.lang == "ar" else "Summary:",
+            font=("Cairo" if self.lang == "ar" else "Arial", 14, "bold")
+        ).pack(pady=5)
+
+        total_label = ctk.CTkLabel(summary_frame, text="", font=("Cairo" if self.lang == "ar" else "Arial", 14))
+        total_label.pack(anchor="w" if self.lang == "ar" else "e")
+
+        avg_label = ctk.CTkLabel(summary_frame, text="", font=("Cairo" if self.lang == "ar" else "Arial", 14))
+        avg_label.pack(anchor="w" if self.lang == "ar" else "e")
+
+        count_label = ctk.CTkLabel(summary_frame, text="", font=("Cairo" if self.lang == "ar" else "Arial", 14))
+        count_label.pack(anchor="w" if self.lang == "ar" else "e")
+
+        grades_table = ctk.CTkScrollableFrame(edit_frame, corner_radius=8, height=100)
+        grades_table.pack(pady=10, fill="x")
+
+        grades_labels = []
+
+        def update_grades_display(*args):
+            for lbl in grades_labels:
+                lbl.destroy()
+            grades_labels.clear()
+
+            grades_str = grades_text.get().strip()
+            try:
+                grades = list(map(int, grades_str.split())) if grades_str else []
+                total = sum(grades)
+                count = len(grades)
+                avg = total / count if count else 0
+
+                total_label.configure(text=f"المجموع: {total}" if self.lang == "ar" else f"Total: {total}")
+                avg_label.configure(text=f"المتوسط: {avg:.2f}" if self.lang == "ar" else f"Average: {avg:.2f}")
+                count_label.configure(text=f"عدد العلامات: {count}" if self.lang == "ar" else f"Number of grades: {count}")
+
+                for i, g in enumerate(grades):
+                    lbl = ctk.CTkLabel(
+                        grades_table,
+                        text=f"اليوم {i+1}: {g}" if self.lang == "ar" else f"Day {i+1}: {g}",
+                        font=("Cairo" if self.lang == "ar" else "Arial", 14)
+                    )
+                    lbl.pack(anchor="w" if self.lang == "ar" else "e")
+                    grades_labels.append(lbl)
+            except ValueError:
+                pass
+
+        grades_text.bind("<KeyRelease>", update_grades_display)
+        update_grades_display()
+
         ctk.CTkLabel(
             edit_frame,
             text="ملاحظات:" if self.lang == "ar" else "Notes:",
@@ -1192,7 +1273,7 @@ class StudentWindow(ctk.CTk):
 
     def back_to_manager(self):
         self.destroy()
-        AccountManagerWindow(self.lang).mainloop()
+        AccountManagerWindow(self.lang, self.mode).mainloop()
 
     def export_to_excel(self):
         self.attributes("-disabled", True)
