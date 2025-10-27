@@ -829,21 +829,21 @@ class AttendanceWindow(ctk.CTkToplevel):
                 anchor="w" if self.lang == "ar" else "e"
             ).pack(side="left" if self.lang == "ar" else "right", padx=10, fill="x", expand=True)
 
+            # Use variable for each switch
+            present_var = ctk.BooleanVar(value=any(a["date"] == today and a["present"] for a in student.get("attendance", [])))
             present_switch = ctk.CTkSwitch(
                 row,
                 text="حاضر" if self.lang == "ar" else "Present",
-                command=lambda s=student, sw=present_switch: self.toggle_attendance(s, today, sw.get())
+                variable=present_var,
+                command=lambda s=student, var=present_var: self.toggle_attendance(s, today, var.get())
             )
-            # Check if already marked
-            if any(a["date"] == today and a["present"] for a in student.get("attendance", [])):
-                present_switch.select()
             present_switch.pack(side="right" if self.lang == "ar" else "left", padx=5)
 
     def toggle_attendance(self, student, date, present):
         attendance = student.get("attendance", [])
         # Remove existing for today if any
         attendance = [a for a in attendance if a["date"] != date]
-        attendance.append({"date": date, "present": bool(present)})
+        attendance.append({"date": date, "present": present})
         student["attendance"] = attendance
 
     def save_attendance(self):
@@ -1361,6 +1361,13 @@ class StudentWindow(ctk.CTk):
         )
         add_grade_btn.pack(side="right" if self.lang == "ar" else "left", padx=5)
 
+        save_grades_btn = ctk.CTkButton(
+            edit_frame,
+            text="💾 حفظ العلامات" if self.lang == "ar" else "💾 Save Grades",
+            command=lambda: self.save_grades(student, popup)
+        )
+        save_grades_btn.pack(pady=10)
+
         ctk.CTkLabel(
             edit_frame,
             text="ملاحظات:" if self.lang == "ar" else "Notes:",
@@ -1408,41 +1415,68 @@ class StudentWindow(ctk.CTk):
             corner_radius=8
         ).pack(pady=15)
 
+    def save_grades(self, student, popup):
+        full_data = load_data()
+        for acc in full_data["accounts"]:
+            if acc["institute"] == self.account["institute"] and acc["teacher"] == self.account["teacher"]:
+                for s in acc["students"]:
+                    if s["name"] == student["name"]:
+                        s["grades"] = student["grades"]
+                        break
+                break
+        save_data(full_data)
+        messagebox.showinfo(
+            "تم" if self.lang == "ar" else "Success",
+            "تم حفظ العلامات بنجاح ✅" if self.lang == "ar" else "Grades saved successfully ✅"
+        )
+
     def load_grades(self, frame, student):
         for widget in frame.winfo_children():
             widget.destroy()
 
         self.grade_rows = []
-        for idx, g in enumerate(student.get("grades", [])):
+        # Aggregate grades by date
+        from collections import defaultdict
+        daily_grades = defaultdict(list)
+        for g in student.get("grades", []):
+            daily_grades[g["date"]].append(g)
+
+        for date, grades in sorted(daily_grades.items()):
+            total_daily = sum(g["grade"] for g in grades)
             row = ctk.CTkFrame(frame, corner_radius=5)
             row.pack(fill="x", pady=5)
 
-            grade_label = ctk.CTkLabel(row, text=str(g["grade"]), width=50)
-            grade_label.pack(side="left" if self.lang == "ar" else "right", padx=5)
-
-            date_label = ctk.CTkLabel(row, text=g["date"], width=100)
+            date_label = ctk.CTkLabel(row, text=f"{date}: {total_daily}", width=150)
             date_label.pack(side="left" if self.lang == "ar" else "right", padx=5)
 
-            reason_label = ctk.CTkLabel(row, text=g.get("reason", ""), width=150)
-            reason_label.pack(side="left" if self.lang == "ar" else "right", padx=5)
+            for idx, g in enumerate(grades):
+                sub_row = ctk.CTkFrame(row)
+                sub_row.pack(fill="x", padx=20)
 
-            edit_btn = ctk.CTkButton(
-                row,
-                text="✏️" ,
-                width=30,
-                command=lambda i=idx: self.edit_grade(student, i, frame)
-            )
-            edit_btn.pack(side="right" if self.lang == "ar" else "left", padx=5)
+                grade_label = ctk.CTkLabel(sub_row, text=str(g["grade"]), width=50)
+                grade_label.pack(side="left" if self.lang == "ar" else "right", padx=5)
 
-            delete_btn = ctk.CTkButton(
-                row,
-                text="🗑️",
-                width=30,
-                fg_color="#D32F2F",
-                hover_color="#F44336",
-                command=lambda i=idx: self.delete_grade(student, i, frame)
-            )
-            delete_btn.pack(side="right" if self.lang == "ar" else "left", padx=5)
+                reason_label = ctk.CTkLabel(sub_row, text=g.get("reason", ""), width=150)
+                reason_label.pack(side="left" if self.lang == "ar" else "right", padx=5)
+
+                global_idx = student["grades"].index(g)
+                edit_btn = ctk.CTkButton(
+                    sub_row,
+                    text="✏️" ,
+                    width=30,
+                    command=lambda gi=global_idx: self.edit_grade(student, gi, frame)
+                )
+                edit_btn.pack(side="right" if self.lang == "ar" else "left", padx=5)
+
+                delete_btn = ctk.CTkButton(
+                    sub_row,
+                    text="🗑️",
+                    width=30,
+                    fg_color="#D32F2F",
+                    hover_color="#F44336",
+                    command=lambda gi=global_idx: self.delete_grade(student, gi, frame)
+                )
+                delete_btn.pack(side="right" if self.lang == "ar" else "left", padx=5)
 
             self.grade_rows.append(row)
 
