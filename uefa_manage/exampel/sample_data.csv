@@ -1,0 +1,5 @@
+stage,date,stadium,home_team,away_team,home_goals,away_goals
+Group A,2025-09-15,Stadium A,Real Madrid,Celtic,2,1
+Group A,2025-09-16,Stadium B,Barcelona,Inter,1,1
+Group B,2025-09-15,Stadium C,Manchester City,PSG,3,2
+Group B,2025-09-16,Stadium D,Bayern,Ajax,2,0

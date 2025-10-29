@@ -1,0 +1,9 @@
+# pyproject.toml
+[project]
+name = "uefa-cl-manager"
+version = "1.0.0"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
