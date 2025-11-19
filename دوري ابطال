@@ -53,114 +53,223 @@ class CardLayout(BoxLayout):
         self.rect.pos = self.pos
         self.rect.size = self.size
 
-class LoginModal(ModalView):
+class IconLabel(BoxLayout):
+    def __init__(self, icon, text, icon_size=dp(20), font_size=dp(14), **kwargs):
+        super().__init__(**kwargs)
+        self.orientation = 'horizontal'
+        self.spacing = dp(8)
+        self.padding = [dp(5), 0]
+        
+        icon_label = Label(
+            text=icon,
+            font_size=icon_size,
+            size_hint=(None, None),
+            size=(icon_size, icon_size),
+            color=(1, 1, 1, 1)
+        )
+        
+        text_label = Label(
+            text=text,
+            font_size=font_size,
+            color=(1, 1, 1, 1),
+            halign='left',
+            valign='middle'
+        )
+        text_label.bind(size=text_label.setter('text_size'))
+        
+        self.add_widget(icon_label)
+        self.add_widget(text_label)
+
+class LoginSection(BoxLayout):
     def __init__(self, on_login_success, **kwargs):
         super().__init__(**kwargs)
+        self.orientation = 'vertical'
+        self.spacing = dp(15)
+        self.padding = dp(20)
         self.on_login_success = on_login_success
-        self.size_hint = (0.85, 0.7)
-        self.background_color = (0.1, 0.15, 0.25, 0.95)
         self.create_ui()
     
     def create_ui(self):
-        layout = BoxLayout(orientation='vertical', padding=dp(25), spacing=dp(20))
-        
         # العنوان
         title = ModernLabel(
             text="🔐 Create Account / Login",
             font_size=dp(22),
             bold=True,
-            halign='center'
+            halign='center',
+            size_hint=(1, 0.2)
         )
-        layout.add_widget(title)
+        self.add_widget(title)
         
-        # اسم المستخدم
-        username_layout = BoxLayout(orientation='vertical', spacing=dp(5), size_hint=(1, 0.2))
-        username_label = ModernLabel(text="👤 Username:", font_size=dp(14))
+        # حاوية اسم المستخدم
+        username_container = BoxLayout(orientation='vertical', size_hint=(1, 0.25), spacing=dp(5))
+        username_label = ModernLabel(text="👤 Username:", font_size=dp(16))
         self.username_input = TextInput(
             multiline=False,
-            font_size=dp(16),
+            font_size=dp(18),
             size_hint=(1, 0.7),
             background_color=(0.2, 0.25, 0.35, 1),
-            foreground_color=(1, 1, 1, 1)
+            foreground_color=(1, 1, 1, 1),
+            padding=[dp(15), dp(15)],
+            hint_text="Enter your username...",
+            hint_text_color=(0.7, 0.7, 0.8, 0.7)
         )
-        username_layout.add_widget(username_label)
-        username_layout.add_widget(self.username_input)
+        username_container.add_widget(username_label)
+        username_container.add_widget(self.username_input)
         
-        # كلمة السر
-        password_layout = BoxLayout(orientation='vertical', spacing=dp(5), size_hint=(1, 0.2))
-        password_label = ModernLabel(text="🔒 Password:", font_size=dp(14))
+        # حاوية كلمة السر
+        password_container = BoxLayout(orientation='vertical', size_hint=(1, 0.25), spacing=dp(5))
+        password_label = ModernLabel(text="🔒 Password:", font_size=dp(16))
         self.password_input = TextInput(
             multiline=False,
             password=True,
-            font_size=dp(16),
+            font_size=dp(18),
             size_hint=(1, 0.7),
             background_color=(0.2, 0.25, 0.35, 1),
-            foreground_color=(1, 1, 1, 1)
+            foreground_color=(1, 1, 1, 1),
+            padding=[dp(15), dp(15)],
+            hint_text="Enter your password...",
+            hint_text_color=(0.7, 0.7, 0.8, 0.7)
         )
-        password_layout.add_widget(password_label)
-        password_layout.add_widget(self.password_input)
+        password_container.add_widget(password_label)
+        password_container.add_widget(self.password_input)
         
-        # خطط التوقع
-        plan_layout = BoxLayout(orientation='vertical', spacing=dp(5), size_hint=(1, 0.3))
-        plan_label = ModernLabel(text="🎯 Prediction Strategy:", font_size=dp(14))
-        self.plan_input = TextInput(
+        # حاوية استراتيجية التوقع
+        strategy_container = BoxLayout(orientation='vertical', size_hint=(1, 0.4), spacing=dp(5))
+        strategy_label = ModernLabel(text="🎯 Prediction Strategy:", font_size=dp(16))
+        self.strategy_input = TextInput(
             multiline=True,
-            font_size=dp(14),
+            font_size=dp(16),
             size_hint=(1, 0.8),
             background_color=(0.2, 0.25, 0.35, 1),
             foreground_color=(1, 1, 1, 1),
-            hint_text="Describe your prediction strategy..."
+            padding=[dp(15), dp(15)],
+            hint_text="Describe your prediction strategy and approach...",
+            hint_text_color=(0.7, 0.7, 0.8, 0.7)
         )
-        plan_layout.add_widget(plan_label)
-        plan_layout.add_widget(self.plan_input)
+        strategy_container.add_widget(strategy_label)
+        strategy_container.add_widget(self.strategy_input)
         
         # أزرار
-        buttons_layout = BoxLayout(size_hint=(1, 0.2), spacing=dp(10))
+        buttons_container = BoxLayout(size_hint=(1, 0.2), spacing=dp(15))
         
-        cancel_btn = ModernButton(
-            text='❌ Cancel',
-            on_press=self.dismiss
+        register_btn = Button(
+            text='✅ Register New Account',
+            font_size=dp(16),
+            background_color=(0.2, 0.6, 0.2, 1),
+            on_press=self.register_account
         )
         
-        login_btn = ModernButton(
-            text='✅ Login / Register',
-            on_press=self.attempt_login
+        login_btn = Button(
+            text='🔐 Login to Existing Account',
+            font_size=dp(16),
+            background_color=(0.2, 0.4, 0.8, 1),
+            on_press=self.login_account
         )
         
-        buttons_layout.add_widget(cancel_btn)
-        buttons_layout.add_widget(login_btn)
+        buttons_container.add_widget(register_btn)
+        buttons_container.add_widget(login_btn)
         
-        layout.add_widget(username_layout)
-        layout.add_widget(password_layout)
-        layout.add_widget(plan_layout)
-        layout.add_widget(buttons_layout)
-        
-        self.add_widget(layout)
+        self.add_widget(username_container)
+        self.add_widget(password_container)
+        self.add_widget(strategy_container)
+        self.add_widget(buttons_container)
     
-    def attempt_login(self, instance):
+    def register_account(self, instance):
         username = self.username_input.text.strip()
         password = self.password_input.text.strip()
-        plan = self.plan_input.text.strip()
+        strategy = self.strategy_input.text.strip()
         
         if not username or not password:
-            self.show_error("Please fill all fields!")
+            self.show_error("❌ Please fill in all fields!")
+            return
+        
+        if len(username) < 3:
+            self.show_error("❌ Username must be at least 3 characters!")
             return
         
         if len(password) < 4:
-            self.show_error("Password must be at least 4 characters!")
+            self.show_error("❌ Password must be at least 4 characters!")
             return
         
-        self.on_login_success(username, password, plan)
-        self.dismiss()
+        if not strategy:
+            self.show_error("❌ Please describe your prediction strategy!")
+            return
+        
+        # حفظ بيانات المستخدم
+        user_key = f"{username}_{password}"
+        users_data = self.load_users_data()
+        
+        if user_key in users_data:
+            self.show_error("❌ Account already exists! Please login instead.")
+            return
+        
+        users_data[user_key] = {
+            'username': username,
+            'password': password,
+            'strategy': strategy,
+            'join_date': datetime.now().strftime('%Y-%m-%d %H:%M'),
+            'predictions_count': 0,
+            'total_matches_predicted': 0,
+            'correct_predictions': 0
+        }
+        
+        self.save_users_data(users_data)
+        self.on_login_success(users_data[user_key])
+        self.show_success(f"🎉 Welcome {username}! Account created successfully.")
+    
+    def login_account(self, instance):
+        username = self.username_input.text.strip()
+        password = self.password_input.text.strip()
+        
+        if not username or not password:
+            self.show_error("❌ Please enter username and password!")
+            return
+        
+        users_data = self.load_users_data()
+        user_key = f"{username}_{password}"
+        
+        if user_key not in users_data:
+            self.show_error("❌ Invalid username or password!")
+            return
+        
+        self.on_login_success(users_data[user_key])
+        self.show_success(f"👋 Welcome back {username}!")
+    
+    def load_users_data(self):
+        try:
+            if os.path.exists("users_data.json"):
+                with open("users_data.json", 'r') as f:
+                    return json.load(f)
+            return {}
+        except:
+            return {}
+    
+    def save_users_data(self, users_data):
+        try:
+            with open("users_data.json", 'w') as f:
+                json.dump(users_data, f, indent=4)
+        except:
+            pass
     
     def show_error(self, message):
         popup = Popup(
             title='Error',
             content=ModernLabel(text=message),
-            size_hint=(0.6, 0.3),
+            size_hint=(0.7, 0.3),
             background_color=(0.8, 0.2, 0.2, 1)
         )
         popup.open()
+        Clock.schedule_once(lambda dt: popup.dismiss(), 3)
+    
+    def show_success(self, message):
+        popup = Popup(
+            title='Success',
+            content=ModernLabel(text=message),
+            size_hint=(0.7, 0.3),
+            background_color=(0.2, 0.6, 0.2, 1)
+        )
+        popup.open()
+        Clock.schedule_once(lambda dt: popup.dismiss(), 2)
 
 class DetailedPredictionModal(ModalView):
     def __init__(self, match, current_user, on_prediction_submit, **kwargs):
@@ -175,7 +284,6 @@ class DetailedPredictionModal(ModalView):
     def create_ui(self):
         layout = BoxLayout(orientation='vertical', padding=dp(20), spacing=dp(15))
         
-        # العنوان
         title = ModernLabel(
             text=f"🎯 Detailed Prediction: {self.match['team1']} vs {self.match['team2']}",
             font_size=dp(18),
@@ -184,7 +292,6 @@ class DetailedPredictionModal(ModalView):
         )
         layout.add_widget(title)
         
-        # المستخدم
         user_info = ModernLabel(
             text=f"👤 Predictor: {self.current_user['username']}",
             font_size=dp(14),
@@ -192,14 +299,14 @@ class DetailedPredictionModal(ModalView):
         )
         layout.add_widget(user_info)
         
-        # النتيجة المتوقعة
         score_layout = BoxLayout(size_hint=(1, 0.15), spacing=dp(20))
         score_layout.add_widget(ModernLabel(text="Final Score:", font_size=dp(16)))
         
         self.team1_score = TextInput(
             text='0', multiline=False, input_filter='int',
             font_size=dp(18), halign='center', size_hint=(0.2, 1),
-            background_color=(0.2, 0.25, 0.35, 1), foreground_color=(1, 1, 1, 1)
+            background_color=(0.2, 0.25, 0.35, 1), foreground_color=(1, 1, 1, 1),
+            padding=[dp(10), dp(10)]
         )
         score_layout.add_widget(self.team1_score)
         
@@ -208,26 +315,26 @@ class DetailedPredictionModal(ModalView):
         self.team2_score = TextInput(
             text='0', multiline=False, input_filter='int',
             font_size=dp(18), halign='center', size_hint=(0.2, 1),
-            background_color=(0.2, 0.25, 0.35, 1), foreground_color=(1, 1, 1, 1)
+            background_color=(0.2, 0.25, 0.35, 1), foreground_color=(1, 1, 1, 1),
+            padding=[dp(10), dp(10)]
         )
         score_layout.add_widget(self.team2_score)
         
         score_layout.add_widget(ModernLabel(text="", size_hint=(0.4, 1)))
         layout.add_widget(score_layout)
         
-        # الفريق الفائز
         winner_layout = BoxLayout(size_hint=(1, 0.1), spacing=dp(10))
         winner_layout.add_widget(ModernLabel(text="🏆 Winner:", font_size=dp(14)))
         
         self.winner_input = TextInput(
             text=self.match['team1'], multiline=False,
             font_size=dp(14), size_hint=(0.6, 1),
-            background_color=(0.2, 0.25, 0.35, 1), foreground_color=(1, 1, 1, 1)
+            background_color=(0.2, 0.25, 0.35, 1), foreground_color=(1, 1, 1, 1),
+            padding=[dp(10), dp(10)]
         )
         winner_layout.add_widget(self.winner_input)
         layout.add_widget(winner_layout)
         
-        # الهدافين
         scorers_layout = BoxLayout(orientation='vertical', spacing=dp(5), size_hint=(1, 0.3))
         scorers_layout.add_widget(ModernLabel(text="⚽ Goal Scorers:", font_size=dp(14)))
         
@@ -237,12 +344,12 @@ class DetailedPredictionModal(ModalView):
             size_hint=(1, 0.8),
             background_color=(0.2, 0.25, 0.35, 1),
             foreground_color=(1, 1, 1, 1),
+            padding=[dp(10), dp(10)],
             hint_text="List goal scorers and their teams..."
         )
         scorers_layout.add_widget(self.scorers_input)
         layout.add_widget(scorers_layout)
         
-        # التحليل
         analysis_layout = BoxLayout(orientation='vertical', spacing=dp(5), size_hint=(1, 0.3))
         analysis_layout.add_widget(ModernLabel(text="📊 Match Analysis:", font_size=dp(14)))
         
@@ -252,12 +359,12 @@ class DetailedPredictionModal(ModalView):
             size_hint=(1, 0.8),
             background_color=(0.2, 0.25, 0.35, 1),
             foreground_color=(1, 1, 1, 1),
+            padding=[dp(10), dp(10)],
             hint_text="Your analysis and reasoning..."
         )
         analysis_layout.add_widget(self.analysis_input)
         layout.add_widget(analysis_layout)
         
-        # أزرار
         buttons_layout = BoxLayout(size_hint=(1, 0.15), spacing=dp(10))
         
         cancel_btn = ModernButton(text='❌ Cancel', on_press=self.dismiss)
@@ -283,7 +390,7 @@ class DetailedPredictionModal(ModalView):
             self.on_prediction_submit(self.match, prediction_data)
             self.dismiss()
         except ValueError:
-            self.show_error("Please check your inputs!")
+            self.show_error("❌ Please check your inputs!")
 
 class ChampionsLeagueApp(App):
     def build(self):
@@ -292,39 +399,16 @@ class ChampionsLeagueApp(App):
         self.user_predictions = {}
         self.liked_posts = set()
         self.current_user = None
-        self.users_file = "users_data.json"
         
-        # تحميل بيانات المستخدمين
-        self.load_users_data()
-        
-        # الواجهة الرئيسية
         self.main_layout = BoxLayout(orientation='vertical', spacing=dp(5))
         
         self.create_header()
         self.create_stats_bar()
         self.create_tabs()
         
-        # تحميل البيانات عند البدء
         Clock.schedule_once(lambda dt: self.load_data(), 1)
         
         return self.main_layout
-    
-    def load_users_data(self):
-        try:
-            if os.path.exists(self.users_file):
-                with open(self.users_file, 'r') as f:
-                    self.users_data = json.load(f)
-            else:
-                self.users_data = {}
-        except:
-            self.users_data = {}
-    
-    def save_users_data(self):
-        try:
-            with open(self.users_file, 'w') as f:
-                json.dump(self.users_data, f)
-        except:
-            pass
     
     def create_header(self):
         header = BoxLayout(size_hint=(1, 0.1), padding=dp(10))
@@ -335,113 +419,27 @@ class ChampionsLeagueApp(App):
             Rectangle(pos=(header.pos[0], header.pos[1] + header.height * 0.5), 
                      size=(header.width, header.height * 0.5))
         
-        title = ModernLabel(
-            text='🏆 UEFA Champions League',
-            font_size=dp(22),
-            bold=True,
-            halign='center'
-        )
+        title_layout = BoxLayout(orientation='horizontal', size_hint=(0.4, 1))
+        title_layout.add_widget(Label(text='🏆', font_size=dp(28)))
+        title_layout.add_widget(Label(text='UEFA Champions League', font_size=dp(20), bold=True))
         
-        # زر المستخدم
         self.user_btn = ModernButton(
             text='👤 Login' if not self.current_user else f'👤 {self.current_user["username"]}',
             size_hint=(0.25, 1),
-            on_press=self.show_login_modal
+            on_press=self.show_user_profile
         )
         
-        # زر التحديث
         refresh_btn = ModernButton(
             text='🔄 Refresh',
             size_hint=(0.2, 1),
             on_press=self.refresh_data
         )
         
-        header.add_widget(title)
+        header.add_widget(title_layout)
         header.add_widget(self.user_btn)
         header.add_widget(refresh_btn)
         
         self.main_layout.add_widget(header)
-    
-    def show_login_modal(self, instance):
-        if self.current_user:
-            self.show_user_profile()
-        else:
-            modal = LoginModal(self.on_login_success)
-            modal.open()
-    
-    def on_login_success(self, username, password, strategy):
-        # حفظ بيانات المستخدم
-        user_key = f"{username}_{password}"
-        if user_key not in self.users_data:
-            self.users_data[user_key] = {
-                'username': username,
-                'password': password,
-                'strategy': strategy,
-                'join_date': datetime.now().strftime('%Y-%m-%d'),
-                'predictions_count': 0
-            }
-            self.save_users_data()
-        
-        self.current_user = self.users_data[user_key]
-        self.user_btn.text = f'👤 {username}'
-        self.show_success_message(f"Welcome {username}!")
-    
-    def show_user_profile(self):
-        content = BoxLayout(orientation='vertical', padding=dp(20), spacing=dp(10))
-        
-        content.add_widget(ModernLabel(
-            text=f"👤 {self.current_user['username']}",
-            font_size=dp(18),
-            bold=True
-        ))
-        
-        content.add_widget(ModernLabel(
-            text=f"🎯 Strategy: {self.current_user['strategy']}",
-            font_size=dp(14)
-        ))
-        
-        content.add_widget(ModernLabel(
-            text=f"📅 Member since: {self.current_user['join_date']}",
-            font_size=dp(12),
-            color=(0.8, 0.8, 0.8, 1)
-        ))
-        
-        content.add_widget(ModernLabel(
-            text=f"📊 Predictions made: {self.current_user.get('predictions_count', 0)}",
-            font_size=dp(12),
-            color=(0.8, 0.8, 0.8, 1)
-        ))
-        
-        logout_btn = ModernButton(
-            text='🚪 Logout',
-            on_press=self.logout
-        )
-        content.add_widget(logout_btn)
-        
-        popup = Popup(
-            title='User Profile',
-            content=content,
-            size_hint=(0.7, 0.5),
-            background_color=(0.1, 0.15, 0.25, 1)
-        )
-        popup.open()
-    
-    def logout(self, instance):
-        self.current_user = None
-        self.user_btn.text = '👤 Login'
-        for popup in [p for p in Popup._active_popups if hasattr(p, '_instance')]:
-            popup.dismiss()
-        self.show_success_message("Logged out successfully!")
-    
-    def show_success_message(self, message):
-        popup = Popup(
-            title='Success',
-            content=ModernLabel(text=message),
-            size_hint=(0.6, 0.3),
-            background_color=(0.2, 0.6, 0.2, 1)
-        )
-        popup.open()
-        Clock.schedule_once(lambda dt: popup.dismiss(), 2)
     
     def create_stats_bar(self):
         stats_layout = BoxLayout(size_hint=(1, 0.08), spacing=dp(8), padding=dp(10))
@@ -459,9 +457,9 @@ class ChampionsLeagueApp(App):
                 Color(0.12, 0.18, 0.28, 1)
                 RoundedRectangle(pos=stat_box.pos, size=stat_box.size, radius=[dp(10),])
             
-            stat_box.add_widget(ModernLabel(text=emoji, font_size=dp(18)))
-            stat_box.add_widget(ModernLabel(text=value, font_size=dp(16), bold=True))
-            stat_box.add_widget(ModernLabel(text=label, font_size=dp(10), color=(0.7, 0.7, 0.8, 1)))
+            stat_box.add_widget(Label(text=emoji, font_size=dp(20)))
+            stat_box.add_widget(Label(text=value, font_size=dp(16), bold=True, color=(1, 1, 1, 1)))
+            stat_box.add_widget(Label(text=label, font_size=dp(10), color=(0.7, 0.7, 0.8, 1)))
             stats_layout.add_widget(stat_box)
         
         self.main_layout.add_widget(stats_layout)
@@ -484,7 +482,7 @@ class ChampionsLeagueApp(App):
         self.matches_content.add_widget(self.matches_layout)
         matches_tab.add_widget(self.matches_content)
         
-        # تبويب التوقعات
+        # تبويب التوقعات (يحتوي على قسم التسجيل)
         predictions_tab = TabbedPanelItem(text='🤔 Predictions')
         predictions_tab.background_color = (0.1, 0.15, 0.25, 1)
         self.predictions_content = ScrollView()
@@ -518,6 +516,227 @@ class ChampionsLeagueApp(App):
         
         self.main_layout.add_widget(self.tabs)
     
+    def update_predictions_tab(self):
+        self.predictions_layout.clear_widgets()
+        
+        if not self.current_user:
+            # عرض واجهة التسجيل إذا لم يكن المستخدم مسجلاً
+            login_section = LoginSection(self.on_login_success)
+            self.predictions_layout.add_widget(login_section)
+        else:
+            # عرض التوقعات إذا كان المستخدم مسجلاً
+            if not self.user_predictions:
+                empty_label = ModernLabel(
+                    text="🤔 No predictions yet!\n🎯 Go to Matches tab to predict upcoming matches.",
+                    font_size=dp(16),
+                    halign='center'
+                )
+                self.predictions_layout.add_widget(empty_label)
+            else:
+                for pred_id, prediction_data in self.user_predictions.items():
+                    self.predictions_layout.add_widget(self.create_detailed_prediction_card(prediction_data))
+    
+    def on_login_success(self, user_data):
+        self.current_user = user_data
+        self.user_btn.text = f'👤 {user_data["username"]}'
+        self.update_predictions_tab()
+    
+    def show_user_profile(self, instance):
+        if not self.current_user:
+            # إذا لم يكن مسجلاً، انتقل مباشرة إلى تبويب التوقعات
+            self.tabs.switch_to(self.tabs.tab_list[1])  # التبديل إلى تبويب التوقعات
+            return
+        
+        content = BoxLayout(orientation='vertical', padding=dp(20), spacing=dp(10))
+        
+        content.add_widget(IconLabel('👤', self.current_user['username'], font_size=dp(18)))
+        content.add_widget(IconLabel('🎯', f"Strategy: {self.current_user['strategy']}", font_size=dp(14)))
+        content.add_widget(IconLabel('📅', f"Member since: {self.current_user['join_date']}", font_size=dp(12)))
+        content.add_widget(IconLabel('📊', f"Predictions made: {self.current_user.get('predictions_count', 0)}", font_size=dp(12)))
+        
+        logout_btn = ModernButton(
+            text='🚪 Logout',
+            on_press=self.logout
+        )
+        content.add_widget(logout_btn)
+        
+        popup = Popup(
+            title='User Profile',
+            content=content,
+            size_hint=(0.7, 0.5),
+            background_color=(0.1, 0.15, 0.25, 1)
+        )
+        popup.open()
+    
+    def logout(self, instance):
+        self.current_user = None
+        self.user_btn.text = '👤 Login'
+        for popup in [p for p in Popup._active_popups if hasattr(p, '_instance')]:
+            popup.dismiss()
+        self.update_predictions_tab()
+        self.show_success_message("👋 Logged out successfully!")
+    
+    def show_success_message(self, message):
+        popup = Popup(
+            title='Success',
+            content=ModernLabel(text=message),
+            size_hint=(0.6, 0.3),
+            background_color=(0.2, 0.6, 0.2, 1)
+        )
+        popup.open()
+        Clock.schedule_once(lambda dt: popup.dismiss(), 2)
+    
+    def create_match_card(self, match):
+        card = CardLayout(height=dp(160))
+        
+        header = BoxLayout(orientation='horizontal', size_hint=(1, 0.2))
+        header.add_widget(Label(text='🏆', font_size=dp(16)))
+        header.add_widget(Label(text=match['stage'], font_size=dp(12), color=(0.8, 0.8, 0.8, 1)))
+        header.add_widget(Label(text=f"🕐 {match['date']}", font_size=dp(12), color=(0.8, 0.8, 0.8, 1)))
+        
+        match_info = BoxLayout(size_hint=(1, 0.5))
+        
+        team1_layout = BoxLayout(orientation='vertical', size_hint=(0.4, 1))
+        team1_layout.add_widget(Label(text=self.get_team_emoji(match['team1']), font_size=dp(28)))
+        team1_layout.add_widget(Label(text=match['team1'], font_size=dp(12), halign='center'))
+        
+        score_layout = BoxLayout(orientation='vertical', size_hint=(0.2, 1))
+        if match.get('status') == 'upcoming':
+            score = Label(text="VS", font_size=dp(20), color=(0.8, 0.8, 0.8, 1))
+            status = Label(text="⏰ UPCOMING", font_size=dp(10), color=(0.6, 0.8, 1, 1))
+        else:
+            score = Label(text=match['score'], font_size=dp(22), bold=True, color=(1, 0.8, 0.2, 1))
+            status = Label(text="🔴 LIVE", font_size=dp(10), color=(1, 0.3, 0.3, 1))
+        score_layout.add_widget(score)
+        score_layout.add_widget(status)
+        
+        team2_layout = BoxLayout(orientation='vertical', size_hint=(0.4, 1))
+        team2_layout.add_widget(Label(text=self.get_team_emoji(match['team2']), font_size=dp(28)))
+        team2_layout.add_widget(Label(text=match['team2'], font_size=dp(12), halign='center'))
+        
+        match_info.add_widget(team1_layout)
+        match_info.add_widget(score_layout)
+        match_info.add_widget(team2_layout)
+        
+        actions = BoxLayout(size_hint=(1, 0.3), spacing=dp(5))
+        if match.get('status') == 'upcoming':
+            predict_btn = ModernButton(
+                text='🎯 Predict This Match',
+                size_hint=(0.8, 1),
+                on_press=lambda x, m=match: self.show_detailed_prediction_modal(m)
+            )
+            actions.add_widget(predict_btn)
+        
+        card.add_widget(header)
+        card.add_widget(match_info)
+        if match.get('status') == 'upcoming':
+            card.add_widget(actions)
+        
+        return card
+    
+    def show_detailed_prediction_modal(self, match):
+        if not self.current_user:
+            self.show_login_required_message()
+            return
+        
+        modal = DetailedPredictionModal(match, self.current_user, self.on_detailed_prediction_submit)
+        modal.open()
+    
+    def show_login_required_message(self):
+        # التبديل إلى تبويب التوقعات لإنشاء حساب
+        self.tabs.switch_to(self.tabs.tab_list[1])
+        self.show_error_message("🔐 Please create an account or login first!")
+    
+    def show_error_message(self, message):
+        popup = Popup(
+            title='Login Required',
+            content=ModernLabel(text=message),
+            size_hint=(0.6, 0.3),
+            background_color=(0.8, 0.6, 0.2, 1)
+        )
+        popup.open()
+        Clock.schedule_once(lambda dt: popup.dismiss(), 3)
+    
+    def on_detailed_prediction_submit(self, match, prediction_data):
+        match_id = f"{match['team1']}_{match['team2']}_{match['date']}"
+        self.user_predictions[match_id] = {
+            'match': match,
+            'prediction': prediction_data
+        }
+        
+        # تحديث إحصائيات المستخدم
+        self.update_user_stats()
+        self.update_predictions_tab()
+        self.show_success_message("✅ Prediction submitted successfully!")
+    
+    def update_user_stats(self):
+        if self.current_user:
+            users_data = self.load_users_data()
+            user_key = f"{self.current_user['username']}_{self.current_user['password']}"
+            if user_key in users_data:
+                users_data[user_key]['predictions_count'] = len(self.user_predictions)
+                self.save_users_data(users_data)
+    
+    def load_users_data(self):
+        try:
+            if os.path.exists("users_data.json"):
+                with open("users_data.json", 'r') as f:
+                    return json.load(f)
+            return {}
+        except:
+            return {}
+    
+    def save_users_data(self, users_data):
+        try:
+            with open("users_data.json", 'w') as f:
+                json.dump(users_data, f, indent=4)
+        except:
+            pass
+    
+    def create_detailed_prediction_card(self, prediction_data):
+        card = CardLayout(height=dp(220))
+        match = prediction_data['match']
+        pred = prediction_data['prediction']
+        
+        title_layout = BoxLayout(orientation='horizontal', size_hint=(1, 0.15))
+        title_layout.add_widget(Label(text='🎯', font_size=dp(18)))
+        title_layout.add_widget(Label(text=f"Prediction by {pred['username']}", font_size=dp(14), bold=True))
+        
+        match_layout = BoxLayout(orientation='horizontal', size_hint=(1, 0.2))
+        match_layout.add_widget(Label(text=self.get_team_emoji(match['team1']), font_size=dp(20)))
+        match_layout.add_widget(Label(text=f"{match['team1']} vs {match['team2']}", font_size=dp(13)))
+        match_layout.add_widget(Label(text=self.get_team_emoji(match['team2']), font_size=dp(20)))
+        
+        score_layout = BoxLayout(orientation='horizontal', size_hint=(1, 0.15))
+        score_layout.add_widget(Label(text='📊', font_size=dp(16)))
+        score_layout.add_widget(Label(text=f"Predicted Score: {pred['score']}", font_size=dp(14), bold=True, color=(1, 0.8, 0.2, 1)))
+        
+        details = BoxLayout(orientation='vertical', size_hint=(1, 0.4))
+        details.add_widget(IconLabel('🏆', f"Winner: {pred['winner']}", font_size=dp(12)))
+        details.add_widget(IconLabel('⚽', f"Scorers: {pred['scorers']}", font_size=dp(11)))
+        details.add_widget(IconLabel('📊', f"Analysis: {pred['analysis']}", font_size=dp(11)))
+        
+        footer = BoxLayout(size_hint=(1, 0.1))
+        footer.add_widget(IconLabel('🕐', pred['timestamp'], font_size=dp(10)))
+        footer.add_widget(IconLabel('🎯', f"Strategy: {pred['strategy'][:15]}...", font_size=dp(10)))
+        
+        card.add_widget(title_layout)
+        card.add_widget(match_layout)
+        card.add_widget(score_layout)
+        card.add_widget(details)
+        card.add_widget(footer)
+        
+        return card
+    
+    def get_team_emoji(self, team_name):
+        emoji_map = {
+            'Real Madrid': '👑', 'Man City': '🌃', 'Bayern Munich': '🔴',
+            'Arsenal': '🔫', 'Barcelona': '🔵', 'PSG': '⭐',
+            'Liverpool': '🔴', 'Chelsea': '🔵', 'Dortmund': '🟡', 
+            'Atletico Madrid': '🔴'
+        }
+        return emoji_map.get(team_name, '⚽')
+    
     def load_data(self):
         threading.Thread(target=self._load_data_thread, daemon=True).start()
     
@@ -550,168 +769,20 @@ class ChampionsLeagueApp(App):
         for news_item in news:
             self.news_layout.add_widget(self.create_news_card(news_item))
     
-    def create_match_card(self, match):
-        card = CardLayout(height=dp(140))
-        
-        match_info = BoxLayout(size_hint=(1, 0.5))
-        
-        team_layout1 = BoxLayout(orientation='vertical', size_hint=(0.4, 1))
-        team_emoji1 = ModernLabel(text=self.get_team_emoji(match['team1']), font_size=dp(20))
-        team_name1 = ModernLabel(text=match['team1'], font_size=dp(12), halign='center')
-        team_layout1.add_widget(team_emoji1)
-        team_layout1.add_widget(team_name1)
-        
-        score_layout = BoxLayout(orientation='vertical', size_hint=(0.2, 1))
-        if match.get('status') == 'upcoming':
-            score = ModernLabel(text="VS", font_size=dp(16), color=(0.8, 0.8, 0.8, 1))
-            status = ModernLabel(text="UPCOMING", font_size=dp(10), color=(0.6, 0.8, 1, 1))
-        else:
-            score = ModernLabel(text=match['score'], font_size=dp(18), bold=True, color=(1, 0.8, 0.2, 1))
-            status = ModernLabel(text="LIVE", font_size=dp(10), color=(1, 0.3, 0.3, 1))
-        score_layout.add_widget(score)
-        score_layout.add_widget(status)
-        
-        team_layout2 = BoxLayout(orientation='vertical', size_hint=(0.4, 1))
-        team_emoji2 = ModernLabel(text=self.get_team_emoji(match['team2']), font_size=dp(20))
-        team_name2 = ModernLabel(text=match['team2'], font_size=dp(12), halign='center')
-        team_layout2.add_widget(team_emoji2)
-        team_layout2.add_widget(team_name2)
-        
-        match_info.add_widget(team_layout1)
-        match_info.add_widget(score_layout)
-        match_info.add_widget(team_layout2)
-        
-        details = BoxLayout(size_hint=(1, 0.3))
-        stage = ModernLabel(text=f"🏆 {match['stage']}", font_size=dp(11))
-        time = ModernLabel(text=f"🕐 {match['date']}", font_size=dp(11))
-        details.add_widget(stage)
-        details.add_widget(time)
-        
-        actions = BoxLayout(size_hint=(1, 0.2), spacing=dp(5))
-        if match.get('status') == 'upcoming':
-            predict_btn = ModernButton(
-                text='🎯 Predict Score',
-                size_hint=(0.6, 1),
-                on_press=lambda x, m=match: self.show_detailed_prediction_modal(m)
-            )
-            actions.add_widget(predict_btn)
-        
-        card.add_widget(match_info)
-        card.add_widget(details)
-        if match.get('status') == 'upcoming':
-            card.add_widget(actions)
-        
-        return card
-    
-    def show_detailed_prediction_modal(self, match):
-        if not self.current_user:
-            self.show_login_required_message()
-            return
-        
-        modal = DetailedPredictionModal(match, self.current_user, self.on_detailed_prediction_submit)
-        modal.open()
-    
-    def show_login_required_message(self):
-        popup = Popup(
-            title='Login Required',
-            content=ModernLabel(text="Please login to make predictions!"),
-            size_hint=(0.6, 0.3),
-            background_color=(0.8, 0.6, 0.2, 1)
-        )
-        popup.open()
-        Clock.schedule_once(lambda dt: popup.dismiss(), 2)
-    
-    def on_detailed_prediction_submit(self, match, prediction_data):
-        match_id = f"{match['team1']}_{match['team2']}_{match['date']}"
-        self.user_predictions[match_id] = {
-            'match': match,
-            'prediction': prediction_data
-        }
-        
-        # تحديث عدد توقعات المستخدم
-        user_key = f"{self.current_user['username']}_{self.current_user['password']}"
-        if user_key in self.users_data:
-            self.users_data[user_key]['predictions_count'] = self.users_data[user_key].get('predictions_count', 0) + 1
-            self.save_users_data()
-        
-        self.update_predictions_tab()
-        self.show_success_message("Prediction submitted successfully!")
-    
-    def update_predictions_tab(self):
-        self.predictions_layout.clear_widgets()
-        
-        if not self.user_predictions:
-            empty_label = ModernLabel(
-                text="🤔 No predictions yet!\nLogin and predict upcoming matches.",
-                font_size=dp(16),
-                halign='center'
-            )
-            self.predictions_layout.add_widget(empty_label)
-            return
-        
-        for pred_id, prediction_data in self.user_predictions.items():
-            self.predictions_layout.add_widget(self.create_detailed_prediction_card(prediction_data))
-    
-    def create_detailed_prediction_card(self, prediction_data):
-        card = CardLayout(height=dp(200))
-        match = prediction_data['match']
-        pred = prediction_data['prediction']
-        
-        title = ModernLabel(
-            text=f"🎯 Prediction by {pred['username']}",
-            font_size=dp(14),
-            bold=True,
-            halign='left'
-        )
-        
-        match_info = BoxLayout(size_hint=(1, 0.2))
-        teams = ModernLabel(
-            text=f"{match['team1']} vs {match['team2']}",
-            font_size=dp(13),
-            halign='center'
-        )
-        
-        score = ModernLabel(
-            text=f"📊 Score: {pred['score']}",
-            font_size=dp(14),
-            bold=True,
-            color=(1, 0.8, 0.2, 1),
-            halign='center'
-        )
-        
-        match_info.add_widget(teams)
-        match_info.add_widget(score)
-        
-        details = BoxLayout(orientation='vertical', size_hint=(1, 0.6))
-        details.add_widget(ModernLabel(text=f"🏆 Winner: {pred['winner']}", font_size=dp(12)))
-        details.add_widget(ModernLabel(text=f"⚽ Scorers: {pred['scorers']}", font_size=dp(11)))
-        details.add_widget(ModernLabel(text=f"📊 Analysis: {pred['analysis']}", font_size=dp(11)))
-        
-        footer = BoxLayout(size_hint=(1, 0.2))
-        footer.add_widget(ModernLabel(text=f"🕐 {pred['timestamp']}", font_size=dp(10)))
-        footer.add_widget(ModernLabel(text=f"🎯 Strategy: {pred['strategy'][:20]}...", font_size=dp(10)))
-        
-        card.add_widget(title)
-        card.add_widget(match_info)
-        card.add_widget(details)
-        card.add_widget(footer)
-        
-        return card
-    
     def create_standings_header(self):
-        header = BoxLayout(size_hint_y=None, height=dp(35), padding=dp(5))
+        header = BoxLayout(size_hint_y=None, height=dp(40), padding=dp(5))
         with header.canvas.before:
             Color(0, 0.4, 0.8, 1)
             Rectangle(pos=header.pos, size=header.size)
         
         headers = ['🏅', 'Team', 'P', 'W', 'D', 'L', 'Pts']
         for text in headers:
-            header.add_widget(ModernLabel(text=text, font_size=dp(12), bold=True, halign='center'))
+            header.add_widget(Label(text=text, font_size=dp(12), bold=True, color=(1, 1, 1, 1), halign='center'))
         
         return header
     
     def create_team_row(self, team, rank):
-        row = BoxLayout(size_hint_y=None, height=dp(32), padding=dp(5))
+        row = BoxLayout(size_hint_y=None, height=dp(35), padding=dp(5))
         bg_color = (0.12, 0.18, 0.28, 1) if rank % 2 == 0 else (0.15, 0.22, 0.35, 1)
         with row.canvas.before:
             Color(*bg_color)
@@ -719,42 +790,62 @@ class ChampionsLeagueApp(App):
         
         rank_emoji = '🥇' if rank == 1 else '🥈' if rank == 2 else '🥉' if rank == 3 else f'{rank}'
         
-        data = [rank_emoji, team['name'], str(team['played']), str(team['won']), 
-                str(team['drawn']), str(team['lost']), str(team['points'])]
+        data = [
+            rank_emoji,
+            f"{self.get_team_emoji(team['name'])} {team['name']}",
+            str(team['played']),
+            str(team['won']),
+            str(team['drawn']),
+            str(team['lost']),
+            str(team['points'])
+        ]
         
         for i, text in enumerate(data):
             color = (1, 0.8, 0.2, 1) if i == 6 else (1, 1, 1, 1)
             bold = i in [0, 6]
-            row.add_widget(ModernLabel(text=text, font_size=dp(11), bold=bold, color=color, halign='center'))
+            row.add_widget(Label(text=text, font_size=dp(11), bold=bold, color=color, halign='center'))
         
         return row
     
     def create_news_card(self, news_item):
-        card = CardLayout(height=dp(160))
+        card = CardLayout(height=dp(170))
         
-        title_layout = BoxLayout(size_hint=(1, 0.25))
-        title = ModernLabel(text=f"📢 {news_item['title']}", font_size=dp(14), bold=True, halign='left')
-        title_layout.add_widget(title)
+        title_layout = BoxLayout(orientation='horizontal', size_hint=(1, 0.3))
+        title_layout.add_widget(Label(text='📢', font_size=dp(20)))
+        title_layout.add_widget(Label(text=news_item['title'], font_size=dp(14), bold=True, halign='left'))
         
-        content = ModernLabel(
+        content = Label(
             text=news_item['content'],
             font_size=dp(11),
-            size_hint_y=0.5,
+            size_hint_y=0.4,
             color=(0.8, 0.9, 1, 1),
-            halign='left'
+            halign='left',
+            valign='top'
         )
+        content.bind(size=content.setter('text_size'))
         
-        interactions = BoxLayout(size_hint=(1, 0.25))
+        interactions = BoxLayout(size_hint=(1, 0.3))
         
-        like_btn = ModernButton(
-            text=f"👍 {news_item['likes']}",
-            on_press=lambda x, item=news_item: self.toggle_like(item)
-        )
+        likes_layout = BoxLayout(orientation='horizontal', size_hint=(0.25, 1))
+        likes_layout.add_widget(Label(text='👍', font_size=dp(14)))
+        likes_layout.add_widget(Label(text=news_item['likes'], font_size=dp(12)))
         
-        interactions.add_widget(ModernLabel(text=f"💬 {news_item['comments']}", font_size=dp(10)))
-        interactions.add_widget(ModernLabel(text=f"🔄 {news_item['shares']}", font_size=dp(10)))
-        interactions.add_widget(ModernLabel(text=f"📅 {news_item['date']}", font_size=dp(10), color=(0.7, 0.7, 0.8, 1)))
-        interactions.add_widget(like_btn)
+        comments_layout = BoxLayout(orientation='horizontal', size_hint=(0.25, 1))
+        comments_layout.add_widget(Label(text='💬', font_size=dp(14)))
+        comments_layout.add_widget(Label(text=news_item['comments'], font_size=dp(12)))
+        
+        shares_layout = BoxLayout(orientation='horizontal', size_hint=(0.25, 1))
+        shares_layout.add_widget(Label(text='🔄', font_size=dp(14)))
+        shares_layout.add_widget(Label(text=news_item['shares'], font_size=dp(12)))
+        
+        date_layout = BoxLayout(orientation='horizontal', size_hint=(0.25, 1))
+        date_layout.add_widget(Label(text='📅', font_size=dp(14)))
+        date_layout.add_widget(Label(text=news_item['date'], font_size=dp(10), color=(0.7, 0.7, 0.8, 1)))
+        
+        interactions.add_widget(likes_layout)
+        interactions.add_widget(comments_layout)
+        interactions.add_widget(shares_layout)
+        interactions.add_widget(date_layout)
         
         card.add_widget(title_layout)
         card.add_widget(content)
@@ -762,36 +853,9 @@ class ChampionsLeagueApp(App):
         
         return card
     
-    def toggle_like(self, news_item):
-        if not self.current_user:
-            self.show_login_required_message()
-            return
-        
-        news_id = news_item['title']
-        if news_id in self.liked_posts:
-            self.liked_posts.remove(news_id)
-            news_item['likes'] = str(int(news_item['likes'].replace('K', '')) - 1) + 'K'
-        else:
-            self.liked_posts.add(news_id)
-            news_item['likes'] = str(int(news_item['likes'].replace('K', '')) + 1) + 'K'
-        
-        self.update_ui(
-            self.data_manager.get_live_matches(),
-            self.data_manager.get_standings(),
-            self.data_manager.get_news()
-        )
-    
-    def get_team_emoji(self, team_name):
-        emoji_map = {
-            'Real Madrid': '⚪', 'Man City': '🔵', 'Bayern Munich': '🔴',
-            'Arsenal': '🔴', 'Barcelona': '🔵', 'PSG': '🔵',
-            'Liverpool': '🔴', 'Chelsea': '🔵', 'Dortmund': '🟡', 'Atletico Madrid': '🔴'
-        }
-        return emoji_map.get(team_name, '⚽')
-    
     def refresh_data(self, instance):
         self.load_data()
-        self.show_success_message("Data refreshed!")
+        self.show_success_message("🔄 Data refreshed!")
     
     def show_error(self, error_msg):
         print(f"Error: {error_msg}")
@@ -810,10 +874,6 @@ class DataManager:
             {
                 'team1': 'Barcelona', 'team2': 'PSG', 'score': '0-0',
                 'date': 'Apr 14, 21:00', 'stage': 'Quarter Final', 'status': 'upcoming'
-            },
-            {
-                'team1': 'Dortmund', 'team2': 'Atletico Madrid', 'score': '0-0',
-                'date': 'Apr 15, 20:00', 'stage': 'Quarter Final', 'status': 'upcoming'
             }
         ]
     
@@ -822,7 +882,6 @@ class DataManager:
             {'rank': 1, 'name': 'Real Madrid', 'played': 6, 'won': 5, 'drawn': 1, 'lost': 0, 'points': 16},
             {'rank': 2, 'name': 'Man City', 'played': 6, 'won': 4, 'drawn': 2, 'lost': 0, 'points': 14},
             {'rank': 3, 'name': 'Bayern Munich', 'played': 6, 'won': 4, 'drawn': 1, 'lost': 1, 'points': 13},
-            {'rank': 4, 'name': 'Arsenal', 'played': 6, 'won': 4, 'drawn': 1, 'lost': 1, 'points': 13},
         ]
     
     def get_news(self):
@@ -831,11 +890,6 @@ class DataManager:
                 'title': 'New Injury Shakes Real Madrid',
                 'content': 'Brazilian star out for 3 weeks before crucial Man City clash.',
                 'likes': '1.2K', 'comments': '245', 'shares': '89', 'date': '2 hours ago'
-            },
-            {
-                'title': 'Record Breaking Goal Scorer', 
-                'content': 'Young striker makes history with 10 goals in single season.',
-                'likes': '2.1K', 'comments': '356', 'shares': '124', 'date': '5 hours ago'
             }
         ]
 
