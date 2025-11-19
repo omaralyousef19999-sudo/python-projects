@@ -1,0 +1,363 @@
+import tkinter as tk
+from tkinter import ttk, messagebox
+import requests
+from datetime import datetime
+import json
+
+class ChampionsLeagueApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("دوري أبطال أوروبا - UEFA Champions League")
+        self.root.geometry("600x800")
+        self.root.configure(bg='#f0f2f5')
+        
+        # بيانات تجريبية
+        self.matches = []
+        self.teams = []
+        self.news = []
+        
+        self.load_sample_data()
+        self.create_interface()
+    
+    def load_sample_data(self):
+        # بيانات تجريبية للمباريات
+        self.matches = [
+            {
+                "team1": "ريال مدريد",
+                "team2": "مانشستر سيتي",
+                "score": "3-2",
+                "date": "2024-04-09",
+                "time": "21:00",
+                "stage": "ربع النهائي"
+            },
+            {
+                "team1": "بايرن ميونخ",
+                "team2": "أرسنال",
+                "score": "2-2",
+                "date": "2024-04-10",
+                "time": "21:00",
+                "stage": "ربع النهائي"
+            },
+            {
+                "team1": "برشلونة",
+                "team2": "PSG",
+                "score": "3-2",
+                "date": "2024-04-11",
+                "time": "21:00",
+                "stage": "ربع النهائي"
+            }
+        ]
+        
+        # بيانات تجريبية للفرق
+        self.teams = [
+            {"name": "ريال مدريد", "points": 18, "group": "C"},
+            {"name": "مانشستر سيتي", "points": 16, "group": "D"},
+            {"name": "بايرن ميونخ", "points": 15, "group": "A"},
+            {"name": "أرسنال", "points": 14, "group": "B"},
+            {"name": "برشلونة", "points": 13, "group": "C"},
+            {"name": "PSG", "points": 12, "group": "D"}
+        ]
+        
+        # أخبار تجريبية
+        self.news = [
+            {
+                "title": "إصابة جديدة تهز صفوف ريال مدريد",
+                "content": "تعرض اللاعب البرازيلي لفريق ريال مدريد لإصابة عضوية تبعده عن الملاعب لمدة 3 أسابيع.",
+                "date": "2024-04-08",
+                "likes": "1.2K",
+                "comments": "245",
+                "shares": "89"
+            },
+            {
+                "title": "هداف جديد في دوري الأبطال",
+                "content": "سجل المهاجم النرويجي هدفه العاشر في البطولة ليصبح الهداف التاريخي لهذا الموسم.",
+                "date": "2024-04-07",
+                "likes": "2.1K",
+                "comments": "356",
+                "shares": "124"
+            }
+        ]
+    
+    def create_interface(self):
+        # شريط العنوان العلوي
+        title_frame = tk.Frame(self.root, bg='#0046ad', height=60)
+        title_frame.pack(fill=tk.X, side=tk.TOP)
+        title_frame.pack_propagate(False)
+        
+        title_label = tk.Label(title_frame, text="دوري أبطال أوروبا 🏆", 
+                              font=('Arial', 18, 'bold'), 
+                              fg='white', bg='#0046ad')
+        title_label.pack(pady=15)
+        
+        # قسم الإحصائيات السريعة
+        stats_frame = tk.Frame(self.root, bg='white')
+        stats_frame.pack(fill=tk.X, padx=10, pady=10)
+        
+        stats_data = [
+            ("16", "الفريق المتبقية"),
+            ("45", "مباراة ملعوبة"),
+            ("128", "هدف مسجل"),
+            ("8", "أسابيع متبقية")
+        ]
+        
+        for value, label in stats_data:
+            stat_frame = tk.Frame(stats_frame, bg='white')
+            stat_frame.pack(side=tk.LEFT, expand=True)
+            
+            value_label = tk.Label(stat_frame, text=value, font=('Arial', 14, 'bold'), 
+                                  fg='#0046ad', bg='white')
+            value_label.pack()
+            
+            label_label = tk.Label(stat_frame, text=label, font=('Arial', 9), 
+                                  fg='gray', bg='white')
+            label_label.pack()
+        
+        # خط فاصل
+        separator = ttk.Separator(self.root, orient='horizontal')
+        separator.pack(fill=tk.X, padx=10, pady=5)
+        
+        # تبويبات رئيسية
+        self.create_tabs()
+        
+        # شريط التنقل السفلي
+        self.create_bottom_navigation()
+    
+    def create_tabs(self):
+        # إنشاء الـ Notebook (التبويبات)
+        tab_control = ttk.Notebook(self.root)
+        
+        # تبويب المباريات
+        matches_tab = ttk.Frame(tab_control)
+        tab_control.add(matches_tab, text='المباريات ⚽')
+        self.create_matches_tab(matches_tab)
+        
+        # تبويب الترتيب
+        standings_tab = ttk.Frame(tab_control)
+        tab_control.add(standings_tab, text='الترتيب 📊')
+        self.create_standings_tab(standings_tab)
+        
+        # تبويب الأخبار
+        news_tab = ttk.Frame(tab_control)
+        tab_control.add(news_tab, text='الأخبار 📰')
+        self.create_news_tab(news_tab)
+        
+        # تبويب الفعاليات
+        events_tab = ttk.Frame(tab_control)
+        tab_control.add(events_tab, text='الفعاليات 🎯')
+        self.create_events_tab(events_tab)
+        
+        tab_control.pack(expand=1, fill='both', padx=10, pady=10)
+    
+    def create_matches_tab(self, parent):
+        # عنوان القسم
+        section_title = tk.Label(parent, text="مباريات اليوم", 
+                                font=('Arial', 14, 'bold'), 
+                                fg='#0046ad', bg='white')
+        section_title.pack(pady=10, anchor='w')
+        
+        # عرض المباريات
+        for match in self.matches:
+            match_frame = tk.Frame(parent, bg='white', relief=tk.RAISED, bd=1)
+            match_frame.pack(fill=tk.X, padx=5, pady=5)
+            
+            # معلومات المباراة
+            match_info = tk.Frame(match_frame, bg='white')
+            match_info.pack(fill=tk.X, padx=10, pady=10)
+            
+            # الفريق الأول
+            team1_label = tk.Label(match_info, text=match["team1"], 
+                                  font=('Arial', 12, 'bold'), 
+                                  fg='black', bg='white')
+            team1_label.pack(side=tk.LEFT)
+            
+            # النتيجة
+            score_label = tk.Label(match_info, text=match["score"], 
+                                  font=('Arial', 14, 'bold'), 
+                                  fg='#d40000', bg='white')
+            score_label.pack(side=tk.LEFT, padx=20)
+            
+            # الفريق الثاني
+            team2_label = tk.Label(match_info, text=match["team2"], 
+                                  font=('Arial', 12, 'bold'), 
+                                  fg='black', bg='white')
+            team2_label.pack(side=tk.RIGHT)
+            
+            # معلومات إضافية
+            details_frame = tk.Frame(match_frame, bg='white')
+            details_frame.pack(fill=tk.X, padx=10, pady=5)
+            
+            stage_label = tk.Label(details_frame, text=match["stage"], 
+                                  font=('Arial', 9), fg='gray', bg='white')
+            stage_label.pack(side=tk.LEFT)
+            
+            time_label = tk.Label(details_frame, 
+                                text=f"{match['date']} - {match['time']}", 
+                                font=('Arial', 9), fg='gray', bg='white')
+            time_label.pack(side=tk.RIGHT)
+    
+    def create_standings_tab(self, parent):
+        # عنوان القسم
+        section_title = tk.Label(parent, text="ترتيب الفرق", 
+                                font=('Arial', 14, 'bold'), 
+                                fg='#0046ad', bg='white')
+        section_title.pack(pady=10, anchor='w')
+        
+        # رأس الجدول
+        header_frame = tk.Frame(parent, bg='#0046ad')
+        header_frame.pack(fill=tk.X, padx=5, pady=2)
+        
+        headers = ["الترتيب", "الفريق", "المجموعة", "النقاط"]
+        for i, header in enumerate(headers):
+            header_label = tk.Label(header_frame, text=header, 
+                                  font=('Arial', 10, 'bold'), 
+                                  fg='white', bg='#0046ad')
+            header_label.pack(side=tk.LEFT, padx=20 if i == 0 else 40)
+        
+        # بيانات الفرق
+        for idx, team in enumerate(self.teams, 1):
+            team_frame = tk.Frame(parent, bg='white' if idx % 2 == 0 else '#f8f9fa')
+            team_frame.pack(fill=tk.X, padx=5, pady=1)
+            
+            # الترتيب
+            rank_label = tk.Label(team_frame, text=str(idx), 
+                                font=('Arial', 10), 
+                                fg='black', bg=team_frame.cget('bg'))
+            rank_label.pack(side=tk.LEFT, padx=25)
+            
+            # اسم الفريق
+            name_label = tk.Label(team_frame, text=team["name"], 
+                                font=('Arial', 10, 'bold'), 
+                                fg='black', bg=team_frame.cget('bg'))
+            name_label.pack(side=tk.LEFT, padx=50)
+            
+            # المجموعة
+            group_label = tk.Label(team_frame, text=team["group"], 
+                                  font=('Arial', 10), 
+                                  fg='gray', bg=team_frame.cget('bg'))
+            group_label.pack(side=tk.LEFT, padx=40)
+            
+            # النقاط
+            points_label = tk.Label(team_frame, text=str(team["points"]), 
+                                   font=('Arial', 10, 'bold'), 
+                                   fg='#0046ad', bg=team_frame.cget('bg'))
+            points_label.pack(side=tk.LEFT, padx=40)
+    
+    def create_news_tab(self, parent):
+        # عنوان القسم
+        section_title = tk.Label(parent, text="آخر الأخبار", 
+                                font=('Arial', 14, 'bold'), 
+                                fg='#0046ad', bg='white')
+        section_title.pack(pady=10, anchor='w')
+        
+        # عرض الأخبار
+        for news_item in self.news:
+            news_frame = tk.Frame(parent, bg='white', relief=tk.RAISED, bd=1)
+            news_frame.pack(fill=tk.X, padx=5, pady=8)
+            
+            # عنوان الخبر
+            title_label = tk.Label(news_frame, text=news_item["title"], 
+                                  font=('Arial', 12, 'bold'), 
+                                  fg='black', bg='white', anchor='w')
+            title_label.pack(fill=tk.X, padx=10, pady=(10, 5))
+            
+            # محتوى الخبر
+            content_label = tk.Label(news_frame, text=news_item["content"], 
+                                    font=('Arial', 10), 
+                                    fg='gray', bg='white', 
+                                    wraplength=500, justify='right', anchor='w')
+            content_label.pack(fill=tk.X, padx=10, pady=5)
+            
+            # معلومات التفاعل
+            interaction_frame = tk.Frame(news_frame, bg='white')
+            interaction_frame.pack(fill=tk.X, padx=10, pady=10)
+            
+            # تاريخ النشر
+            date_label = tk.Label(interaction_frame, text=news_item["date"], 
+                                 font=('Arial', 8), fg='gray', bg='white')
+            date_label.pack(side=tk.LEFT)
+            
+            # إحصائيات التفاعل
+            stats_frame = tk.Frame(interaction_frame, bg='white')
+            stats_frame.pack(side=tk.RIGHT)
+            
+            interactions = [
+                (news_item["likes"], "👍"),
+                (news_item["comments"], "💬"),
+                (news_item["shares"], "↗️")
+            ]
+            
+            for value, icon in interactions:
+                stat_frame = tk.Frame(stats_frame, bg='white')
+                stat_frame.pack(side=tk.LEFT, padx=10)
+                
+                icon_label = tk.Label(stat_frame, text=icon, 
+                                     font=('Arial', 8), 
+                                     fg='gray', bg='white')
+                icon_label.pack(side=tk.LEFT)
+                
+                value_label = tk.Label(stat_frame, text=value, 
+                                      font=('Arial', 8), 
+                                      fg='gray', bg='white')
+                value_label.pack(side=tk.LEFT, padx=2)
+    
+    def create_events_tab(self, parent):
+        # عنوان القسم
+        section_title = tk.Label(parent, text="الفعاليات القادمة", 
+                                font=('Arial', 14, 'bold'), 
+                                fg='#0046ad', bg='white')
+        section_title.pack(pady=10, anchor='w')
+        
+        events = [
+            {"title": "قرعة نصف النهائي", "date": "2024-04-15", "time": "19:00"},
+            {"title": "مهرجان الجماهير", "date": "2024-04-20", "time": "16:00"},
+            {"title": "حفل توزيع الجوائز", "date": "2024-05-10", "time": "20:00"}
+        ]
+        
+        for event in events:
+            event_frame = tk.Frame(parent, bg='white', relief=tk.RAISED, bd=1)
+            event_frame.pack(fill=tk.X, padx=5, pady=5)
+            
+            event_info = tk.Frame(event_frame, bg='white')
+            event_info.pack(fill=tk.X, padx=10, pady=10)
+            
+            title_label = tk.Label(event_info, text=event["title"], 
+                                  font=('Arial', 12, 'bold'), 
+                                  fg='black', bg='white')
+            title_label.pack(anchor='w')
+            
+            time_label = tk.Label(event_info, 
+                                text=f"{event['date']} - {event['time']}", 
+                                font=('Arial', 10), fg='gray', bg='white')
+            time_label.pack(anchor='w')
+    
+    def create_bottom_navigation(self):
+        # شريط التنقل السفلي
+        nav_frame = tk.Frame(self.root, bg='white', height=50)
+        nav_frame.pack(fill=tk.X, side=tk.BOTTOM)
+        nav_frame.pack_propagate(False)
+        
+        nav_items = [
+            ("🏠", "الرئيسية"),
+            ("⚽", "المباريات"),
+            ("📊", "الترتيب"),
+            ("📰", "الأخبار"),
+            ("⚙️", "الإعدادات")
+        ]
+        
+        for icon, text in nav_items:
+            nav_btn_frame = tk.Frame(nav_frame, bg='white')
+            nav_btn_frame.pack(side=tk.LEFT, expand=True, fill=tk.X)
+            
+            nav_btn = tk.Button(nav_btn_frame, text=f"{icon}\n{text}", 
+                               font=('Arial', 8), 
+                               bg='white', fg='#0046ad', bd=0,
+                               command=lambda t=text: self.nav_action(t))
+            nav_btn.pack(expand=True, fill=tk.BOTH)
+    
+    def nav_action(self, item):
+        messagebox.showinfo("تنقل", f"انتقلت إلى: {item}")
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = ChampionsLeagueApp(root)
+    root.mainloop()
