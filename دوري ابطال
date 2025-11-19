@@ -1,6 +1,3 @@
-تطبيق دوري أبطال أوروبا بتصميم أجمل مع الإيموجي
-
-```python
 from kivy.app import App
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.label import Label
@@ -8,11 +5,15 @@ from kivy.uix.button import Button
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.gridlayout import GridLayout
 from kivy.uix.tabbedpanel import TabbedPanel, TabbedPanelItem
+from kivy.uix.textinput import TextInput
+from kivy.uix.modalview import ModalView
 from kivy.clock import Clock
 from kivy.graphics import Color, Rectangle, RoundedRectangle
 from kivy.core.window import Window
 from kivy.metrics import dp
 import threading
+import random
+from datetime import datetime, timedelta
 
 # تعيين لون الخلفية للنافذة - تدرج أزرق داكن
 Window.clearcolor = (0.05, 0.08, 0.15, 1)
@@ -39,7 +40,7 @@ class CardLayout(BoxLayout):
         self.spacing = dp(8)
         
         with self.canvas.before:
-            Color(0.15, 0.2, 0.3, 1)  # لون البطاقة
+            Color(0.15, 0.2, 0.3, 1)
             self.rect = RoundedRectangle(
                 pos=self.pos, 
                 size=self.size,
@@ -51,10 +52,101 @@ class CardLayout(BoxLayout):
         self.rect.pos = self.pos
         self.rect.size = self.size
 
+class PredictionModal(ModalView):
+    def __init__(self, match, on_prediction_submit, **kwargs):
+        super().__init__(**kwargs)
+        self.match = match
+        self.on_prediction_submit = on_prediction_submit
+        self.size_hint = (0.8, 0.6)
+        self.background_color = (0.1, 0.15, 0.25, 0.9)
+        self.create_ui()
+    
+    def create_ui(self):
+        layout = BoxLayout(orientation='vertical', padding=dp(20), spacing=dp(15))
+        
+        # العنوان
+        title = ModernLabel(
+            text=f"🎯 Predict {self.match['team1']} vs {self.match['team2']}",
+            font_size=dp(18),
+            bold=True,
+            halign='center'
+        )
+        layout.add_widget(title)
+        
+        # اختيار النتيجة
+        score_layout = BoxLayout(size_hint=(1, 0.3), spacing=dp(20))
+        
+        # فريق 1
+        team1_layout = BoxLayout(orientation='vertical')
+        team1_label = ModernLabel(text=self.match['team1'], font_size=dp(14))
+        self.team1_score = TextInput(
+            text='0',
+            multiline=False,
+            input_filter='int',
+            font_size=dp(18),
+            halign='center',
+            size_hint=(1, 0.6)
+        )
+        team1_layout.add_widget(team1_label)
+        team1_layout.add_widget(self.team1_score)
+        
+        # النتيجة
+        vs_label = ModernLabel(text=':', font_size=dp(20), bold=True)
+        
+        # فريق 2
+        team2_layout = BoxLayout(orientation='vertical')
+        team2_label = ModernLabel(text=self.match['team2'], font_size=dp(14))
+        self.team2_score = TextInput(
+            text='0',
+            multiline=False,
+            input_filter='int',
+            font_size=dp(18),
+            halign='center',
+            size_hint=(1, 0.6)
+        )
+        team2_layout.add_widget(team2_label)
+        team2_layout.add_widget(self.team2_score)
+        
+        score_layout.add_widget(team1_layout)
+        score_layout.add_widget(vs_label)
+        score_layout.add_widget(team2_layout)
+        layout.add_widget(score_layout)
+        
+        # أزرار
+        buttons_layout = BoxLayout(size_hint=(1, 0.2), spacing=dp(10))
+        
+        cancel_btn = ModernButton(
+            text='❌ Cancel',
+            on_press=self.dismiss
+        )
+        
+        submit_btn = ModernButton(
+            text='✅ Submit Prediction',
+            on_press=self.submit_prediction
+        )
+        
+        buttons_layout.add_widget(cancel_btn)
+        buttons_layout.add_widget(submit_btn)
+        layout.add_widget(buttons_layout)
+        
+        self.add_widget(layout)
+    
+    def submit_prediction(self, instance):
+        try:
+            score1 = int(self.team1_score.text)
+            score2 = int(self.team2_score.text)
+            prediction = f"{score1}-{score2}"
+            self.on_prediction_submit(self.match, prediction)
+            self.dismiss()
+        except ValueError:
+            pass
+
 class ChampionsLeagueApp(App):
     def build(self):
         self.title = "UEFA Champions League 🏆"
         self.data_manager = DataManager()
+        self.user_predictions = {}
+        self.liked_posts = set()
         
         # الواجهة الرئيسية
         self.main_layout = BoxLayout(orientation='vertical', spacing=dp(5))
@@ -69,13 +161,10 @@ class ChampionsLeagueApp(App):
         return self.main_layout
     
     def create_header(self):
-        # شريط العنوان مع تدرج لوني
         header = BoxLayout(size_hint=(1, 0.1), padding=dp(10))
         with header.canvas.before:
             Color(0.1, 0.15, 0.25, 1)
             Rectangle(pos=header.pos, size=header.size)
-            
-            # تدرج لوني
             Color(0, 0.4, 0.8, 0.3)
             Rectangle(pos=(header.pos[0], header.pos[1] + header.height * 0.5), 
                      size=(header.width, header.height * 0.5))
@@ -87,9 +176,10 @@ class ChampionsLeagueApp(App):
             halign='center'
         )
         
+        # زر التحديث
         refresh_btn = ModernButton(
-            text='🔄',
-            size_hint=(0.12, 1),
+            text='🔄 Refresh',
+            size_hint=(0.2, 1),
             on_press=self.refresh_data
         )
         
@@ -99,14 +189,13 @@ class ChampionsLeagueApp(App):
         self.main_layout.add_widget(header)
     
     def create_stats_bar(self):
-        # شريط الإحصائيات مع تصميم حديث
         stats_layout = BoxLayout(size_hint=(1, 0.08), spacing=dp(8), padding=dp(10))
         
         stats_data = [
-            ('⚽', '16', 'Teams'),
-            ('🔄', '45', 'Matches'),
+            ('👥', '16', 'Teams'),
+            ('📊', '45', 'Matches'),
             ('🎯', '128', 'Goals'),
-            ('📅', '8', 'Weeks')
+            ('🤔', '0', 'Predictions')
         ]
         
         for emoji, value, label in stats_data:
@@ -119,22 +208,9 @@ class ChampionsLeagueApp(App):
                     radius=[dp(10),]
                 )
             
-            emoji_label = ModernLabel(
-                text=emoji,
-                font_size=dp(18)
-            )
-            
-            value_label = ModernLabel(
-                text=value,
-                font_size=dp(16),
-                bold=True
-            )
-            
-            label_label = ModernLabel(
-                text=label,
-                font_size=dp(10),
-                color=(0.7, 0.7, 0.8, 1)
-            )
+            emoji_label = ModernLabel(text=emoji, font_size=dp(18))
+            value_label = ModernLabel(text=value, font_size=dp(16), bold=True)
+            label_label = ModernLabel(text=label, font_size=dp(10), color=(0.7, 0.7, 0.8, 1))
             
             stat_box.add_widget(emoji_label)
             stat_box.add_widget(value_label)
@@ -144,7 +220,6 @@ class ChampionsLeagueApp(App):
         self.main_layout.add_widget(stats_layout)
     
     def create_tabs(self):
-        # إنشاء التبويبات بتصميم حديث
         self.tabs = TabbedPanel(
             size_hint=(1, 0.82),
             tab_pos='top_mid',
@@ -161,6 +236,15 @@ class ChampionsLeagueApp(App):
         self.matches_layout.bind(minimum_height=self.matches_layout.setter('height'))
         self.matches_content.add_widget(self.matches_layout)
         matches_tab.add_widget(self.matches_content)
+        
+        # تبويب التوقعات
+        predictions_tab = TabbedPanelItem(text='🤔 Predictions')
+        predictions_tab.background_color = (0.1, 0.15, 0.25, 1)
+        self.predictions_content = ScrollView()
+        self.predictions_layout = GridLayout(cols=1, spacing=dp(10), size_hint_y=None, padding=dp(10))
+        self.predictions_layout.bind(minimum_height=self.predictions_layout.setter('height'))
+        self.predictions_content.add_widget(self.predictions_layout)
+        predictions_tab.add_widget(self.predictions_content)
         
         # تبويب الترتيب
         standings_tab = TabbedPanelItem(text='📊 Standings')
@@ -180,19 +264,10 @@ class ChampionsLeagueApp(App):
         self.news_content.add_widget(self.news_layout)
         news_tab.add_widget(self.news_content)
         
-        # تبويب الفعاليات
-        events_tab = TabbedPanelItem(text='🎯 Events')
-        events_tab.background_color = (0.1, 0.15, 0.25, 1)
-        self.events_content = ScrollView()
-        self.events_layout = GridLayout(cols=1, spacing=dp(10), size_hint_y=None, padding=dp(10))
-        self.events_layout.bind(minimum_height=self.events_layout.setter('height'))
-        self.events_content.add_widget(self.events_layout)
-        events_tab.add_widget(self.events_content)
-        
         self.tabs.add_widget(matches_tab)
+        self.tabs.add_widget(predictions_tab)
         self.tabs.add_widget(standings_tab)
         self.tabs.add_widget(news_tab)
-        self.tabs.add_widget(events_tab)
         
         self.main_layout.add_widget(self.tabs)
     
@@ -204,20 +279,22 @@ class ChampionsLeagueApp(App):
             matches_data = self.data_manager.get_live_matches()
             standings_data = self.data_manager.get_standings()
             news_data = self.data_manager.get_news()
-            events_data = self.data_manager.get_events()
             
             Clock.schedule_once(lambda dt: self.update_ui(
-                matches_data, standings_data, news_data, events_data
+                matches_data, standings_data, news_data
             ), 0)
             
         except Exception as e:
             Clock.schedule_once(lambda dt: self.show_error(str(e)), 0)
     
-    def update_ui(self, matches, standings, news, events):
+    def update_ui(self, matches, standings, news):
         # تحديث واجهة المباريات
         self.matches_layout.clear_widgets()
         for match in matches:
             self.matches_layout.add_widget(self.create_match_card(match))
+        
+        # تحديث واجهة التوقعات
+        self.update_predictions_tab()
         
         # تحديث واجهة الترتيب
         self.standings_layout.clear_widgets()
@@ -229,17 +306,12 @@ class ChampionsLeagueApp(App):
         self.news_layout.clear_widgets()
         for news_item in news:
             self.news_layout.add_widget(self.create_news_card(news_item))
-        
-        # تحديث واجهة الفعاليات
-        self.events_layout.clear_widgets()
-        for event in events:
-            self.events_layout.add_widget(self.create_event_card(event))
     
     def create_match_card(self, match):
-        card = CardLayout(height=dp(110))
+        card = CardLayout(height=dp(140))
         
         # معلومات المباراة
-        match_info = BoxLayout(size_hint=(1, 0.6))
+        match_info = BoxLayout(size_hint=(1, 0.5))
         
         team_layout1 = BoxLayout(orientation='vertical', size_hint=(0.4, 1))
         team_emoji1 = ModernLabel(text=self.get_team_emoji(match['team1']), font_size=dp(20))
@@ -248,8 +320,12 @@ class ChampionsLeagueApp(App):
         team_layout1.add_widget(team_name1)
         
         score_layout = BoxLayout(orientation='vertical', size_hint=(0.2, 1))
-        score = ModernLabel(text=match['score'], font_size=dp(18), bold=True, color=(1, 0.8, 0.2, 1))
-        status = ModernLabel(text="LIVE", font_size=dp(10), color=(1, 0.3, 0.3, 1))
+        if match.get('status') == 'upcoming':
+            score = ModernLabel(text="VS", font_size=dp(16), color=(0.8, 0.8, 0.8, 1))
+            status = ModernLabel(text="UPCOMING", font_size=dp(10), color=(0.6, 0.8, 1, 1))
+        else:
+            score = ModernLabel(text=match['score'], font_size=dp(18), bold=True, color=(1, 0.8, 0.2, 1))
+            status = ModernLabel(text="LIVE", font_size=dp(10), color=(1, 0.3, 0.3, 1))
         score_layout.add_widget(score)
         score_layout.add_widget(status)
         
@@ -264,12 +340,97 @@ class ChampionsLeagueApp(App):
         match_info.add_widget(team_layout2)
         
         # معلومات إضافية
-        details = BoxLayout(size_hint=(1, 0.4))
+        details = BoxLayout(size_hint=(1, 0.3))
         stage = ModernLabel(text=f"🏆 {match['stage']}", font_size=dp(11))
         time = ModernLabel(text=f"🕐 {match['date']}", font_size=dp(11))
         details.add_widget(stage)
         details.add_widget(time)
         
+        # زر التوقع (للمباريات القادمة فقط)
+        actions = BoxLayout(size_hint=(1, 0.2), spacing=dp(5))
+        if match.get('status') == 'upcoming':
+            predict_btn = ModernButton(
+                text='🎯 Predict Score',
+                size_hint=(0.6, 1),
+                on_press=lambda x, m=match: self.show_prediction_modal(m)
+            )
+            actions.add_widget(predict_btn)
+        
+        card.add_widget(match_info)
+        card.add_widget(details)
+        if match.get('status') == 'upcoming':
+            card.add_widget(actions)
+        
+        return card
+    
+    def show_prediction_modal(self, match):
+        modal = PredictionModal(match, self.on_prediction_submit)
+        modal.open()
+    
+    def on_prediction_submit(self, match, prediction):
+        match_id = f"{match['team1']}_{match['team2']}_{match['date']}"
+        self.user_predictions[match_id] = {
+            'match': match,
+            'prediction': prediction,
+            'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M')
+        }
+        self.update_predictions_tab()
+    
+    def update_predictions_tab(self):
+        self.predictions_layout.clear_widgets()
+        
+        if not self.user_predictions:
+            empty_label = ModernLabel(
+                text="🤔 No predictions yet!\nPredict upcoming matches in the Matches tab.",
+                font_size=dp(16),
+                halign='center'
+            )
+            self.predictions_layout.add_widget(empty_label)
+            return
+        
+        for pred_id, prediction_data in self.user_predictions.items():
+            self.predictions_layout.add_widget(self.create_prediction_card(prediction_data))
+    
+    def create_prediction_card(self, prediction_data):
+        card = CardLayout(height=dp(120))
+        match = prediction_data['match']
+        
+        # العنوان
+        title = ModernLabel(
+            text=f"🎯 Your Prediction",
+            font_size=dp(14),
+            bold=True,
+            halign='left'
+        )
+        
+        # المباراة والنتيجة المتوقعة
+        match_info = BoxLayout(size_hint=(1, 0.5))
+        
+        teams = ModernLabel(
+            text=f"{match['team1']} vs {match['team2']}",
+            font_size=dp(13),
+            halign='center'
+        )
+        
+        prediction = ModernLabel(
+            text=f"📊 Prediction: {prediction_data['prediction']}",
+            font_size=dp(14),
+            bold=True,
+            color=(1, 0.8, 0.2, 1),
+            halign='center'
+        )
+        
+        match_info.add_widget(teams)
+        match_info.add_widget(prediction)
+        
+        # معلومات إضافية
+        details = BoxLayout(size_hint=(1, 0.3))
+        stage = ModernLabel(text=f"🏆 {match['stage']}", font_size=dp(11))
+        time = ModernLabel(text=f"🕐 {prediction_data['timestamp']}", font_size=dp(11))
+        details.add_widget(stage)
+        details.add_widget(time)
+        
+        card.add_widget(title)
         card.add_widget(match_info)
         card.add_widget(details)
         
@@ -283,12 +444,7 @@ class ChampionsLeagueApp(App):
         
         headers = ['🏅', 'Team', 'P', 'W', 'D', 'L', 'Pts']
         for text in headers:
-            header_label = ModernLabel(
-                text=text,
-                font_size=dp(12),
-                bold=True,
-                halign='center'
-            )
+            header_label = ModernLabel(text=text, font_size=dp(12), bold=True, halign='center')
             header.add_widget(header_label)
         
         return header
@@ -302,15 +458,8 @@ class ChampionsLeagueApp(App):
         
         rank_emoji = '🥇' if rank == 1 else '🥈' if rank == 2 else '🥉' if rank == 3 else f'{rank}'
         
-        data = [
-            rank_emoji,
-            team['name'],
-            str(team['played']),
-            str(team['won']),
-            str(team['drawn']),
-            str(team['lost']),
-            str(team['points'])
-        ]
+        data = [rank_emoji, team['name'], str(team['played']), str(team['won']), 
+                str(team['drawn']), str(team['lost']), str(team['points'])]
         
         for i, text in enumerate(data):
             row_label = ModernLabel(
@@ -325,10 +474,10 @@ class ChampionsLeagueApp(App):
         return row
     
     def create_news_card(self, news_item):
-        card = CardLayout(height=dp(140))
+        card = CardLayout(height=dp(160))
         
-        # عنوان الخبر
-        title_layout = BoxLayout(size_hint=(1, 0.3))
+        # العنوان
+        title_layout = BoxLayout(size_hint=(1, 0.25))
         title = ModernLabel(
             text=f"📢 {news_item['title']}",
             font_size=dp(14),
@@ -347,9 +496,13 @@ class ChampionsLeagueApp(App):
         )
         
         # تفاعلات
-        interactions = BoxLayout(size_hint=(1, 0.2))
+        interactions = BoxLayout(size_hint=(1, 0.25))
         
-        likes = ModernLabel(text=f"👍 {news_item['likes']}", font_size=dp(10))
+        like_btn = ModernButton(
+            text=f"👍 {news_item['likes']}",
+            on_press=lambda x, item=news_item: self.toggle_like(item)
+        )
+        
         comments = ModernLabel(text=f"💬 {news_item['comments']}", font_size=dp(10))
         shares = ModernLabel(text=f"🔄 {news_item['shares']}", font_size=dp(10))
         date = ModernLabel(text=f"📅 {news_item['date']}", font_size=dp(10), color=(0.7, 0.7, 0.8, 1))
@@ -357,7 +510,7 @@ class ChampionsLeagueApp(App):
         interactions.add_widget(date)
         interactions.add_widget(shares)
         interactions.add_widget(comments)
-        interactions.add_widget(likes)
+        interactions.add_widget(like_btn)
         
         card.add_widget(title_layout)
         card.add_widget(content)
@@ -365,40 +518,26 @@ class ChampionsLeagueApp(App):
         
         return card
     
-    def create_event_card(self, event):
-        card = CardLayout(height=dp(80))
+    def toggle_like(self, news_item):
+        news_id = news_item['title']
+        if news_id in self.liked_posts:
+            self.liked_posts.remove(news_id)
+            news_item['likes'] = str(int(news_item['likes'].replace('K', '')) - 1) + 'K'
+        else:
+            self.liked_posts.add(news_id)
+            news_item['likes'] = str(int(news_item['likes'].replace('K', '')) + 1) + 'K'
         
-        event_layout = BoxLayout(orientation='vertical')
-        title = ModernLabel(
-            text=f"🎪 {event['title']}",
-            font_size=dp(16),
-            bold=True,
-            halign='left'
+        self.update_ui(
+            self.data_manager.get_live_matches(),
+            self.data_manager.get_standings(),
+            self.data_manager.get_news()
         )
-        
-        time = ModernLabel(
-            text=f"🕐 {event['date']} - {event['time']}",
-            font_size=dp(12),
-            color=(0.8, 0.9, 1, 1),
-            halign='left'
-        )
-        
-        event_layout.add_widget(title)
-        event_layout.add_widget(time)
-        card.add_widget(event_layout)
-        
-        return card
     
     def get_team_emoji(self, team_name):
         emoji_map = {
-            'Real Madrid': '⚪',
-            'Man City': '🔵',
-            'Bayern Munich': '🔴',
-            'Arsenal': '🔴',
-            'Barcelona': '🔵',
-            'PSG': '🔵',
-            'Liverpool': '🔴',
-            'Chelsea': '🔵'
+            'Real Madrid': '⚪', 'Man City': '🔵', 'Bayern Munich': '🔴',
+            'Arsenal': '🔴', 'Barcelona': '🔵', 'PSG': '🔵',
+            'Liverpool': '🔴', 'Chelsea': '🔵', 'Dortmund': '🟡'
         }
         return emoji_map.get(team_name, '⚽')
     
@@ -417,7 +556,8 @@ class DataManager:
                 'score': '3-2',
                 'date': 'Today 21:00',
                 'time': '21:00',
-                'stage': 'Quarter Final'
+                'stage': 'Quarter Final',
+                'status': 'live'
             },
             {
                 'team1': 'Bayern Munich',
@@ -425,15 +565,26 @@ class DataManager:
                 'score': '2-2', 
                 'date': 'Tomorrow 20:00',
                 'time': '20:00',
-                'stage': 'Quarter Final'
+                'stage': 'Quarter Final',
+                'status': 'upcoming'
             },
             {
                 'team1': 'Barcelona',
                 'team2': 'PSG',
-                'score': '3-2',
-                'date': 'Apr 11, 21:00', 
+                'score': '0-0',
+                'date': 'Apr 14, 21:00', 
                 'time': '21:00',
-                'stage': 'Quarter Final'
+                'stage': 'Quarter Final',
+                'status': 'upcoming'
+            },
+            {
+                'team1': 'Dortmund',
+                'team2': 'Atletico Madrid',
+                'score': '0-0',
+                'date': 'Apr 15, 20:00',
+                'time': '20:00',
+                'stage': 'Quarter Final',
+                'status': 'upcoming'
             }
         ]
     
@@ -443,7 +594,6 @@ class DataManager:
             {'rank': 2, 'name': 'Man City', 'played': 6, 'won': 4, 'drawn': 2, 'lost': 0, 'points': 14},
             {'rank': 3, 'name': 'Bayern Munich', 'played': 6, 'won': 4, 'drawn': 1, 'lost': 1, 'points': 13},
             {'rank': 4, 'name': 'Arsenal', 'played': 6, 'won': 4, 'drawn': 1, 'lost': 1, 'points': 13},
-            {'rank': 5, 'name': 'Barcelona', 'played': 6, 'won': 4, 'drawn': 0, 'lost': 2, 'points': 12},
         ]
     
     def get_news(self):
@@ -465,50 +615,6 @@ class DataManager:
                 'date': '5 hours ago'
             }
         ]
-    
-    def get_events(self):
-        return [
-            {'title': 'Semi-Final Draw Ceremony', 'date': 'Apr 15', 'time': '19:00'},
-            {'title': 'Champions Festival', 'date': 'Apr 20', 'time': '16:00'},
-            {'title': 'Player of the Season Awards', 'date': 'May 10', 'time': '20:00'}
-        ]
 
 if __name__ == '__main__':
     ChampionsLeagueApp().run()
-```
-
-🎨 مميزات التصميم الجديد:
-
-الألوان:
-
-· خلفية زرقاء داكنة أنيقة (0.05, 0.08, 0.15, 1)
-· تدرجات زرقاء متناسقة
-· ألوان ذهبية للإبراز
-
-الإيموجي المستخدم:
-
-· 🏆 - البطولة
-· ⚽ - المباريات
-· 📊 - الترتيب
-· 📰 - الأخبار
-· 🎯 - الفعاليات
-· 🔄 - تحديث
-· 🥇🥈🥉 - المراكز الأولى
-· ⚪🔴🔵 - ألوان الفرق
-
-التصميم:
-
-· بطاقات مستديرة الحواف
-· تدرجات لونية
-· هوامش مناسبة
-· نصوص بيضاء على خلفية داكنة
-· أزرار شفافة
-
-تحسينات الواجهة:
-
-· إيموجي لكل فريق
-· تاريخ بصيغة أكثر جاذبية
-· ألوان ميداليات للمراكز الأولى
-· تصميم بطاقات حديث
-
-الآن التطبيق سيظهر بتصميم احترافي وجذاب! 🚀
