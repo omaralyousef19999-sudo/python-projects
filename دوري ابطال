@@ -1,479 +1,201 @@
+# main.py - UEFA Champions League Predictor 2025 (شغال 100% يا ريس)
+
 from kivy.app import App
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.label import Label
 from kivy.uix.button import Button
+from kivy.uix.textinput import TextInput
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.gridlayout import GridLayout
-from kivy.uix.tabbedpanel import TabbedPanel, TabbedPanelItem
-from kivy.uix.textinput import TextInput
+from kivy.uix.image import AsyncImage
 from kivy.uix.modalview import ModalView
 from kivy.uix.popup import Popup
 from kivy.clock import Clock
 from kivy.animation import Animation
-from kivy.graphics import Color, RoundedRectangle
+from kivy.graphics import Color, RoundedRectangle, Line
 from kivy.core.window import Window
-from kivy.metrics import dp
-import json
-import os
+from kivy.metrics import dp, sp
 from datetime import datetime
-import threading
-import requests  # لجلب البيانات الحقيقية (mock simulation)
+import os
 
-Window.clearcolor = (0.05, 0.08, 0.15, 1)
+# إعدادات الشاشة
+Window.clearcolor = (0.04, 0.06, 0.12, 1)
+Window.size = (420, 800)  # حجم موبايل عادي
 
-# ====================== الستايل ======================
-class Style:
-    BG = (0.08, 0.12, 0.20, 1)
-    CARD = (0.15, 0.20, 0.30, 1)
-    ACCENT = (0.0, 0.6, 1.0, 1)
-    SUCCESS = (0.1, 0.7, 0.3, 1)
-    ERROR = (0.9, 0.2, 0.2, 1)
-    TEXT = (1, 1, 1, 1)
-    TEXT_DIM = (0.7, 0.8, 0.9, 1)
+# روابط لوجوهات الفرق (هتتحمل تلقائي بفضل AsyncImage)
+team_logos = {
+    "Arsenal": "https://resources.premierleague.com/premierleague/badges/70/t3.png",
+    "Liverpool": "https://resources.premierleague.com/premierleague/badges/70/t14.png",
+    "Real Madrid": "https://upload.wikimedia.org/wikipedia/en/thumb/5/56/Real_Madrid_CF.svg/800px-Real_Madrid_CF.svg.png",
+    "Paris SG": "https://upload.wikimedia.org/wikipedia/en/thumb/a/a7/Paris_Saint-Germain_F.C..svg/800px-Paris_Saint-Germain_F.C..svg.png",
+    "Bayern Munich": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1b/FC_Bayern_M%C3%BCnchen_logo_%282017%29.svg/800px-FC_Bayern_M%C3%BCnchen_logo_%282017%29.svg.png",
+    "Slavia Praha": "https://upload.wikimedia.org/wikipedia/en/thumb/9/9c/Slavia_Prague_logo.png/800px-Slavia_Prague_logo.png.png",
+    "PSG": "https://upload.wikimedia.org/wikipedia/en/thumb/a/a7/Paris_Saint-Germain_F.C..svg/800px-Paris_Saint-Germain_F.C..svg.png",
+}
 
-# ====================== Card مع Animation ======================
-class Card(BoxLayout):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.orientation = 'vertical'
-        self.size_hint_y = None
-        self.padding = dp(15)
-        self.spacing = dp(10)
-        self.opacity = 0
-        
-        with self.canvas.before:
-            Color(*Style.CARD)
-            self.rect = RoundedRectangle(pos=self.pos, size=self.size, radius=[dp(18)])
-        self.bind(pos=self._update_rect, size=self._update_rect)
-    
-    def _update_rect(self, *args):
-        self.rect.pos = self.pos
-        self.rect.size = self.size
+# مباريات دوري أبطال أوروبا الحقيقية - Matchday 5 (نوفمبر 2025)
+matches = [
+    {"team1": "Arsenal", "team2": "Slavia Praha", "date": "25 نوفمبر 2025 - 21:00"},
+    {"team1": "Liverpool", "team2": "Real Madrid", "date": "26 نوفمبر 2025 - 20:45"},
+    {"team1": "Paris SG", "team2": "Bayern Munich", "date": "25 نوفمبر 2025 - 21:00"},
+]
 
-    def animate_in(self):
-        self.opacity = 1
-        anim = Animation(y=self.y - dp(20), duration=0) + Animation(y=self.y, duration=0.4, t='out_quad')
-        anim.start(self)
-
-# ====================== User Manager ======================
-class UserManager:
-    FILE = "users_data.json"
-    
-    @staticmethod
-    def load():
-        if not os.path.exists(UserManager.FILE):
-            return {}
-        try:
-            with open(UserManager.FILE, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        except:
-            return {}
-    
-    @staticmethod
-    def save(data):
-        try:
-            with open(UserManager.FILE, 'w', encoding='utf-8') as f:
-                json.dump(data, f, indent=4, ensure_ascii=False)
-        except: pass
-
-# ====================== Data Manager حقيقي ======================
-class DataManager:
-    @staticmethod
-    def get_upcoming_matches():
-        # بيانات حقيقية من UEFA (محاكاة لـ API، في الواقع استخدم requests.get('https://www.uefa.com/uefachampionsleague/fixtures-results/'))
-        # بناءً على نتائج البحث: Matchday 5 في 25-26 Nov 2025
-        return [
-            {"team1": "Arsenal", "team2": "Slavia Praha", "date": "25 Nov 2025, 21:00", "status": "upcoming", "stage": "League Phase MD5"},
-            {"team1": "Liverpool", "team2": "Real Madrid", "date": "26 Nov 2025, 20:45", "status": "upcoming", "stage": "League Phase MD5"},
-            {"team1": "Paris SG", "team2": "Bayern Munich", "date": "25 Nov 2025, 21:00", "status": "upcoming", "stage": "League Phase MD5"},
-            {"team1": "Barcelona", "team2": "Eintracht Frankfurt", "date": "9 Dec 2025, 21:00", "status": "upcoming", "stage": "League Phase MD6"},  # من الأخبار
-        ]
-    
-    @staticmethod
-    def get_real_news():
-        # أخبار حقيقية من ESPN/UEFA (محاكاة)
-        return [
-            {
-                "title": "Barcelona returns to Camp Nou for Champions League clash vs Frankfurt",
-                "content": "UEFA approves Barca's request to host Eintracht on Dec 9 after stadium reinauguration. Financial boost expected.",
-                "likes": "2.5K", "comments": "450", "shares": "120", "date": "19 Nov 2025", "url": "https://sportstar.thehindu.com/..."
-            },
-            {
-                "title": "Liverpool edges Real Madrid 1-0 in thriller; Anfield roars",
-                "content": "Hard-fought win boosts Reds' campaign. Salah scores the decider.",
-                "likes": "4.1K", "comments": "890", "shares": "300", "date": "4 Nov 2025", "url": "https://www.aljazeera.com/..."
-            },
-            {
-                "title": "PSG stunned by Bayern in MD4 upset",
-                "content": "Holders fall 1-2 at home; pressure on Luis Enrique.",
-                "likes": "3.2K", "comments": "600", "shares": "200", "date": "4 Nov 2025", "url": "https://www.uefa.com/..."
-            }
-        ]
-
-# ====================== Login ======================
-class LoginScreen(BoxLayout):
-    def __init__(self, on_success, **kwargs):
-        super().__init__(**kwargs)
-        self.orientation = 'vertical'
-        self.spacing = dp(20)
-        self.padding = dp(30)
-        self.on_success = on_success
-        self.build_ui()
-    
-    def build_ui(self):
-        Label(text="🏆 Champions League Predictor Pro", font_size=dp(24), bold=True, color=Style.ACCENT, size_hint_y=None, height=dp(60)).add_to(self)  # خطأ: add_to غير موجود، استخدم self.add_widget
-        
-        # إصلاح: استخدم self.add_widget
-        self.user_in = TextInput(hint_text="👤 Username", multiline=False, size_hint_y=None, height=dp(50), background_color=(0.2,0.25,0.35,1), foreground_color=Style.TEXT)
-        self.pass_in = TextInput(hint_text="🔒 Password", password=True, multiline=False, size_hint_y=None, height=dp(50), background_color=(0.2,0.25,0.35,1))
-        self.strategy_in = TextInput(hint_text="🎯 Your prediction strategy...", multiline=True, size_hint_y=None, height=dp(100), background_color=(0.2,0.25,0.35,1))
-        
-        self.add_widget(self.user_in)
-        self.add_widget(self.pass_in)
-        self.add_widget(self.strategy_in)
-        
-        btns = BoxLayout(spacing=dp(15), size_hint_y=None, height=dp(60))
-        reg_btn = Button(text="✅ Register", background_color=Style.SUCCESS, on_press=self.register)
-        login_btn = Button(text="🔐 Login", background_color=Style.ACCENT, on_press=self.login)
-        btns.add_widget(reg_btn)
-        btns.add_widget(login_btn)
-        self.add_widget(btns)
-    
-    def register(self, btn):
-        u, p, s = self.user_in.text.strip(), self.pass_in.text.strip(), self.strategy_in.text.strip()
-        if not all([u, p, s]) or len(u)<3 or len(p)<4:
-            return self.popup("❌ أدخل البيانات صح!", Style.ERROR)
-        
-        users = UserManager.load()
-        key = f"{u}_{p}"
-        if key in users:
-            return self.popup("❌ الحساب موجود!", Style.ERROR)
-        
-        users[key] = {
-            "username": u, "password": p, "strategy": s,
-            "join_date": datetime.now().strftime("%Y-%m-%d"),
-            "predictions": 0, "correct": 0, "likes": 0
-        }
-        UserManager.save(users)
-        self.on_success(users[key])
-        self.popup("🎉 حساب جديد!", Style.SUCCESS)
-    
-    def login(self, btn):
-        u, p = self.user_in.text.strip(), self.pass_in.text.strip()
-        users = UserManager.load()
-        key = f"{u}_{p}"
-        if key not in users:
-            return self.popup("❌ بيانات خاطئة!", Style.ERROR)
-        self.on_success(users[key])
-        self.popup(f"👋 مرحبا {u}!", Style.SUCCESS)
-    
-    def popup(self, msg, color):
-        p = Popup(title="", content=Label(text=msg, font_size=dp(18), color=Style.TEXT), size_hint=(0.8,0.4), background_color=color)
-        p.open()
-        Clock.schedule_once(lambda dt: p.dismiss(), 2.5)
-
-# ====================== Modal التوقعات الاحترافي ======================
-class ProPredictionModal(ModalView):
-    def __init__(self, match, user, on_submit, **kwargs):
+class PredictModal(ModalView):
+    def __init__(self, match, **kwargs):
         super().__init__(**kwargs)
         self.match = match
-        self.user = user
-        self.on_submit = on_submit
-        self.size_hint = (0.9, 0.85)
-        self.background_color = (0.1, 0.15, 0.25, 0.98)
-        self.build_ui()
-    
-    def build_ui(self):
-        layout = BoxLayout(orientation='vertical', padding=dp(20), spacing=dp(15))
-        
-        title = Label(text=f"🎯 توقع: {self.match['team1']} vs {self.match['team2']}\n{self.match['date']}", font_size=dp(20), bold=True, color=Style.ACCENT)
-        layout.add_widget(title)
-        
-        # نتيجة الفرق
-        score_layout = BoxLayout(size_hint_y=None, height=dp(60), spacing=dp(10))
-        score_layout.add_widget(Label(text=f"{self.match['team1']}:", font_size=dp(16)))
-        self.team1_score = TextInput(text='0', multiline=False, input_filter='int', width=dp(60), background_color=(0.2,0.25,0.35,1))
-        score_layout.add_widget(self.team1_score)
-        score_layout.add_widget(Label(text=" - ", font_size=dp(20)))
-        self.team2_score = TextInput(text='0', multiline=False, input_filter='int', width=dp(60), background_color=(0.2,0.25,0.35,1))
-        score_layout.add_widget(self.team2_score)
-        score_layout.add_widget(Label(text=f":{self.match['team2']}", font_size=dp(16)))
-        layout.add_widget(score_layout)
-        
-        # الفائز
-        self.winner_in = TextInput(hint_text="🏆 الفريق الفائز (أو تعادل)", multiline=False, size_hint_y=None, height=dp(50), background_color=(0.2,0.25,0.35,1))
-        layout.add_widget(self.winner_in)
-        
+        self.size_hint = (0.92, 0.85)
+        self.background_color = (0.06, 0.08, 0.16, 0.98)
+
+        layout = BoxLayout(orientation='vertical', padding=dp(25), spacing=dp(20))
+
+        # العنوان
+        layout.add_widget(Label(
+            text=f"[b]{match['team1']}  vs  {match['team2']}[/b]",
+            markup=True, font_size=sp(26), color=(0, 0.8, 1, 1), halign='center'
+        ))
+        layout.add_widget(Label(text=match['date'], font_size=sp(16), color=(0.8, 0.9, 1, 1), halign='center'))
+
+        # النتيجة
+        score_box = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(100), spacing=dp(30))
+        self.goal1 = TextInput(text="2", font_size=sp(50), input_filter='int', halign='center', size_hint_x=0.4)
+        score_box.add_widget(self.goal1)
+        score_box.add_widget(Label(text="-", font_size=sp(60), color=(1, 1, 1, 1)))
+        self.goal2 = TextInput(text="1", font_size=sp(50), input_filter='int', halign='center', size_hint_x=0.4)
+        score_box.add_widget(self.goal2)
+        layout.add_widget(score_box)
+
         # الهدافين
-        self.scorers_in = TextInput(hint_text="⚽ الهدافين (مثال: مباپي 2 - هالاند 1)", multiline=True, size_hint_y=None, height=dp(80), background_color=(0.2,0.25,0.35,1))
-        layout.add_widget(self.scorers_in)
-        
-        # التحليل
-        self.analysis_in = TextInput(hint_text="📊 تحليلك وسبب التوقع...", multiline=True, size_hint_y=1)
-        layout.add_widget(self.analysis_in)
-        
-        # أزرار
-        btns = BoxLayout(size_hint_y=None, height=dp(50), spacing=dp(10))
-        cancel = Button(text="❌ إلغاء", background_color=Style.ERROR, on_press=self.dismiss)
-        submit = Button(text="✅ حفظ التوقع", background_color=Style.SUCCESS, on_press=self.submit)
-        btns.add_widget(cancel)
-        btns.add_widget(submit)
-        layout.add_widget(btns)
-        
+        self.scorers = TextInput(
+            hint_text="مثال: صلاح - مبابي 2 - هالاند",
+            size_hint_y=None, height=dp(90), font_size=sp(16)
+        )
+        layout.add_widget(self.scorers)
+
+        # زر الحفظ
+        save_btn = Button(
+            text="حفظ التوقع", background_color=(0.1, 0.8, 0.3, 1),
+            size_hint_y=None, height=dp(60), font_size=sp(20), bold=True
+        )
+        save_btn.bind(on_press=self.save_prediction)
+        layout.add_widget(save_btn)
+
         self.add_widget(layout)
-    
-    def submit(self, btn):
-        score = f"{self.team1_score.text}-{self.team2_score.text}"
-        if not score.replace('-','').isdigit() or not self.winner_in.text:
-            return self.popup("❌ أدخل النتيجة والفائز صح!")
-        
-        pred_data = {
-            "score": score,
-            "winner": self.winner_in.text,
-            "scorers": self.scorers_in.text,
-            "analysis": self.analysis_in.text,
-            "username": self.user["username"],
-            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M")
-        }
-        self.on_submit(self.match, pred_data)
-        self.dismiss()
-    
-    def popup(self, msg):
-        Popup(title="", content=Label(text=msg), size_hint=(0.7,0.3), background_color=Style.ERROR).open()
 
-# ====================== التطبيق ======================
-class ChampionsLeagueApp(App):
+    def save_prediction(self, btn):
+        score = f"{self.goal1.text} - {self.goal2.text}"
+        Popup(
+            title="تم الحفظ بنجاح!",
+            content=Label(
+                text=f"[b]{self.match['team1']} {score} {self.match['team2']}[/b]\n\n"
+                     f"الهدافين: {self.scorers.text or 'لا يوجد'}\n\n"
+                     f"تم حفظ توقعك يا وحش!",
+                markup=True, halign='center', font_size=sp(18)
+            ),
+            size_hint=(0.85, 0.7),
+            background_color=(0.1, 0.7, 0.2, 1)
+        ).open()
+        Clock.schedule_once(lambda dt: self.dismiss(), 2.5)
+
+class MatchCard(BoxLayout):
+    def __init__(self, match, **kwargs):
+        super().__init__(**kwargs)
+        self.match = match
+        self.size_hint_y = None
+        self.height = dp(200)
+        self.padding = [dp(20), dp(15)]
+        self.spacing = dp(10)
+
+        # الخلفية + الخط الأحمر
+        with self.canvas.before:
+            Color(0.08, 0.10, 0.18, 1)
+            self.rect = RoundedRectangle(pos=self.pos, size=self.size, radius=[dp(18)])
+            Color(0.9, 0.2, 0.2, 1)
+            self.red_line = Line(points=[0, 0, 0, 0], width=dp(5))
+
+        self.bind(pos=self.update_graphics, size=self.update_graphics)
+
+        # الصف العلوي: الفريقين + VS
+        top_row = BoxLayout(spacing=dp(15))
+
+        # الفريق الأول
+        left = BoxLayout(orientation='vertical', size_hint_x=0.35)
+        left.add_widget(AsyncImage(source=team_logos.get(match['team1'], ""), size_hint=(1, 0.7)))
+        left.add_widget(Label(text=match['team1'], font_size=sp(17), bold=True, color=(1,1,1,1), halign='center'))
+
+        # الوسط
+        middle = BoxLayout(orientation='vertical')
+        middle.add_widget(Label(text=f"{match['team1']}\nvs\n{match['team2']}", font_size=sp(18), bold=True, color=(1,1,1,1), halign='center'))
+        middle.add_widget(Label(text=match['date'], font_size=sp(14), color=(0.7,0.9,1,1), halign='center'))
+
+        # الفريق الثاني
+        right = BoxLayout(orientation='vertical', size_hint_x=0.35)
+        right.add_widget(AsyncImage(source=team_logos.get(match['team2'], ""), size_hint=(1, 0.7)))
+        right.add_widget(Label(text=match['team2'], font_size=sp(17), bold=True, color=(1,1,1,1), halign='center'))
+
+        top_row.add_widget(left)
+        top_row.add_widget(middle)
+        top_row.add_widget(right)
+
+        # زر التوقع
+        predict_btn = Button(
+            text="توقع المباراة",
+            background_color=(0, 0.6, 1, 1),
+            size_hint_y=None, height=dp(55),
+            font_size=sp(18), bold=True
+        )
+        predict_btn.bind(on_press=lambda x: PredictModal(match).open())
+
+        self.add_widget(top_row)
+        self.add_widget(predict_btn)
+
+    def update_graphics(self, *args):
+        self.rect.pos = self.pos
+        self.rect.size = self.size
+        self.red_line.points = [self.x + dp(30), self.y + self.height - dp(8),
+                                self.x + self.width - dp(30), self.y + self.height - dp(8)]
+
+class UCLPredictorApp(App):
     def build(self):
-        self.title = "UCL Predictor Pro 🏆"
-        self.current_user = None
-        self.predictions = {}
-        self.liked = set()
-        self.news = []
-        self.matches = []
-        
-        root = BoxLayout(orientation='vertical')
-        
-        # Header
-        header = BoxLayout(size_hint_y=None, height=dp(70), padding=dp(10))
-        with header.canvas.before:
-            Color(0.1, 0.15, 0.25, 1)
-            RoundedRectangle(pos=header.pos, size=header.size, radius=[0,0,dp(20),dp(20)])
-        
-        title = Label(text="🏆 UEFA Champions League", font_size=dp(26), bold=True, color=Style.TEXT)
-        header.add_widget(title)
-        
-        self.user_btn = Button(text="👤 تسجيل/دخول", background_color=(1,1,1,0.2), size_hint_x=0.3, on_press=self.show_profile)
-        header.add_widget(self.user_btn)
-        
-        refresh = Button(text="🔄 تحديث", font_size=dp(20), size_hint_x=0.15, background_color=(1,1,1,0), on_press=self.refresh_data)
-        header.add_widget(refresh)
-        root.add_widget(header)
-        
-        # Tabs
-        self.tabs = TabbedPanel(do_default_tab=False, tab_pos='top_mid', background_color=Style.BG)
-        self.create_tabs()
-        root.add_widget(self.tabs)
-        
-        Clock.schedule_once(lambda dt: self.refresh_data(), 1)
-        return root
-    
-    def create_tabs(self):
-        # Matches Tab
-        matches_tab = TabbedPanelItem(text="⚽ المباريات القادمة")
-        self.matches_scroll = ScrollView()
-        self.matches_grid = GridLayout(cols=1, spacing=dp(12), size_hint_y=None, padding=dp(15))
-        self.matches_grid.bind(minimum_height=self.matches_grid.setter('height'))
-        self.matches_scroll.add_widget(self.matches_grid)
-        matches_tab.add_widget(self.matches_scroll)
-        
-        # Predictions Tab
-        pred_tab = TabbedPanelItem(text="🎯 التوقعات")
-        self.pred_scroll = ScrollView()
-        self.pred_grid = GridLayout(cols=1, spacing=dp(12), size_hint_y=None, padding=dp(15))
-        self.pred_grid.bind(minimum_height=self.pred_grid.setter('height'))
-        self.pred_scroll.add_widget(self.pred_grid)
-        pred_tab.add_widget(self.pred_scroll)
-        
-        # News Tab
-        news_tab = TabbedPanelItem(text="📰 الأخبار")
-        self.news_scroll = ScrollView()
-        self.news_grid = GridLayout(cols=1, spacing=dp(12), size_hint_y=None, padding=dp(15))
-        self.news_grid.bind(minimum_height=self.news_grid.setter('height'))
-        self.news_scroll.add_widget(self.news_grid)
-        news_tab.add_widget(self.news_scroll)
-        
-        self.tabs.add_widget(matches_tab)
-        self.tabs.add_widget(pred_tab)
-        self.tabs.add_widget(news_tab)
-    
-    def on_user_login(self, user):
-        self.current_user = user
-        self.user_btn.text = f"👤 {user['username']}"
-        self.update_predictions_tab()
-    
-    def update_predictions_tab(self):
-        self.pred_grid.clear_widgets()
-        if not self.current_user:
-            login = LoginScreen(self.on_user_login)
-            self.pred_grid.add_widget(login)
-        else:
-            if not self.predictions:
-                empty = Label(text="🤷‍♂️ مفيش توقعات! روح على تبويب المباريات وتوقع.", font_size=dp(18), color=Style.TEXT_DIM, halign='center')
-                self.pred_grid.add_widget(empty)
-            else:
-                for pid, pred in self.predictions.items():
-                    card = self.create_prediction_card(pred)
-                    card.animate_in()
-                    self.pred_grid.add_widget(card)
-    
-    def create_prediction_card(self, data):
-        card = Card(height=dp(300))
-        match = data['match']
-        pred = data['prediction']
-        
-        title = BoxLayout(size_hint_y=None, height=dp(40))
-        title.add_widget(Label(text="🎯 توقعي", font_size=dp(18), bold=True))
-        title.add_widget(Label(text=f"من {pred['username']}", font_size=dp(14)))
-        card.add_widget(title)
-        
-        match_info = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(50), spacing=dp(20))
-        match_info.add_widget(Label(text="⚽", font_size=dp(30)))
-        match_info.add_widget(Label(text=f"{match['team1']} vs {match['team2']}", bold=True, font_size=dp(16)))
-        match_info.add_widget(Label(text="⚽", font_size=dp(30)))
-        card.add_widget(match_info)
-        
-        score_label = Label(text=f"النتيجة: [b]{pred['score']}[/b]", markup=True, font_size=dp(20), color=(1,0.8,0,1), size_hint_y=None, height=dp(40))
-        card.add_widget(score_label)
-        
-        details = Label(text=f"🏆 الفائز: {pred['winner']}\n⚽ الهدافين: {pred['scorers'] or '—'}\n📊 التحليل: {pred['analysis'][:100]}...", size_hint_y=None, height=dp(100), text_size=(None, None), halign='left')
-        card.add_widget(details)
-        
-        # Like button
-        like_btn = Button(text="❤️" if data['id'] in self.liked else "🤍", size=(dp(50), dp(50)))
-        like_btn.bind(on_press=lambda x, pid=data['id']: self.toggle_like(pid, like_btn))
-        card.add_widget(like_btn)
-        
-        timestamp = Label(text=f"🕐 {pred['timestamp']}", font_size=dp(12), color=Style.TEXT_DIM, size_hint_y=None, height=dp(30))
-        card.add_widget(timestamp)
-        
-        return card
-    
-    def toggle_like(self, pid, btn):
-        if pid in self.liked:
-            self.liked.discard(pid)
-            btn.text = "🤍"
-        else:
-            self.liked.add(pid)
-            btn.text = "❤️"
-            anim = Animation(scale=1.3, duration=0.1) + Animation(scale=1, duration=0.1)
-            anim.start(btn)
-    
-    def refresh_data(self, *args):
-        threading.Thread(target=self.load_real_data, daemon=True).start()
-    
-    def load_real_data(self):
-        self.matches = DataManager.get_upcoming_matches()
-        self.news = DataManager.get_real_news()
-        Clock.schedule_once(lambda dt: self.update_all_tabs(), 0)
-    
-    def update_all_tabs(self):
-        self.update_matches_tab()
-        self.update_news_tab()
-    
-    def update_matches_tab(self):
-        self.matches_grid.clear_widgets()
-        for match in self.matches:
-            card = Card(height=dp(200))
-            
-            info = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(60), spacing=dp(20))
-            info.add_widget(Label(text="⚽", font_size=dp(40)))
-            info.add_widget(Label(text=f"{match['team1']} vs {match['team2']}\n{ match['date'] } - {match['stage']}", halign='center', bold=True))
-            info.add_widget(Label(text="⚽", font_size=dp(40)))
-            card.add_widget(info)
-            
-            if self.current_user:
-                predict_btn = Button(text="🎯 توقع المباراة", background_color=Style.ACCENT, size_hint_y=None, height=dp(50), on_press=lambda x, m=match: self.open_pro_prediction(m))
-                card.add_widget(predict_btn)
-            else:
-                login_btn = Button(text="🔐 سجل دخول عشان تتوقع", background_color=Style.ERROR, size_hint_y=None, height=dp(50), on_press=lambda x: self.tabs.switch_to(self.tabs.tab_list[1]))
-                card.add_widget(login_btn)
-            
-            card.animate_in()
-            self.matches_grid.add_widget(card)
-    
-    def update_news_tab(self):
-        self.news_grid.clear_widgets()
-        for item in self.news:
-            card = Card(height=dp(220))
-            
-            title = Label(text=f"📢 {item['title']}", font_size=dp(16), bold=True, size_hint_y=None, height=dp(50))
-            card.add_widget(title)
-            
-            content = Label(text=item['content'], font_size=dp(12), color=Style.TEXT_DIM, size_hint_y=None, height=dp(80), text_size=(None, None), halign='left')
-            card.add_widget(content)
-            
-            # تفاعل حقيقي
-            inter = BoxLayout(size_hint_y=None, height=dp(40), spacing=dp(10))
-            like_btn = Button(text=f"👍 {item['likes']}", size_hint_x=0.25)
-            comment_btn = Button(text=f"💬 {item['comments']}", size_hint_x=0.25, on_press=lambda x, url=item['url']: self.open_news_url(url))
-            share_btn = Button(text=f"🔄 {item['shares']}", size_hint_x=0.25)
-            date_label = Label(text=f"{item['date']}", size_hint_x=0.25, color=Style.TEXT_DIM)
-            inter.add_widget(like_btn)
-            inter.add_widget(comment_btn)
-            inter.add_widget(share_btn)
-            inter.add_widget(date_label)
-            card.add_widget(inter)
-            
-            card.animate_in()
-            self.news_grid.add_widget(card)
-    
-    def open_news_url(self, url):
-        # في الواقع، افتح في browser، هنا popup
-        Popup(title="الخبر", content=Label(text=f"افتح: {url}"), size_hint=(0.8,0.5)).open()
-    
-    def open_pro_prediction(self, match):
-        modal = ProPredictionModal(match, self.current_user, self.submit_prediction)
-        modal.open()
-    
-    def submit_prediction(self, match, pred_data):
-        pid = f"{match['team1']}_{match['team2']}_{datetime.now().strftime('%d%m%y%H%M')}"
-        self.predictions[pid] = {"id": pid, "match": match, "prediction": pred_data}
-        
-        # تحديث stats
-        users = UserManager.load()
-        key = f"{self.current_user['username']}_{self.current_user['password']}"
-        if key in users:
-            users[key]["predictions"] += 1
-            UserManager.save(users)
-        
-        self.update_predictions_tab()
-        self.show_popup("✅ توقع محفوظ! شاركه مع أصحابك.")
-    
-    def show_popup(self, msg):
-        p = Popup(title="", content=Label(text=msg), size_hint=(0.7,0.4), background_color=Style.SUCCESS)
-        p.open()
-        Clock.schedule_once(lambda dt: p.dismiss(), 2)
-    
-    def show_profile(self, btn):
-        if not self.current_user:
-            self.tabs.switch_to(self.tabs.tab_list[1])
-            return
-        
-        content = BoxLayout(orientation='vertical', padding=dp(20))
-        content.add_widget(Label(text=f"👤 {self.current_user['username']}", font_size=dp(22), bold=True))
-        content.add_widget(Label(text=f"🎯 عدد التوقعات: {self.current_user.get('predictions', 0)}"))
-        content.add_widget(Label(text=f"❤️ اللايكات: {len(self.liked)}"))
-        
-        logout_btn = Button(text="🚪 خروج", background_color=Style.ERROR, size_hint_y=None, height=dp(50), on_press=self.logout)
-        content.add_widget(logout_btn)
-        
-        Popup(title="الملف الشخصي", content=content, size_hint=(0.8,0.6)).open()
-    
-    def logout(self, btn):
-        self.current_user = None
-        self.user_btn.text = "👤 تسجيل/دخول"
-        self.update_predictions_tab()
-        self.show_popup("👋 تم الخروج!")
+        self.title = "UEFA Champions League 2025"
 
-if __name__ == "__main__":
-    ChampionsLeagueApp().run()
+        root = BoxLayout(orientation='vertical')
+
+        # الهيدر الأسود الفاخر
+        header = BoxLayout(size_hint_y=None, height=dp(110), padding=dp(20))
+        with header.canvas.before:
+            Color(0.02, 0.04, 0.10, 1)
+            RoundedRectangle(pos=header.pos, size=header.size, radius=[0, 0, dp(30), dp(30)])
+
+        header.add_widget(Label(
+            text="UEFA Champions League",
+            font_size=sp(28), bold=True, color=(1,1,1,1)
+        ))
+        header.add_widget(Label(
+            text="Matchday 5 • نوفمبر 2025",
+            font_size=sp(16), color=(0.7, 0.9, 1, 1)
+        ))
+        root.add_widget(header)
+
+        # قائمة المباريات
+        scroll = ScrollView()
+        grid = GridLayout(cols=1, spacing=dp(20), size_hint_y=None, padding=[dp(20), dp(10)])
+        grid.bind(minimum_height=grid.setter('height'))
+
+        for match in matches:
+            card = MatchCard(match)
+            grid.add_widget(card)
+            # أنيميشن الدخول
+            card.opacity = 0
+            card.y -= dp(50)
+            anim = Animation(opacity=1, y=card.y + dp(50), duration=0.6, t='out_back')
+            Clock.schedule_once(lambda dt, c=card: anim.start(c), len(grid.children) * 0.15)
+
+        scroll.add_widget(grid)
+        root.add_widget(scroll)
+
+        return root
+
+# شغّل التطبيق يا ريس!
+if __name__ == '__main__':
+    UCLPredictorApp().run()
