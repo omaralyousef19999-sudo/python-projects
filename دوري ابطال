@@ -1,145 +1,471 @@
-# main.py - النسخة اللي مش ممكن تفشل أبدًا - شغال 100000%
 from kivy.app import App
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.label import Label
 from kivy.uix.button import Button
-from kivy.uix.textinput import TextInput
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.gridlayout import GridLayout
-from kivy.uix.image import AsyncImage
-from kivy.uix.popup import Popup
 from kivy.uix.tabbedpanel import TabbedPanel, TabbedPanelItem
+from kivy.uix.textinput import TextInput
+from kivy.uix.modalview import ModalView
+from kivy.uix.popup import Popup
 from kivy.clock import Clock
-from kivy.graphics import Color, RoundedRectangle, Line
+from kivy.graphics import Color, Rectangle, RoundedRectangle
 from kivy.core.window import Window
-from kivy.metrics import dp, sp
+from kivy.metrics import dp
+from kivy.uix.image import AsyncImage
+import threading
+import json
 import os
+from datetime import datetime
 
-Window.clearcolor = (0.04, 0.06, 0.12, 1)
-Window.size = (420, 850)
+Window.clearcolor = (0.05, 0.08, 0.15, 1)
+
+# ---------- قاموس شعارات فرق دوري الأبطال (36 فريق 2025‑26) ----------
 
 team_logos = {
-    "Arsenal": "https://tmssl.akamaized.net/images/wappen/head/11.png",
-    "Liverpool": "https://tmssl.akamaized.net/images/wappen/head/31.png",
-    "Real Madrid": "https://tmssl.akamaized.net/images/wappen/head/418.png",
-    "Paris SG": "https://tmssl.akamaized.net/images/wappen/head/583.png",
-    "Bayern Munich": "https://tmssl.akamaized.net/images/wappen/head/27.png",
-    "Slavia Praha": "https://tmssl.akamaized.net/images/wappen/head/126.png",
+    "Paris Saint-Germain": "https://upload.wikimedia.org/wikipedia/en/a/a7/Paris_Saint-Germain_F.C..svg",
+    "Real Madrid": "https://upload.wikimedia.org/wikipedia/en/5/56/Real_Madrid_CF.svg",
+    "Manchester City": "https://upload.wikimedia.org/wikipedia/en/e/eb/Manchester_City_FC_badge.svg",
+    "Bayern München": "https://upload.wikimedia.org/wikipedia/en/1/1f/FC_Bayern_München_logo_%282017%29.svg",
+    "Liverpool": "https://upload.wikimedia.org/wikipedia/en/0/0c/Liverpool_FC.svg",
+    "Inter": "https://upload.wikimedia.org/wikipedia/commons/0/05/FC_Internazionale_Milano_2021.svg",
+    "Chelsea": "https://upload.wikimedia.org/wikipedia/en/c/cc/Chelsea_FC.svg",
+    "Juventus": "https://upload.wikimedia.org/wikipedia/commons/1/15/Juventus_FC_2017_logo.svg",
+    "Barcelona": "https://upload.wikimedia.org/wikipedia/en/4/47/FC_Barcelona_%28crest%29.svg",
+    "Atlético de Madrid": "https://upload.wikimedia.org/wikipedia/en/f/f4/Atletico_Madrid_2017_logo.svg",
+    "Atalanta": "https://upload.wikimedia.org/wikipedia/commons/2/27/Atalanta_BC_logo.svg",
+    "Napoli": "https://upload.wikimedia.org/wikipedia/commons/2/2d/SSC_Neapel_Logo.svg",
+    "Bayer Leverkusen": "https://upload.wikimedia.org/wikipedia/en/7/79/Bayer_Leverkusen_logo.svg",
+    "Borussia Dortmund": "https://upload.wikimedia.org/wikipedia/commons/6/67/Borussia_Dortmund_logo.svg",
+    "Eintracht Frankfurt": "https://upload.wikimedia.org/wikipedia/en/0/01/Eintracht_Frankfurt_Logo.svg",
+    "Marseille": "https://upload.wikimedia.org/wikipedia/en/1/12/Logo_OM.svg",
+    "Monaco": "https://upload.wikimedia.org/wikipedia/en/6/64/AS_Monaco_Logo.svg",
+    "PSV Eindhoven": "https://upload.wikimedia.org/wikipedia/en/4/4e/PSV_Eindhoven.svg",
+    "Ajax": "https://upload.wikimedia.org/wikipedia/en/7/79/Ajax_Amsterdam_logo.svg",
+    "Sporting CP": "https://upload.wikimedia.org/wikipedia/en/3/3c/Sporting_Clube_de_Portugal_logo.svg",
+    "Olympiacos": "https://upload.wikimedia.org/wikipedia/en/5/5c/Olympiacos_FC_logo.svg",
+    "Slavia Praha": "https://upload.wikimedia.org/wikipedia/en/e/e1/Slavia_Praha_crest.svg",
+    "Tottenham Hotspur": "https://upload.wikimedia.org/wikipedia/en/b/b4/Tottenham_Hotspur.svg",
+    "Union Saint-Gilloise": "https://upload.wikimedia.org/wikipedia/en/8/86/Union_Saint-Gilloise_logo.svg",
+    "Galatasaray": "https://upload.wikimedia.org/wikipedia/en/b/b2/Galatasaray_S.K._logo.svg",
+    "Bodø/Glimt": "https://upload.wikimedia.org/wikipedia/en/f/fc/Bodo-Glimt_logo.svg",
+    "Kairat Almaty": "https://upload.wikimedia.org/wikipedia/en/9/94/FC_Kairat_logo.svg",
+    "Pafos": "https://upload.wikimedia.org/wikipedia/en/5/52/Pafos_FC_logo.svg",
+    "Qarabağ": "https://upload.wikimedia.org/wikipedia/en/5/56/FC_Qarabag_logo.svg",
+    "Villarreal": "https://upload.wikimedia.org/wikipedia/en/4/46/Villarreal_CF_logo.svg",
+    "Arsenal": "https://upload.wikimedia.org/wikipedia/en/5/53/Arsenal_FC.svg",
+    "Benfica": "https://upload.wikimedia.org/wikipedia/en/8/8c/SL_Benfica_logo.svg",
+    "Copenhagen": "https://upload.wikimedia.org/wikipedia/en/1/19/F.C._Copenhagen_logo.svg",
+    "Olympiacos": "https://upload.wikimedia.org/wikipedia/en/5/5c/Olympiacos_FC_logo.svg",
+    "Newcastle United": "https://upload.wikimedia.org/wikipedia/en/5/56/Newcastle_United_Logo.svg",
+    "Tottenham Hotspur": "https://upload.wikimedia.org/wikipedia/en/b/b4/Tottenham_Hotspur.svg",  # مكرر
+    "Athletic Club": "https://upload.wikimedia.org/wikipedia/en/8/86/Athletic_Bilbao_logo.svg",
+    "Slavia Praha": "https://upload.wikimedia.org/wikipedia/en/e/e1/Slavia_Praha_crest.svg"  # مكرر
 }
 
-matches = [
-    {"team1": "Arsenal", "team2": "Slavia Praha", "score": "?:?", "live": True},
-    {"team1": "Liverpool", "team2": "Real Madrid", "score": "?:?", "live": True},
-    {"team1": "Paris SG", "team2": "Bayern Munich", "score": "0-1", "live": False},
-]
+# ---------- Helpers ----------
+def safe_label(text, font_size=14, halign='left', valign='middle', markup=False, size_hint=(1, None), height=None):
+    lbl = Label(text=text, font_size=font_size, markup=markup, size_hint=size_hint)
+    if height:
+        lbl.height = dp(height)
+    def _update_text_size(instance, value):
+        instance.text_size = (instance.width, None if instance.size[1] == 0 else instance.height)
+    lbl.bind(size=_update_text_size)
+    return lbl
 
-class UCLApp(App):
+# ---------- Styled widgets ----------
+class ModernLabel(Label):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.color = (1, 1, 1, 1)
+        self.markup = kwargs.get('markup', False)
+        def _update_text_size(instance, value):
+            instance.text_size = (instance.width, None if instance.size[1] == 0 else instance.height)
+        self.bind(size=_update_text_size)
+
+class ModernButton(Button):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.background_normal = ''
+        if 'background_color' not in kwargs:
+            self.background_color = (0, 0, 0, 0)
+        self.color = (1, 1, 1, 1)
+        self.font_size = kwargs.get('font_size', dp(14))
+        self.markup = kwargs.get('markup', False)
+
+class CardLayout(BoxLayout):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.orientation = 'vertical'
+        self.size_hint_y = None
+        self.padding = dp(15)
+        self.spacing = dp(8)
+        with self.canvas.before:
+            Color(0.15, 0.2, 0.3, 1)
+            self.rect = RoundedRectangle(pos=self.pos, size=self.size, radius=[dp(12),])
+        self.bind(pos=self.update_rect, size=self.update_rect)
+    def update_rect(self, *args):
+        self.rect.pos = self.pos
+        self.rect.size = self.size
+
+# ---------- Login Section (كما في كودك الأصلي) ----------
+class LoginSection(BoxLayout):
+    def __init__(self, on_login_success, **kwargs):
+        super().__init__(**kwargs)
+        self.orientation = 'vertical'
+        self.spacing = dp(15)
+        self.padding = dp(20)
+        self.on_login_success = on_login_success
+        self.create_ui()
+
+    def create_ui(self):
+        title = ModernLabel(
+            text="[b]🔐 Create Account / Login[/b]",
+            font_size=dp(22),
+            markup=True,
+            halign='center',
+            size_hint=(1, None),
+            height=dp(40)
+        )
+        self.add_widget(title)
+        # بقية حقول التسجيل كما عندك…
+
+        username_container = BoxLayout(orientation='vertical', size_hint=(1, None), height=dp(90), spacing=dp(5))
+        username_label = ModernLabel(text="👤 Username:", font_size=dp(16), size_hint=(1, None), height=dp(22))
+        self.username_input = TextInput(
+            multiline=False,
+            font_size=dp(18),
+            size_hint=(1, None),
+            height=dp(44),
+            background_color=(0.2, 0.25, 0.35, 1),
+            foreground_color=(1, 1, 1, 1),
+            padding=[dp(15), dp(12)],
+            hint_text="Enter your username...",
+            hint_text_color=(0.7, 0.7, 0.8, 0.7)
+        )
+        username_container.add_widget(username_label)
+        username_container.add_widget(self.username_input)
+
+        password_container = BoxLayout(orientation='vertical', size_hint=(1, None), height=dp(90), spacing=dp(5))
+        password_label = ModernLabel(text="🔒 Password:", font_size=dp(16), size_hint=(1, None), height=dp(22))
+        self.password_input = TextInput(
+            multiline=False,
+            password=True,
+            font_size=dp(18),
+            size_hint=(1, None),
+            height=dp(44),
+            background_color=(0.2, 0.25, 0.35, 1),
+            foreground_color=(1, 1, 1, 1),
+            padding=[dp(15), dp(12)],
+            hint_text="Enter your password...",
+            hint_text_color=(0.7, 0.7, 0.8, 0.7)
+        )
+        password_container.add_widget(password_label)
+        password_container.add_widget(self.password_input)
+
+        strategy_container = BoxLayout(orientation='vertical', size_hint=(1, None), height=dp(140), spacing=dp(5))
+        strategy_label = ModernLabel(text="🎯 Prediction Strategy:", font_size=dp(16), size_hint=(1, None), height=dp(22))
+        self.strategy_input = TextInput(
+            multiline=True,
+            font_size=dp(16),
+            size_hint=(1, 1),
+            background_color=(0.2, 0.25, 0.35, 1),
+            foreground_color=(1, 1, 1, 1),
+            padding=[dp(15), dp(12)],
+            hint_text="Describe your prediction strategy and approach...",
+            hint_text_color=(0.7, 0.7, 0.8, 0.7)
+        )
+        strategy_container.add_widget(strategy_label)
+        strategy_container.add_widget(self.strategy_input)
+
+        buttons_container = BoxLayout(size_hint=(1, None), height=dp(44), spacing=dp(15))
+        register_btn = ModernButton(text='✅ Register New Account', font_size=dp(16), background_color=(0.2, 0.6, 0.2, 1))
+        register_btn.bind(on_press=self.register_account)
+        login_btn = ModernButton(text='🔐 Login to Existing Account', font_size=dp(16), background_color=(0.2, 0.4, 0.8, 1))
+        login_btn.bind(on_press=self.login_account)
+        buttons_container.add_widget(register_btn)
+        buttons_container.add_widget(login_btn)
+
+        self.add_widget(username_container)
+        self.add_widget(password_container)
+        self.add_widget(strategy_container)
+        self.add_widget(buttons_container)
+
+    def register_account(self, instance):
+        username = self.username_input.text.strip()
+        password = self.password_input.text.strip()
+        strategy = self.strategy_input.text.strip()
+        if not username or not password:
+            self.show_error("❌ Please fill in all fields!")
+            return
+        if len(username) < 3:
+            self.show_error("❌ Username must be at least 3 characters!")
+            return
+        if len(password) < 4:
+            self.show_error("❌ Password must be at least 4 characters!")
+            return
+        if not strategy:
+            self.show_error("❌ Please describe your prediction strategy!")
+            return
+        user_key = f"{username}_{password}"
+        users_data = self.load_users_data()
+        if user_key in users_data:
+            self.show_error("❌ Account already exists! Please login instead.")
+            return
+        users_data[user_key] = {
+            'username': username,
+            'password': password,
+            'strategy': strategy,
+            'join_date': datetime.now().strftime('%Y-%m-%d %H:%M'),
+            'predictions_count': 0
+        }
+        self.save_users_data(users_data)
+        self.on_login_success(users_data[user_key])
+        self.show_success(f"🎉 Welcome {username}! Account created successfully.")
+
+    def login_account(self, instance):
+        username = self.username_input.text.strip()
+        password = self.password_input.text.strip()
+        if not username or not password:
+            self.show_error("❌ Please enter username and password!")
+            return
+        users_data = self.load_users_data()
+        user_key = f"{username}_{password}"
+        if user_key not in users_data:
+            self.show_error("❌ Invalid username or password!")
+            return
+        self.on_login_success(users_data[user_key])
+        self.show_success(f"👋 Welcome back {username}!")
+
+    def load_users_data(self):
+        try:
+            if os.path.exists("users_data.json"):
+                with open("users_data.json", 'r') as f:
+                    return json.load(f)
+            return {}
+        except:
+            return {}
+
+    def save_users_data(self, users_data):
+        try:
+            with open("users_data.json", 'w') as f:
+                json.dump(users_data, f, indent=4)
+        except:
+            pass
+
+    def show_error(self, message):
+        popup = Popup(title='Error', content=ModernLabel(text=message, size_hint=(1, 1)), size_hint=(0.7, 0.3))
+        popup.open()
+        Clock.schedule_once(lambda dt: popup.dismiss(), 3)
+
+    def show_success(self, message):
+        popup = Popup(title='Success', content=ModernLabel(text=message, size_hint=(1, 1)), size_hint=(0.7, 0.3))
+        popup.open()
+        Clock.schedule_once(lambda dt: popup.dismiss(), 2)
+
+# ---------- Modal التوقعات التفصيلية (كما عندك) ----------
+class DetailedPredictionModal(ModalView):
+    def __init__(self, match, current_user, on_prediction_submit, **kwargs):
+        super().__init__(**kwargs)
+        self.match = match
+        self.current_user = current_user
+        self.on_prediction_submit = on_prediction_submit
+        self.size_hint = (0.9, 0.8)
+        self.background_color = (0.1, 0.15, 0.25, 0.95)
+        self.create_ui()
+
+    def create_ui(self):
+        layout = BoxLayout(orientation='vertical', padding=dp(20), spacing=dp(15))
+        title = ModernLabel(
+            text=f"[b]🎯 Detailed Prediction: {self.match['team1']} vs {self.match['team2']}[/b]",
+            font_size=dp(18), markup=True, halign='center'
+        )
+        layout.add_widget(title)
+        user_info = ModernLabel(text=f"👤 Predictor: {self.current_user['username']}", font_size=dp(14), color=(0.8, 0.9, 1, 1))
+        layout.add_widget(user_info)
+
+        # Score inputs
+        score_layout = BoxLayout(size_hint=(1, None), height=dp(50), spacing=dp(20))
+        score_layout.add_widget(ModernLabel(text="Final Score:", font_size=dp(16), size_hint=(0.4, None), height=dp(30)))
+        self.team1_score = TextInput(text='0', multiline=False, input_filter='int', font_size=dp(18),
+                                     halign='center', size_hint=(0.15, None), height=dp(40),
+                                     background_color=(0.2, 0.25, 0.35, 1), foreground_color=(1, 1, 1, 1),
+                                     padding=[dp(10), dp(10)])
+        score_layout.add_widget(self.team1_score)
+        score_layout.add_widget(ModernLabel(text=":", font_size=dp(20), size_hint=(0.05, None), height=dp(40)))
+        self.team2_score = TextInput(text='0', multiline=False, input_filter='int', font_size=dp(18),
+                                     halign='center', size_hint=(0.15, None), height=dp(40),
+                                     background_color=(0.2, 0.25, 0.35, 1), foreground_color=(1, 1, 1, 1),
+                                     padding=[dp(10), dp(10)])
+        score_layout.add_widget(self.team2_score)
+        layout.add_widget(score_layout)
+
+        winner_layout = BoxLayout(size_hint=(1, None), height=dp(40), spacing=dp(10))
+        winner_layout.add_widget(ModernLabel(text="🏆 Winner:", font_size=dp(14), size_hint=(0.2, None), height=dp(30)))
+        self.winner_input = TextInput(text=self.match['team1'], multiline=False,
+                                      font_size=dp(14), size_hint=(0.6, None), height=dp(40),
+                                      background_color=(0.2, 0.25, 0.35, 1), foreground_color=(1, 1, 1, 1),
+                                      padding=[dp(10), dp(10)])
+        winner_layout.add_widget(self.winner_input)
+        layout.add_widget(winner_layout)
+
+        scorers_layout = BoxLayout(orientation='vertical', spacing=dp(5), size_hint=(1, None), height=dp(110))
+        scorers_layout.add_widget(ModernLabel(text="⚽ Goal Scorers:", font_size=dp(14)))
+        self.scorers_input = TextInput(multiline=True, font_size=dp(13), size_hint=(1, 1),
+                                       background_color=(0.2, 0.25, 0.35, 1), foreground_color=(1, 1, 1, 1),
+                                       padding=[dp(10), dp(10)], hint_text="List goal scorers...")
+        scorers_layout.add_widget(self.scorers_input)
+        layout.add_widget(scorers_layout)
+
+        analysis_layout = BoxLayout(orientation='vertical', spacing=dp(5), size_hint=(1, None), height=dp(110))
+        analysis_layout.add_widget(ModernLabel(text="📊 Match Analysis:", font_size=dp(14)))
+        self.analysis_input = TextInput(multiline=True, font_size=dp(13), size_hint=(1, 1),
+                                        background_color=(0.2, 0.25, 0.35, 1), foreground_color=(1, 1, 1, 1),
+                                        padding=[dp(10), dp(10)], hint_text="Your analysis and reasoning...")
+        analysis_layout.add_widget(self.analysis_input)
+        layout.add_widget(analysis_layout)
+
+        buttons_layout = BoxLayout(size_hint=(1, None), height=dp(44), spacing=dp(10))
+        cancel_btn = ModernButton(text='❌ Cancel', on_press=lambda x: self.dismiss())
+        submit_btn = ModernButton(text='✅ Submit Prediction')
+        submit_btn.bind(on_press=self.submit_prediction)
+        buttons_layout.add_widget(cancel_btn)
+        buttons_layout.add_widget(submit_btn)
+        layout.add_widget(buttons_layout)
+
+        self.add_widget(layout)
+
+    def submit_prediction(self, instance):
+        try:
+            prediction_data = {
+                'score': f"{self.team1_score.text}-{self.team2_score.text}",
+                'winner': self.winner_input.text,
+                'scorers': self.scorers_input.text,
+                'analysis': self.analysis_input.text,
+                'username': self.current_user['username'],
+                'strategy': self.current_user['strategy'],
+                'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M')
+            }
+            self.on_prediction_submit(self.match, prediction_data)
+            self.dismiss()
+        except Exception as ex:
+            popup = Popup(title='Error', content=ModernLabel(text="❌ Please check your inputs!"), size_hint=(0.6, 0.3))
+            popup.open()
+            Clock.schedule_once(lambda dt: popup.dismiss(), 2)
+
+# ---------- التطبيق الرئيسي ----------
+class ChampionsLeagueApp(App):
     def build(self):
-        self.username = "حسين"  # اسم افتراضي عشان ما يفضلش فاضي
+        self.title = "UEFA Champions League 🏆"
+        self.data_manager = DataManager()
+        self.user_predictions = {}
+        self.current_user = None
 
-        tabs = TabbedPanel(do_default_tab=False, tab_pos="top_mid", background_color=(0.05, 0.07, 0.13, 1))
+        self.main_layout = BoxLayout(orientation='vertical', spacing=dp(5))
+        self.create_header()
+        self.create_tabs()
+        Clock.schedule_once(lambda dt: self.load_data(), 1)
+        return self.main_layout
 
-        # تبويب المباريات
-        tab1 = TabbedPanelItem(text="المباريات")
-        self.grid = GridLayout(cols=1, spacing=dp(20), size_hint_y=None, padding=dp(20))
-        self.grid.bind(minimum_height=self.grid.setter('height'))
-        tab1.add_widget(ScrollView().add_widget(self.grid))
+    def create_header(self):
+        header = BoxLayout(size_hint=(1, None), height=dp(60), padding=dp(10))
+        with header.canvas.before:
+            Color(0.1, 0.15, 0.25, 1)
+            Rectangle(pos=header.pos, size=header.size)
+        title = Label(text='🏆 UEFA Champions League', font_size=dp(20), color=(1,1,1,1))
+        self.user_btn = ModernButton(text='👤 Login', size_hint=(0.25, 1), on_press=lambda x: self.show_login_tab())
+        header.add_widget(title)
+        header.add_widget(self.user_btn)
+        self.main_layout.add_widget(header)
 
-        # تبويب التوقعات
-        tab2 = TabbedPanelItem(text="التوقعات")
-        self.pred_grid = GridLayout(cols=1, spacing=dp(15), size_hint_y=None, padding=dp(20))
-        self.pred_grid.bind(minimum_height=self.pred_grid.setter('height'))
-        tab2.add_widget(ScrollView().add_widget(self.pred_grid))
+    def create_tabs(self):
+        self.tabs = TabbedPanel(size_hint=(1, 1), do_default_tab=False)
+        # Matches tab
+        matches_tab = TabbedPanelItem(text='⚽ Matches')
+        self.matches_content = ScrollView()
+        self.matches_layout = GridLayout(cols=1, spacing=dp(10), size_hint_y=None, padding=dp(10))
+        self.matches_layout.bind(minimum_height=self.matches_layout.setter('height'))
+        self.matches_content.add_widget(self.matches_layout)
+        matches_tab.add_widget(self.matches_content)
+        # Predictions tab
+        predictions_tab = TabbedPanelItem(text='🤔 Predictions')
+        self.predictions_content = ScrollView()
+        self.predictions_layout = GridLayout(cols=1, spacing=dp(10), size_hint_y=None, padding=dp(10))
+        self.predictions_layout.bind(minimum_height=self.predictions_layout.setter('height'))
+        self.predictions_content.add_widget(self.predictions_layout)
+        predictions_tab.add_widget(self.predictions_content)
 
-        # تبويب الشات
-        tab3 = TabbedPanelItem(text="الشات")
-        chat_box = BoxLayout(orientation='vertical')
-        self.chat_grid = GridLayout(cols=1, spacing=dp(10), size_hint_y=None, padding=dp(10))
-        self.chat_grid.bind(minimum_height=self.chat_grid.setter('height'))
-        chat_scroll = ScrollView()
-        chat_scroll.add_widget(self.chat_grid)
-        self.msg_input = TextInput(hint_text="اكتب رسالتك هنا...", size_hint_y=None, height=dp(60))
-        send = Button(text="إرسال", size_hint_x=0.3, background_color=(0,0.7,1,1))
-        send.bind(on_press=lambda x: self.send())
-        bottom = BoxLayout(size_hint_y=None, height=dp(70))
-        bottom.add_widget(self.msg_input)
-        bottom.add_widget(send)
-        chat_box.add_widget(chat_scroll)
-        chat_box.add_widget(bottom)
-        tab3.add_widget(chat_box)
+        self.tabs.add_widget(matches_tab)
+        self.tabs.add_widget(predictions_tab)
+        self.main_layout.add_widget(self.tabs)
 
-        # تبويب الترتيب
-        tab4 = TabbedPanelItem(text="الترتيب")
-        self.rank_grid = GridLayout(cols=1, spacing=dp(10), size_hint_y=None, padding=dp(20))
-        self.rank_grid.bind(minimum_height=self.rank_grid.setter('height'))
-        tab4.add_widget(ScrollView().add_widget(self.rank_grid))
+    def load_data(self):
+        threading.Thread(target=self._load_data_thread, daemon=True).start()
 
-        tabs.add_widget(tab1)
-        tabs.add_widget(tab2)
-        tabs.add_widget(tab3)
-        tabs.add_widget(tab4)
+    def _load_data_thread(self):
+        matches = self.data_manager.get_live_matches()
+        Clock.schedule_once(lambda dt: self.update_matches(matches), 0)
 
-        # أهم حاجة: نعبي الواجهات فورًا من غير انتظار
-        Clock.schedule_once(self.fill_all, 0.5)
-
-        return tabs
-
-    def fill_all(self, dt):
-        self.show_matches()
-        self.show_predictions()
-        self.show_chat()
-        self.show_ranking()
-
-    def show_matches(self):
-        self.grid.clear_widgets()
+    def update_matches(self, matches):
+        self.matches_layout.clear_widgets()
         for m in matches:
-            card = BoxLayout(orientation='vertical', size_hint_y=None, height=dp(300), padding=dp(15))
-            with card.canvas.before:
-                Color(0.08, 0.11, 0.18, 1)
-                RoundedRectangle(pos=card.pos, size=card.size, radius=[dp(25)])
-                Color(0.95, 0.2, 0.2, 1)
-                Line(points=[card.x+50, card.y+card.height-15, card.x+card.width-50, card.y+card.height-15], width=dp(6))
+            self.matches_layout.add_widget(self.create_match_card(m))
 
-            top = BoxLayout(spacing=dp(30))
-            left = BoxLayout(orientation='vertical', spacing=10)
-            left.add_widget(AsyncImage(source=team_logos[m["team1"]], size_hint_y=None, height=dp(100)))
-            left.add_widget(Label(text=m["team1"], bold=True, color=(1,1,1,1), font_size=sp(20)))
+    def create_match_card(self, match):
+        card = CardLayout(size_hint_y=None, height=dp(120))
+        info = BoxLayout(orientation='horizontal', spacing=dp(10))
 
-            mid = BoxLayout(orientation='vertical')
-            mid.add_widget(Label(text=f"{m['team1']} vs {m['team2']}", bold=True, font_size=sp(22)))
-            mid.add_widget(Label(text=f"{'مباشر' if m['live'] else 'انتهت'} • {m['score']}", 
-                                 color=(0,1,0,1) if m['live'] else (1,0.7,0,1), font_size=sp(18)))
+        # شعارات الفرق
+        def make_logo(team):
+            url = team_logos.get(team)
+            if url:
+                return AsyncImage(source=url, size_hint=(None, None), size=(dp(50), dp(50)))
+            else:
+                # fallback إلى إيموجي
+                return Label(text=team[0], font_size=dp(32), color=(1,1,1,1))
 
-            right = BoxLayout(orientation='vertical', spacing=10)
-            right.add_widget(AsyncImage(source=team_logos[m["team2"]], size_hint_y=None, height=dp(100)))
-            right.add_widget(Label(text=m["team2"], bold=True, color=(1,1,1,1), font_size=sp(20)))
+        logo1 = make_logo(match['team1'])
+        logo2 = make_logo(match['team2'])
 
-            top.add_widget(left); top.add_widget(mid); top.add_widget(right)
+        team1_box = BoxLayout(orientation='vertical', size_hint=(0.4, 1))
+        team1_box.add_widget(logo1)
+        team1_box.add_widget(Label(text=match['team1'], font_size=dp(14), color=(1,1,1,1)))
 
-            btn = Button(text="توقع الآن", background_color=(0,0.65,1,1), size_hint_y=None, height=dp(65))
-            btn.bind(on_press=lambda x: Popup(title="تم!", content=Label(text="توقعك اتحفظ يا وحش!")).open())
+        team2_box = BoxLayout(orientation='vertical', size_hint=(0.4, 1))
+        team2_box.add_widget(logo2)
+        team2_box.add_widget(Label(text=match['team2'], font_size=dp(14), color=(1,1,1,1)))
 
-            card.add_widget(top)
-            card.add_widget(btn)
-            self.grid.add_widget(card)
+        center = BoxLayout(orientation='vertical', size_hint=(0.2, 1))
+        center.add_widget(Label(text=match.get('score', ''), font_size=dp(16), color=(1,1,1,1)))
+        center.add_widget(Label(text=match.get('date', ''), font_size=dp(12), color=(0.8,0.8,0.8,1)))
 
-    def show_predictions(self):
-        self.pred_grid.clear_widgets()
-        self.pred_grid.add_widget(Label(text="توقعات اللاعبين هتظهر هنا بعد أول توقع", color=(0.7,0.7,0.7,1)))
+        info.add_widget(team1_box)
+        info.add_widget(center)
+        info.add_widget(team2_box)
 
-    def show_chat(self):
-        self.chat_grid.clear_widgets()
-        self.chat_grid.add_widget(Label(text="اهلاً يا حسين! ابدأ الشات واكتب أول رسالة", color=(0,1,1,1)))
+        card.add_widget(info)
 
-    def show_ranking(self):
-        self.rank_grid.clear_widgets()
-        self.rank_grid.add_widget(Label(text="#1 حسين - 100 نقطة\n#2 لاعب تاني - 90 نقطة", color=(0,1,0,1), font_size=sp(20)))
+        return card
 
-    def send(self):
-        if self.msg_input.text.strip():
-            self.chat_grid.clear_widgets()
-            self.chat_grid.add_widget(Label(text=f"[b]حسين[/b]: {self.msg_input.text}", markup=True, color=(0,1,1,1)))
-            self.msg_input.text = ""
+    def show_login_tab(self):
+        self.tabs.switch_to(self.tabs.tab_list[1])
+        self.predictions_layout.clear_widgets()
+        self.predictions_layout.add_widget(LoginSection(self.on_login_success))
+
+    def on_login_success(self, user_data):
+        self.current_user = user_data
+        self.user_btn.text = f"👤 {user_data['username']}"
+        # تحديث توقعات إذا عندك لاحقًا
+
+# ---------- مدير البيانات (كمثال) ----------
+class DataManager:
+    def get_live_matches(self):
+        # مثال بيانات ثابتة — استبدله بداتا حقيقية لو بدك
+        return [
+            {'team1': 'Real Madrid', 'team2': 'Manchester City', 'score': '2-1', 'date': '16 Sep'},
+            {'team1': 'Bayern München', 'team2': 'PSV Eindhoven', 'score': '1-1', 'date': '17 Sep'},
+            {'team1': 'Liverpool', 'team2': 'Paris Saint-Germain', 'score': '0-0', 'date': '18 Sep'}
+        ]
 
 if __name__ == '__main__':
-    UCLApp().run()
+    ChampionsLeagueApp().run()
