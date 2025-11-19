@@ -1,4 +1,4 @@
-# main.py - UCL Predictor 2025 - النسخة الكاملة الأسطورية (كل حاجة شغالة)
+# main.py - UCL Predictor 2025 - مشروع التخرج النهائي - شغال 100%
 from kivy.app import App
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.label import Label
@@ -20,8 +20,10 @@ from datetime import datetime
 Window.clearcolor = (0.04, 0.06, 0.12, 1)
 Window.size = (420, 850)
 
-DATA_FILE = "ucl_data.json"
+# ملف البيانات
+DATA_FILE = "ucl2025.json"
 
+# شعارات الفرق (سريعة جدًا)
 team_logos = {
     "Arsenal": "https://tmssl.akamaized.net/images/wappen/head/11.png",
     "Liverpool": "https://tmssl.akamaized.net/images/wappen/head/31.png",
@@ -29,155 +31,220 @@ team_logos = {
     "Paris SG": "https://tmssl.akamaized.net/images/wappen/head/583.png",
     "Bayern Munich": "https://tmssl.akamaized.net/images/wappen/head/27.png",
     "Slavia Praha": "https://tmssl.akamaized.net/images/wappen/head/126.png",
+    "Barcelona": "https://tmssl.akamaized.net/images/wappen/head/12.png",
+    "Man City": "https://tmssl.akamaized.net/images/wappen/head/281.png",
 }
 
+# المباريات
 matches = [
-    {"id": "1", "team1": "Arsenal", "team2": "Slavia Praha", "date": "25 نوفمبر 21:00", "score": "?:?", "live": True},
-    {"id": "2", "team1": "Liverpool", "team2": "Real Madrid", "date": "26 نوفمبر 20:45", "score": "?:?", "live": True},
-    {"id": "3", "team1": "Paris SG", "team2": "Bayern Munich", "date": "25 نوفمبر 21:00", "score": "0-1", "live": False},
+    {"id": "1", "team1": "Arsenal", "team2": "Slavia Praha", "score": "?:?", "live": True},
+    {"id": "2", "team1": "Liverpool", "team2": "Real Madrid", "score": "?:?", "live": True},
+    {"id": "3", "team1": "Paris SG", "team2": "Bayern Munich", "score": "0-1", "live": False},
+    {"id": "4", "team1": "Barcelona", "team2": "Man City", "score": "3-3", "live": False},
 ]
 
-def load(): 
+# تحميل البيانات
+def load_data():
     if os.path.exists(DATA_FILE):
-        try: return json.load(open(DATA_FILE, encoding="utf-8"))
-        except: return {"pred": {}, "chat": [], "points": {}}
-    return {"pred": {}, "chat": [], "points": {}}
+        try:
+            with open(DATA_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except:
+            return {"predictions": {}, "chat": [], "points": {}}
+    return {"predictions": {}, "chat": [], "points": {}}
 
-def save(d): json.dump(d, open(DATA_FILE, "w", encoding="utf-8"), indent=4, ensure_ascii=False)
+def save_data(data):
+    with open(DATA_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=4, ensure_ascii=False)
 
-data = load()
+data = load_data()
 
 class UCLApp(App):
     def build(self):
         self.username = None
+        self.title = "UCL Predictor 2025"
+
         tabs = TabbedPanel(do_default_tab=False, tab_pos="top_mid")
         tabs.background_color = (0.05, 0.07, 0.13, 1)
 
-        # تبويب المباريات
-        t1 = TabbedPanelItem(text="المباريات")
-        self.match_grid = GridLayout(cols=1, spacing=dp(20), size_hint_y=None, padding=dp(15))
-        self.match_grid.bind(minimum_height=self.match_grid.setter('height'))
-        t1.add_widget(ScrollView().add_widget(self.match_grid))
+        # 1. تبويب المباريات
+        tab1 = TabbedPanelItem(text="المباريات")
+        self.matches_grid = GridLayout(cols=1, spacing=dp(20), size_hint_y=None, padding=dp(20))
+        self.matches_grid.bind(minimum_height=self.matches_grid.setter('height'))
+        tab1.add_widget(ScrollView().add_widget(self.matches_grid))
 
-        # تبويب التوقعات
-        t2 = TabbedPanelItem(text="التوقعات")
-        self.pred_grid = GridLayout(cols=1, spacing=dp(12), size_hint_y=None, padding=dp(15))
-        self.pred_grid.bind(minimum_height=self.pred_grid.setter('height'))
-        t2.add_widget(ScrollView().add_widget(self.pred_grid))
+        # 2. تبويب التوقعات
+        tab2 = TabbedPanelItem(text="التوقعات")
+        self.preds_grid = GridLayout(cols=1, spacing=dp(15), size_hint_y=None, padding=dp(20))
+        self.preds_grid.bind(minimum_height=self.preds_grid.setter('height'))
+        tab2.add_widget(ScrollView().add_widget(self.preds_grid))
 
-        # تبويب الشات
-        t3 = TabbedPanelItem(text="الشات")
-        chat_box = BoxLayout(orientation='vertical')
-        self.chat_grid = GridLayout(cols=1, spacing=dp(8), size_hint_y=None, padding=dp(10))
+        # 3. تبويب الشات
+        tab3 = TabbedPanelItem(text="الشات")
+        chat_layout = BoxLayout(orientation='vertical')
+        self.chat_grid = GridLayout(cols=1, spacing=dp(10), size_hint_y=None, padding=dp(10))
         self.chat_grid.bind(minimum_height=self.chat_grid.setter('height'))
         chat_scroll = ScrollView()
         chat_scroll.add_widget(self.chat_grid)
-        self.msg = TextInput(hint_text="اكتب رسالتك...", size_hint_y=None, height=dp(50))
-        send = Button(text="إرسال", size_hint_x=0.25, background_color=(0,0.7,1,1))
-        send.bind(on_press=self.send_msg)
-        bottom = BoxLayout(size_hint_y=None, height=dp(60))
-        bottom.add_widget(self.msg)
-        bottom.add_widget(send)
-        chat_box.add_widget(chat_scroll)
-        chat_box.add_widget(bottom)
-        t3.add_widget(chat_box)
+        self.chat_input = TextInput(hint_text="اكتب رسالتك...", size_hint_y=None, height=dp(60))
+        send_btn = Button(text="إرسال", size_hint_x=0.3, background_color=(0, 0.7, 1, 1))
+        send_btn.bind(on_press=self.send_message)
+        bottom = BoxLayout(size_hint_y=None, height=dp(70))
+        bottom.add_widget(self.chat_input)
+        bottom.add_widget(send_btn)
+        chat_layout.add_widget(chat_scroll)
+        chat_layout.add_widget(bottom)
+        tab3.add_widget(chat_layout)
 
-        # تبويب الترتيب
-        t4 = TabbedPanelItem(text="الترتيب")
+        # 4. تبويب الترتيب
+        tab4 = TabbedPanelItem(text="الترتيب")
         self.rank_grid = GridLayout(cols=1, spacing=dp(10), size_hint_y=None, padding=dp(20))
         self.rank_grid.bind(minimum_height=self.rank_grid.setter('height'))
-        t4.add_widget(ScrollView().add_widget(self.rank_grid))
+        tab4.add_widget(ScrollView().add_widget(self.rank_grid))
 
-        tabs.add_widget(t1)
-        tabs.add_widget(t2)
-        tabs.add_widget(t3)
-        tabs.add_widget(t4)
+        tabs.add_widget(tab1)
+        tabs.add_widget(tab2)
+        tabs.add_widget(tab3)
+        tabs.add_widget(tab4)
 
-        Clock.schedule_once(self.login, 1)
-        Clock.schedule_interval(self.refresh, 20)
+        Clock.schedule_once(self.show_login, 1)
+        Clock.schedule_interval(self.refresh_all, 15)
+
         return tabs
 
-    def login(self, dt):
-        p = Popup(title="اسمك يا وحش؟", size_hint=(0.8,0.5))
+    def show_login(self, dt):
+        popup = Popup(title="أهلاً يا أسطورة!", size_hint=(0.85, 0.5))
         box = BoxLayout(orientation='vertical', padding=20, spacing=20)
-        name = TextInput(hint_text="اسمك", text="حسين")
-        btn = Button(text="ابدأ", background_color=(0,0.7,1,1))
-        btn.bind(on_press=lambda x: (setattr(self, 'username', name.text.strip() or "لاعب"), p.dismiss(), self.refresh()))
-        box.add_widget(Label(text="UCL Predictor 2025", color=(1,1,1,1), font_size=sp(22)))
-        box.add_widget(name)
+        name_input = TextInput(hint_text="اسمك يا ملك", text="حسين", font_size=sp(22))
+        btn = Button(text="ابدأ اللعب", background_color=(0, 0.7, 1, 1), size_hint_y=None, height=dp(70))
+        btn.bind(on_press=lambda x: self.login(name_input.text, popup))
+        box.add_widget(Label(text="UCL Predictor 2025\nأقوى تطبيق توقعات في التاريخ!", color=(1,1,1,1), font_size=sp(20)))
+        box.add_widget(name_input)
         box.add_widget(btn)
-        p.content = box
-        p.open()
+        popup.content = box
+        popup.open()
 
-    def refresh(self, *args):
+    def login(self, name, popup):
+        self.username = name.strip() or "لاعب مجهول"
+        popup.dismiss()
+        self.refresh_all()
+
+    def refresh_all(self, dt=None):
         self.show_matches()
-        self.show_preds()
+        self.show_predictions()
         self.show_chat()
-        self.show_rank()
+        self.show_ranking()
 
     def show_matches(self):
-        self.match_grid.clear_widgets()
-        for m in matches:
-            card = BoxLayout(orientation='vertical', size_hint_y=None, height=dp(280), padding=dp(12))
+        self.matches_grid.clear_widgets()
+        for match in matches:
+            card = BoxLayout(orientation='vertical', size_hint_y=None, height=dp(300), padding=dp(15))
             with card.canvas.before:
                 Color(0.08, 0.11, 0.18, 1)
-                RoundedRectangle(pos=card.pos, size=card.size, radius=[dp(20)])
+                RoundedRectangle(pos=card.pos, size=card.size, radius=[dp(25)])
                 Color(0.95, 0.2, 0.2, 1)
-                Line(points=[card.x+40, card.y+card.height-10, card.x+card.width-40, card.y+card.height-10], width=dp(5))
+                Line(points=[card.x+50, card.y+card.height-dp(15), card.x+card.width-50, card.y+card.height-dp(15)], width=dp(6))
 
-            top = BoxLayout(spacing=dp(20))
-            left = BoxLayout(orientation='vertical')
-            left.add_widget(AsyncImage(source=team_logos[m["team1"]], size_hint_y=None, height=dp(90)))
-            left.add_widget(Label(text=m["team1"], bold=True))
-            mid = BoxLayout(orientation='vertical')
-            mid.add_widget(Label(text=f"{m['team1']} vs {m['team2']}", bold=True, font_size=sp(19)))
-            mid.add_widget(Label(text=f"{'مباشر' if m['live'] else 'انتهت'} • {m['score']}", color=(0,1,0,1)))
-            right = BoxLayout(orientation='vertical')
-            right.add_widget(AsyncImage(source=team_logos[m["team2"]], size_hint_y=None, height=dp(90)))
-            right.add_widget(Label(text=m["team2"], bold=True))
-            top.add_widget(left); top.add_widget(mid); top.add_widget(right)
+            top = BoxLayout(spacing=dp(25))
+            left = BoxLayout(orientation='vertical', spacing=10)
+            left.add_widget(AsyncImage(source=team_logos.get(match["team1"], ""), size_hint_y=None, height=dp(100)))
+            left.add_widget(Label(text=match["team1"], bold=True, color=(1,1,1,1), font_size=sp(18)))
 
-            btn = Button(text="توقع الآن" if m["live"] else "انتهت", background_color=(0,0.65,1,1) if m["live"] else (0.5,0.5,0.5,1), size_hint_y=None, height=dp(60))
-            if m["live"]: btn.bind(on_press=lambda x, mm=m: self.predict(mm))
+            middle = BoxLayout(orientation='vertical', spacing=10)
+            middle.add_widget(Label(text=f"{match['team1']} vs {match['team2']}", bold=True, font_size=sp(22)))
+            status = "مباشر" if match["live"] else "انتهت"
+            middle.add_widget(Label(text=f"{status} • {match['score']}", color=(0,1,0,1) if match["live"] else (1,0.7,0,1), font_size=sp(18)))
+
+            right = BoxLayout(orientation='vertical', spacing=10)
+            right.add_widget(AsyncImage(source=team_logos.get(match["team2"], ""), size_hint_y=None, height=dp(100)))
+            right.add_widget(Label(text=match["team2"], bold=True, color=(1,1,1,1), font_size=sp(18)))
+
+            top.add_widget(left)
+            top.add_widget(middle)
+            top.add_widget(right)
+
+            btn_text = "توقع الآن" if match["live"] else "انتهت المباراة"
+            btn_color = (0, 0.65, 1, 1) if match["live"] else (0.5, 0.5, 0.5, 1)
+            btn = Button(text=btn_text, background_color=btn_color, size_hint_y=None, height=dp(65), font_size=sp(20))
+            if match["live"]:
+                btn.bind(on_press=lambda x, m=match: self.predict_match(m))
+
             card.add_widget(top)
             card.add_widget(btn)
-            self.match_grid.add_widget(card)
+            self.matches_grid.add_widget(card)
 
-    def predict(self, match):
-        p = Popup(title="توقع المباراة", size_hint=(0.9,0.8))
-        box = BoxLayout(orientation='vertical', padding=20, spacing=20)
-        score = BoxLayout(spacing=40)
-        g1 = TextInput(text="2", font_size=sp(50), input_filter='int')
-        g2 = TextInput(text="1", font_size=sp(50), input_filter='int')
-        score.add_widget(g1); score.add_widget(Label(text="-", font_size=sp(60))); score.add_widget(g2)
-        scorers = TextInput(hint_text="الهدافين")
-        def save(_):
-            data["pred"][f"{match['id']}_{self.username}"] = {"score": f"{g1.text}-{g2.text}", "scorers": scorers.text, "user": self.username}
-            save(data); p.dismiss()
-        box.add_widget(score); box.add_widget(scorers)
-        box.add_widget(Button(text="حفظ", background_color=(0.1,0.8,0.3,1), on_press=save))
-        p.content = box; p.open()
+    def predict_match(self, match):
+        popup = Popup(title=f"توقع: {match['team1']} vs {match['team2']}", size_hint=(0.9, 0.85))
+        box = BoxLayout(orientation='vertical', padding=dp(30), spacing=dp(25))
 
-    def show_preds(self):
-        self.pred_grid.clear_widgets()
-        for p in data["pred"].values():
-            self.pred_grid.add_widget(Label(text=f"[b]{p['user']}[/b]: {p['score']} | {p.get('scorers','')}", markup=True))
+        score_box = BoxLayout(spacing=dp(40), size_hint_y=None, height=dp(120))
+        g1 = TextInput(text="2", font_size=sp(60), input_filter='int', halign='center', size_hint_x=0.4)
+        g2 = TextInput(text="1", font_size=sp(60), input_filter='int', halign='center', size_hint_x=0.4)
+        score_box.add_widget(g1)
+        score_box.add_widget(Label(text="-", font_size=sp(80), color=(1,1,1,1)))
+        score_box.add_widget(g2)
 
-    def send_msg(self, _):
-        if self.msg.text.strip() and self.username:
-            data["chat"].append({"user": self.username, "msg": self.msg.text.strip()})
-            save(data); self.msg.text = ""; self.show_chat()
+        scorers = TextInput(hint_text="مثال: صلاح 2 - هالاند", size_hint_y=None, height=dp(120))
+
+        def save_prediction(_):
+            pred_id = f"{match['id']}_{self.username}"
+            data["predictions"][pred_id] = {
+                "user": self.username,
+                "score": f"{g1.text}-{g2.text}",
+                "scorers": scorers.text.strip(),
+                "time": datetime.now().strftime("%H:%M")
+            }
+            save_data(data)
+            popup.dismiss()
+            Popup(title="تم بنجاح!", content=Label(text="توقعك اتحفظ يا أسطورة!")).open()
+
+        box.add_widget(score_box)
+        box.add_widget(scorers)
+        box.add_widget(Button(text="حفظ التوقع", background_color=(0.1, 0.8, 0.3, 1), size_hint_y=None, height=dp(70), on_press=save_prediction))
+        popup.content = box
+        popup.open()
+
+    def show_predictions(self):
+        self.preds_grid.clear_widgets()
+        for pred in data["predictions"].values():
+            card = BoxLayout(orientation='vertical', padding=dp(15), spacing=dp(8), size_hint_y=None, height=dp(160))
+            with card.canvas.before:
+                Color(0.1, 0.15, 0.25, 1)
+                RoundedRectangle(pos=card.pos, size=card.size, radius=[dp(18)])
+            card.add_widget(Label(text=f"[b]{pred['user']}[/b]", markup=True, color=(0, 0.8, 1, 1), font_size=sp(20)))
+            card.add_widget(Label(text=f"توقع: {pred['score']}", font_size=sp(22), color=(1, 0.9, 0, 1)))
+            if pred.get("scorers"):
+                card.add_widget(Label(text=f"هدافين: {pred['scorers']}", color=(0.8, 1, 0.8, 1)))
+            card.add_widget(Label(text=pred.get("time", ""), color=(0.7,0.7,0.7,1), font_size=sp(14)))
+            self.preds_grid.add_widget(card)
+
+    def send_message(self, _):
+        msg = self.chat_input.text.strip()
+        if msg and self.username:
+            data["chat"].append({"user": self.username, "msg": msg, "time": datetime.now().strftime("%H:%M")})
+            save_data(data)
+            self.chat_input.text = ""
+            self.show_chat()
 
     def show_chat(self):
         self.chat_grid.clear_widgets()
-        for m in data["chat"][-30:]:
-            self.chat_grid.add_widget(Label(text=f"[b]{m['user']}[/b]: {m['msg']}", markup=True, halign='right'))
+        for msg in data["chat"][-25:]:
+            lbl = Label(
+                text=f"[b]{msg['user']}[/b]: {msg['msg']}\n[color=#888888]{msg.get('time','')}[/color]",
+                markup=True, halign='right', text_size=(None, None),
+                size_hint_y=None, height=dp(70)
+            )
+            self.chat_grid.add_widget(lbl)
 
-    def show_rank(self):
+    def show_ranking(self):
         self.rank_grid.clear_widgets()
-        rank = sorted(data["points"].items(), key=lambda x: x[1], reverse=True)[:10]
-        for i, (u, p) in enumerate(rank):
-            self.rank_grid.add_widget(Label(text=f"#{i+1} {u} - {p} نقطة", color=(0,1,0,1)))
+        ranking = sorted(data["points"].items(), key=lambda x: x[1], reverse=True)[:15]
+        for i, (user, pts) in enumerate(ranking):
+            row = BoxLayout(size_hint_y=None, height=dp(70), padding=dp(10))
+            row.add_widget(Label(text=f"#{i+1}", color=(1, 0.8, 0, 1), bold=True, font_size=sp(22)))
+            row.add_widget(Label(text=user, bold=True, font_size=sp(20)))
+            row.add_widget(Label(text=f"{pts} نقطة", color=(0, 1, 0, 1), font_size=sp(22)))
+            self.rank_grid.add_widget(row)
 
 if __name__ == '__main__':
     UCLApp().run()
