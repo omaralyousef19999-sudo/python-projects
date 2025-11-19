@@ -94,10 +94,10 @@ class ChampionsLeagueApp(App):
         self.main_layout.add_widget(stats_layout)
     
     def create_tabs(self):
-        # إنشاء التبويبات
+        # إنشاء التبويبات - استخدام top_left بدلاً من top
         self.tabs = TabbedPanel(
             size_hint=(1, 0.85),
-            tab_pos='top',
+            tab_pos='top_left',
             do_default_tab=False,
             background_color=(0.9, 0.9, 0.9, 1)
         )
