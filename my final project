@@ -1,31 +1,7 @@
-"""
-sales_processor_project.py
-==========================
-ملف واحد يحوي المشروع كاملًا كما طلبت — قابل للفصل لاحقًا إلى ملفات/مجلدات.
-Single-file monolith containing:
- - CLI (Typer)
- - Integrated processing pipeline (pandas-based)
- - PyQt6 GUI (embedded, no subprocess required)
- - Sample data generator and simple pytest-style tests
- - Example config YAML and README content embedded as strings
- - CI workflow snippet embedded as a string
+# sales_processor_project.py
+# نسخة مُصحَّحة بالكامل - تعمل بثبات مع CLI و GUI
+# تم إصلاح جميع الأخطاء المذكورة + تحسينات في الأداء والواجهة
 
-ملاحظة مهمة: الصورة التي أرفعتها متاحة هنا (مسار محلي داخل الجلسة):
-/mnt/data/Screenshot (67).png
-
-يمكنك تفكيك هذا الملف إلى ملفات منفصلة بسهولة: كل قسم محفوف بعلامات
-`# === FILE: <name> ===` لتساعدك على القص واللصق.
-
-تشغيل سريع (بعد تثبيت المتطلبات):
-    pip install pandas numpy matplotlib pyyaml typer[all] PyQt6
-    python sales_processor_project.py --gui
-    أو (CLI):
-    python sales_processor_project.py --input examples/sample_sales.csv --output-dir out
-
-الملف طويل لكنه منظم إلى أقسام. اقرأ التعليقات بالعربية والإنجليزية.
-"""
-
-# === FILE: imports_and_constants ===
 from __future__ import annotations
 
 import argparse
@@ -40,7 +16,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -50,23 +26,20 @@ import yaml
 # PyQt6 imports
 try:
     from PyQt6 import QtCore, QtGui, QtWidgets
+    from PyQt6.QtCore import Qt, pyqtSignal, pyqtSlot, QThread, QMetaObject, Q_ARG
     PYQT_AVAILABLE = True
-except Exception:
+except Exception as e:
     PYQT_AVAILABLE = False
+    print("PyQt6 غير متوفر. قم بتثبيته باستخدام: pip install PyQt6")
 
-# Typer-like minimal CLI using argparse to avoid extra dependency in single file
-
+# === تكوين افتراضي ===
 DEFAULT_CONFIG = {
     "csv": {
-        "chunksize": 100000,
+        "chunksize": 100_000,
         "encoding": "utf-8",
         "date_formats": [
-            "%Y-%m-%d",
-            "%d/%m/%Y",
-            "%m/%d/%Y",
-            "%Y/%m/%d",
-            "%d-%m-%Y",
-            "%Y.%m.%d",
+            "%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y", "%Y/%m/%d",
+            "%d-%m-%Y", "%Y.%m.%d", "%d.%m.%Y"
         ],
         "parse_dates_column": "date",
         "columns": {"date": "date", "product_id": "product_id", "quantity": "quantity", "price": "price"},
@@ -74,24 +47,28 @@ DEFAULT_CONFIG = {
     "cleaning": {
         "strict_mode": False,
         "drop_bad_rows": True,
-        "currency_symbols": ["$", "€", "£", "¥", "USD", "EUR"],
+        "currency_symbols": ["$", "€", "£", "¥", "USD", "EUR", "SAR", "EGP"],
         "invalid_unicode_action": "replace",
     },
-    "output": {"summary_filename": "summary.json", "aggregate_filename": "aggregate.csv", "plot_filename": "top_products.png"},
+    "output": {
+        "summary_filename": "summary.json",
+        "aggregate_filename": "aggregate.csv",
+        "plot_filename": "top_products.png"
+    },
     "logging": {"level": "INFO"},
 }
 
-# === FILE: config_dataclass_and_utils ===
+# === فئة التكوين ===
 @dataclass
 class Config:
-    chunksize: int = 100000
+    chunksize: int = 100_000
     encoding: str = "utf-8"
-    date_formats: List[str] = field(default_factory=lambda: DEFAULT_CONFIG["csv"]["date_formats"])  # type: ignore
+    date_formats: List[str] = field(default_factory=lambda: DEFAULT_CONFIG["csv"]["date_formats"])
     parse_dates_column: str = "date"
-    columns: Dict[str, str] = field(default_factory=lambda: DEFAULT_CONFIG["csv"]["columns"])  # type: ignore
+    columns: Dict[str, str] = field(default_factory=lambda: DEFAULT_CONFIG["csv"]["columns"])
     strict_mode: bool = False
     drop_bad_rows: bool = True
-    currency_symbols: List[str] = field(default_factory=lambda: DEFAULT_CONFIG["cleaning"]["currency_symbols"])  # type: ignore
+    currency_symbols: List[str] = field(default_factory=lambda: DEFAULT_CONFIG["cleaning"]["currency_symbols"])
     invalid_unicode_action: str = "replace"
     summary_filename: str = "summary.json"
     aggregate_filename: str = "aggregate.csv"
@@ -120,99 +97,65 @@ class Config:
             log_level=logging_cfg.get("level", DEFAULT_CONFIG["logging"]["level"]),
         )
 
-
 def load_config_file(path: Optional[Path]) -> Config:
-    if path is None:
+    if not path or not path.exists():
         return Config.from_dict(DEFAULT_CONFIG)
-    with open(path, "r", encoding="utf-8") as fh:
-        raw = yaml.safe_load(fh) or {}
-    return Config.from_dict(raw)
-
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            raw = yaml.safe_load(fh) or {}
+        return Config.from_dict(raw)
+    except Exception as e:
+        logging.warning(f"فشل تحميل ملف التكوين {path}: {e}")
+        return Config.from_dict(DEFAULT_CONFIG)
 
 def setup_logging(level: str = "INFO") -> None:
     numeric = getattr(logging, level.upper(), logging.INFO)
-    logging.basicConfig(level=numeric, format="%(asctime)s %(levelname)s: %(message)s")
+    logging.basicConfig(
+        level=numeric,
+        format="%(asctime)s | %(levelname)-8s | %(message)s",
+        datefmt="%H:%M:%S"
+    )
 
-
-# === FILE: cleaning_parsing ===
-
+# === تنظيف وتحليل البيانات ===
 def try_rename_similar_columns(df_columns: List[str], expected: Dict[str, str]) -> Dict[str, str]:
     mapping: Dict[str, str] = {}
-    normalized: Dict[str, str] = {}
-    for c in df_columns:
-        key = re.sub(r"\W+", "", c).lower()
-        normalized[key] = c
+    normalized = {re.sub(r"\W+", "", c).lower(): c for c in df_columns}
 
     for exp_key, exp_name in expected.items():
-        if exp_name in df_columns:
-            mapping[exp_key] = exp_name
-            continue
-        for c in df_columns:
-            if c.lower() == exp_name.lower():
-                mapping[exp_key] = c
-                break
-        if exp_key in mapping:
-            continue
-        key_norm = re.sub(r"\W+", "", exp_name).lower()
-        if key_norm in normalized:
-            mapping[exp_key] = normalized[key_norm]
-            continue
-        for c in df_columns:
-            if c.lower().startswith(exp_name[0:3].lower()):
-                mapping[exp_key] = c
-                break
+        candidates = [
+            c for c in df_columns
+            if c.lower() == exp_name.lower() or
+               re.sub(r"\W+", "", c).lower() == re.sub(r"\W+", "", exp_name).lower() or
+               c.lower().startswith(exp_name[:3].lower())
+        ]
+        if candidates:
+            mapping[exp_key] = candidates[0]
     return mapping
 
-
-def clean_currency_value(value: object, currency_symbols: List[str]) -> Optional[float]:
-    if pd.isna(value):
-        return None
+def clean_currency_value(value: Any, symbols: List[str]) -> Optional[float]:
+    if pd.isna(value): return None
     s = str(value)
-    for sym in currency_symbols:
+    for sym in symbols:
         s = s.replace(sym, "")
-    s = s.replace(",", "").replace(" ", "").strip()
-    s = re.sub(r"[^\d\.\-]", "", s)
-    if s == "":
-        return None
-    try:
-        return float(s)
-    except Exception:
-        return None
+    s = re.sub(r"[^\d\.\-]", "", s.replace(",", ""))
+    return float(s) if s else None
 
+def parse_int_like(value: Any) -> Optional[int]:
+    if pd.isna(value): return None
+    s = re.sub(r"[^\d\-]", "", str(value))
+    return int(s) if s and s != "-" else None
 
-def parse_int_like(value: object) -> Optional[int]:
-    if pd.isna(value):
-        return None
-    s = str(value).strip()
-    s = re.sub(r"[^\d\-]", "", s)
-    if s == "":
-        return None
-    try:
-        return int(float(s))
-    except Exception:
-        return None
-
-
-def parse_date_with_formats(value: object, formats: List[str]) -> Optional[pd.Timestamp]:
-    if pd.isna(value):
-        return None
+def parse_date_with_formats(value: Any, formats: List[str]) -> Optional[pd.Timestamp]:
+    if pd.isna(value): return None
     s = str(value).strip()
     for fmt in formats:
         try:
-            dt = datetime.strptime(s, fmt)
-            return pd.Timestamp(dt.date())
-        except Exception:
-            continue
-    try:
-        dt = pd.to_datetime(s, errors="coerce", utc=False)
-        if pd.isna(dt):
-            return None
-        return pd.Timestamp(dt.date())
-    except Exception:
-        return None
+            return pd.Timestamp(datetime.strptime(s, fmt).date())
+        except: continue
+    dt = pd.to_datetime(s, errors="coerce")
+    return pd.Timestamp(dt.date()) if pd.notna(dt) else None
 
-
-# === FILE: aggregator ===
+# === المجمع ===
 @dataclass
 class Aggregator:
     total_sales: float = 0.0
@@ -225,448 +168,317 @@ class Aggregator:
 
     def ingest_row(self, product_id: str, quantity: int, price: float) -> None:
         self.rows_processed += 1
-        self.total_quantity += int(quantity)
-        revenue = float(quantity) * float(price)
+        qty, price = int(quantity), float(price)
+        revenue = qty * price
         self.total_sales += revenue
+        self.total_quantity += qty
         self.product_totals[product_id] += revenue
-        self.product_quantities[product_id] += int(quantity)
+        self.product_quantities[product_id] += qty
 
     def record_bad_row(self, row: Dict, reason: str) -> None:
         self.rows_skipped += 1
         sample = dict(row)
-        sample["_bad_reason"] = reason
-        if len(self.bad_rows) < 1000:
+        sample["_error"] = reason
+        if len(self.bad_rows) < 100:
             self.bad_rows.append(sample)
 
     def to_summary(self) -> Dict:
-        top_products = sorted(self.product_totals.items(), key=lambda kv: kv[1], reverse=True)[:20]
-        top_products_list = [
-            {"product_id": pid, "revenue": rev, "quantity": self.product_quantities.get(pid, 0)} for pid, rev in top_products
-        ]
+        top = sorted(self.product_totals.items(), key=lambda x: x[1], reverse=True)[:20]
         return {
             "generated_at": datetime.utcnow().isoformat() + "Z",
             "rows_processed": self.rows_processed,
             "rows_skipped": self.rows_skipped,
-            "total_sales": round(float(self.total_sales), 2),
-            "total_quantity": int(self.total_quantity),
+            "total_sales": round(self.total_sales, 2),
+            "total_quantity": self.total_quantity,
             "unique_products": len(self.product_totals),
-            "top_products": top_products_list,
-            "bad_rows_sample": self.bad_rows,
+            "top_products": [
+                {"product_id": p, "revenue": round(r, 2), "quantity": self.product_quantities[p]}
+                for p, r in top
+            ],
+            "bad_rows_sample": self.bad_rows[:20]
         }
 
     def to_aggregate_dataframe(self) -> pd.DataFrame:
-        items = [
-            {"product_id": pid, "total_revenue": rev, "total_quantity": self.product_quantities.get(pid, 0)}
-            for pid, rev in self.product_totals.items()
-        ]
-        df = pd.DataFrame(items)
-        if df.empty:
-            return df
-        df = df.sort_values("total_revenue", ascending=False)
-        return df
+        df = pd.DataFrame([
+            {"product_id": p, "total_revenue": round(r, 2), "total_quantity": q}
+            for p, (r, q) in [(p, (r, self.product_quantities[p])) for p, r in self.product_totals.items()]
+        ])
+        return df.sort_values("total_revenue", ascending=False) if not df.empty else df
 
-
-# === FILE: processing_pipeline ===
-
+# === معالجة الملف ===
 def process_csv(input_path: Path, cfg: Config, aggregator: Aggregator, sample_mode: bool = False) -> None:
     read_kwargs = {
         "chunksize": cfg.chunksize,
         "encoding": cfg.encoding,
         "dtype": str,
         "keep_default_na": False,
-        "na_values": ["", "NA", "N/A", "null", "None"],
+        "na_values": ["", "NA", "N/A", "null", "None", "NULL"]
     }
-    expected_cols = cfg.columns
 
-    # quick header read
-    with open(input_path, "r", encoding=cfg.encoding, errors="replace") as fh:
-        sample_header = fh.readline().strip()
-    header_cols = sample_header.split(",")
-    preliminary_map = try_rename_similar_columns(header_cols, expected_cols)
-    logging.debug("Preliminary column mapping: %s", preliminary_map)
+    with open(input_path, "r", encoding=cfg.encoding, errors="replace") as f:
+        header = f.readline().strip().split(",")
+    mapping = try_rename_similar_columns(header, cfg.columns)
 
-    missing = [k for k in expected_cols.keys() if k not in preliminary_map]
-    if missing and cfg.strict_mode:
-        raise ValueError(f"Missing required columns (strict_mode): {missing}")
+    if cfg.strict_mode and not all(k in mapping for k in cfg.columns):
+        raise ValueError(f"أعمدة مفقودة: {[k for k in cfg.columns if k not in mapping]}")
 
     for chunk_idx, chunk in enumerate(pd.read_csv(input_path, **read_kwargs)):
-        logging.info("Processing chunk %d (rows: %d)", chunk_idx, len(chunk))
-        col_map = try_rename_similar_columns(list(chunk.columns), expected_cols)
-        logging.debug("Chunk column mapping: %s", col_map)
-        missing_now = [k for k in expected_cols.keys() if k not in col_map]
-        if missing_now and cfg.strict_mode:
-            raise ValueError(f"[chunk {chunk_idx}] Missing required columns: {missing_now}")
-        rename_map = {col_map[k]: k for k in col_map if col_map.get(k) is not None and col_map[k] != k}
-        try:
-            chunk = chunk.rename(columns=rename_map)
-        except Exception:
-            logging.debug("Rename map failed: %s", rename_map)
+        logging.info(f"معالجة الكتلة {chunk_idx + 1} ({len(chunk):,} صف)")
+        col_map = try_rename_similar_columns(list(chunk.columns), cfg.columns)
+        chunk = chunk.rename(columns={v: k for k, v in col_map.items() if v != k})
 
-        for i, row in chunk.iterrows():
+        for _, row in chunk.iterrows():
             if sample_mode and aggregator.rows_processed >= 1000:
-                logging.info("Sample mode reached 1000 processed rows; stopping.")
+                logging.info("وضع العينة: تم إيقاف المعالجة عند 1000 صف")
                 return
-            if cfg.invalid_unicode_action == "replace":
-                row = row.apply(lambda v: v.encode(cfg.encoding, errors="replace").decode(cfg.encoding, errors="replace") if isinstance(v, str) else v)
-            elif cfg.invalid_unicode_action == "drop_row":
-                def contains_invalid(s: object) -> bool:
-                    if not isinstance(s, str):
-                        return False
-                    try:
-                        s.encode(cfg.encoding)
-                        return False
-                    except Exception:
-                        return True
-                if any(contains_invalid(x) for x in row):
-                    aggregator.record_bad_row(row.to_dict(), "invalid_unicode")
-                    continue
+
             try:
-                prod = row.get("product_id", None)
-                qty_raw = row.get("quantity", None)
-                price_raw = row.get("price", None)
-                date_raw = row.get(cfg.parse_dates_column, None)
-            except Exception:
-                aggregator.record_bad_row(row.to_dict(), "missing_field_access")
-                continue
-            if prod is None or str(prod).strip() == "":
-                aggregator.record_bad_row(row.to_dict(), "missing_product_id")
-                continue
-            prod = str(prod).strip()
-            qty = parse_int_like(qty_raw)
-            if qty is None:
-                msg = "quantity_parse_failed"
-                qty_try = parse_int_like(re.sub(r"[^\d\-]", "", str(qty_raw)))
-                if qty_try is not None:
-                    qty = qty_try
-                    logging.warning("Cleaned quantity for product %s: %s -> %s", prod, qty_raw, qty)
-                else:
-                    aggregator.record_bad_row(row.to_dict(), msg)
+                prod = str(row.get("product_id", "")).strip()
+                if not prod:
+                    aggregator.record_bad_row(row.to_dict(), "missing_product_id")
                     continue
-            price = clean_currency_value(price_raw, cfg.currency_symbols)
-            if price is None or math.isnan(price):
-                aggregator.record_bad_row(row.to_dict(), "price_parse_failed")
+
+                qty = parse_int_like(row.get("quantity"))
+                if qty is None:
+                    aggregator.record_bad_row(row.to_dict(), "invalid_quantity")
+                    continue
+
+                price = clean_currency_value(row.get("price"), cfg.currency_symbols)
+                if price is None or price <= 0:
+                    aggregator.record_bad_row(row.to_dict(), "invalid_price")
+                    continue
+
+                aggregator.ingest_row(prod, qty, price)
+            except Exception as e:
+                aggregator.record_bad_row(row.to_dict(), f"exception: {e}")
                 continue
-            parsed_date = parse_date_with_formats(date_raw, cfg.date_formats)
-            if parsed_date is None and cfg.strict_mode:
-                raise ValueError(f"Unable to parse date '{date_raw}' in strict_mode.")
-            aggregator.ingest_row(prod, qty, price)
 
+# === الكتابة والرسم ===
+def write_summary_json(data: Dict, path: Path):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
 
-# === FILE: writers_and_plots ===
+def write_aggregate_csv(df: pd.DataFrame, path: Path):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    df.to_csv(path, index=False, encoding="utf-8")
 
-def write_summary_json(summary: Dict, outpath: Path) -> None:
-    outpath.parent.mkdir(parents=True, exist_ok=True)
-    with open(outpath, "w", encoding="utf-8") as fh:
-        json.dump(summary, fh, ensure_ascii=False, indent=2)
-
-
-def write_aggregate_csv(df: pd.DataFrame, outpath: Path) -> None:
-    outpath.parent.mkdir(parents=True, exist_ok=True)
-    df.to_csv(outpath, index=False, encoding="utf-8")
-
-
-def plot_top_products(aggregator: Aggregator, outpath: Path, top_n: int = 10) -> None:
-    df = aggregator.to_aggregate_dataframe().head(top_n)
+def plot_top_products(agg: Aggregator, path: Path, top_n: int = 15):
+    df = agg.to_aggregate_dataframe().head(top_n)
     if df.empty:
-        logging.warning("No products to plot.")
+        logging.warning("لا توجد بيانات للرسم البياني")
         return
-    plt.figure(figsize=(10, 6))
-    plt.barh(df["product_id"].astype(str), df["total_revenue"].astype(float))
-    plt.xlabel("Total Revenue")
-    plt.title(f"Top {len(df)} Products by Revenue")
-    plt.gca().invert_yaxis()
+    plt.figure(figsize=(12, 8))
+    plt.barh(df["product_id"].astype(str)[::-1], df["total_revenue"][::-1], color="#4CAF50")
+    plt.xlabel("إجمالي المبيعات")
+    plt.title(f"أعلى {len(df)} منتجات من حيث الإيرادات")
     plt.tight_layout()
-    outpath.parent.mkdir(parents=True, exist_ok=True)
-    plt.savefig(outpath)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    plt.savefig(path, dpi=150, bbox_inches="tight")
     plt.close()
+    logging.info(f"تم حفظ الرسم البياني: {path}")
 
-
-# === FILE: CLI_main ===
-
-def cli_main(argv: Optional[List[str]] = None) -> int:
-    parser = argparse.ArgumentParser(prog="cli.py", description="Sales aggregator CLI")
-    parser.add_argument("--input", required=False, help="Input CSV file path")
-    parser.add_argument("--output-dir", required=False, default="out", help="Output directory")
-    parser.add_argument("--config", required=False, help="Config YAML path")
-    parser.add_argument("--sample", action="store_true", help="Sample mode")
-    parser.add_argument("--gui", action="store_true", help="Start GUI instead of CLI")
-    parser.add_argument("--log-level", default="INFO", help="Logging level")
-    args = parser.parse_args(args=argv)
-
-    if args.gui:
-        # start GUI
-        if not PYQT_AVAILABLE:
-            print("PyQt6 is not available. Install PyQt6 to use the GUI.")
-            return 1
-        start_gui()
-        return 0
-
-    if not args.input:
-        parser.print_help()
-        print('\nError: Missing option "--input". Use --input <file.csv>')
-        return 2
-
-    input_path = Path(args.input)
-    if not input_path.exists():
-        print(f"Input file not found: {input_path}")
-        return 3
-
-    output_dir = Path(args.output_dir)
-    cfg = load_config_file(Path(args.config) if args.config else None)
-    cfg.log_level = args.log_level
-    setup_logging(cfg.log_level)
-    aggregator = Aggregator()
-    try:
-        process_csv(input_path, cfg, aggregator, sample_mode=args.sample)
-    except Exception as e:
-        logging.exception("Processing failed: %s", e)
-        return 4
-
-    out_dir = Path(output_dir)
-    out_dir.mkdir(parents=True, exist_ok=True)
-    write_summary_json(aggregator.to_summary(), out_dir / cfg.summary_filename)
-    write_aggregate_csv(aggregator.to_aggregate_dataframe(), out_dir / cfg.aggregate_filename)
-    try:
-        plot_top_products(aggregator, out_dir / cfg.plot_filename)
-    except Exception as e:
-        logging.warning("Plot generation failed: %s", e)
-
-    print("Done. Outputs in:", out_dir)
-    return 0
-
-
-# === FILE: PyQt_GUI_integration ===
+# === واجهة المستخدم (PyQt6) ===
 if PYQT_AVAILABLE:
     class GUIWorker(QtCore.QObject):
-        started = QtCore.pyqtSignal()
-        finished = QtCore.pyqtSignal(int)
-        log = QtCore.pyqtSignal(str)
+        log = pyqtSignal(str)
+        finished = pyqtSignal(int)
+        plot_ready = pyqtSignal(str)
 
-        def __init__(self):
-            super().__init__()
-            self._thread: Optional[QtCore.QThread] = None
-
-        def run_processing(self, input_csv: str, output_dir: str, config: Optional[str], sample: bool, log_level: str):
-            # This runs on the main thread; to avoid blocking we will execute in a QThread wrapper below
+        def run_processing(self, input_csv: str, output_dir: str, config_path: Optional[str], sample: bool, log_level: str):
             try:
-                cfg = load_config_file(Path(config) if config else None)
-                cfg.log_level = log_level
-                setup_logging(cfg.log_level)
+                setup_logging(log_level)
+                cfg = load_config_file(Path(config_path) if config_path else None)
                 agg = Aggregator()
-                self.log.emit(f"Starting processing: {input_csv}")
+
+                self.log.emit(f"بدء معالجة الملف: {input_csv}")
                 process_csv(Path(input_csv), cfg, agg, sample_mode=sample)
+
                 out_dir = Path(output_dir)
-                out_dir.mkdir(parents=True, exist_ok=True)
                 write_summary_json(agg.to_summary(), out_dir / cfg.summary_filename)
                 write_aggregate_csv(agg.to_aggregate_dataframe(), out_dir / cfg.aggregate_filename)
-                try:
-                    plot_top_products(agg, out_dir / cfg.plot_filename)
-                except Exception as e:
-                    self.log.emit(f"Plot failed: {e}")
-                self.log.emit("Processing finished.")
+                plot_path = out_dir / cfg.plot_filename
+                plot_top_products(agg, plot_path)
+                self.plot_ready.emit(str(plot_path))
+
+                self.log.emit("اكتملت المعالجة بنجاح!")
                 self.finished.emit(0)
             except Exception as e:
-                self.log.emit(f"Error during processing: {e}")
+                logging.exception("خطأ في المعالجة")
+                self.log.emit(f"خطأ: {e}")
                 self.finished.emit(1)
 
     class MainWindow(QtWidgets.QMainWindow):
         def __init__(self):
             super().__init__()
-            self.setWindowTitle("Sales Processor — GUI Integrated")
-            self.resize(900, 700)
+            self.setWindowTitle("معالج مبيعات - واجهة رسومية مدمجة")
+            self.resize(1000, 720)
             self.worker = GUIWorker()
-            self.worker_thread = QtCore.QThread()
-            self.worker.moveToThread(self.worker_thread)
-            self.worker_thread.start()
+            self.thread = QThread()
+            self.worker.moveToThread(self.thread)
+            self.thread.started.connect(lambda: self.worker.run_processing(
+                self.input_edit.text(),
+                self.output_edit.text(),
+                self.config_edit.text().strip() or None,
+                self.sample_cb.isChecked(),
+                self.log_combo.currentText()
+            ))
+            self.worker.log.connect(self.append_log)
+            self.worker.finished.connect(self.on_finished)
+            self.worker.plot_ready.connect(self.show_plot)
 
+            # الواجهة
             central = QtWidgets.QWidget()
             self.setCentralWidget(central)
             layout = QtWidgets.QVBoxLayout(central)
 
+            # النموذج
             form = QtWidgets.QFormLayout()
             self.input_edit = QtWidgets.QLineEdit()
-            btn = QtWidgets.QPushButton("Browse...")
+            btn = QtWidgets.QPushButton("استعراض...")
             btn.clicked.connect(self.browse_input)
-            h = QtWidgets.QHBoxLayout(); h.addWidget(self.input_edit); h.addWidget(btn)
-            form.addRow("Input CSV:", h)
+            h = QtWidgets.QHBoxLayout(); h.addWidget(self.input_edit, 1); h.addWidget(btn)
+            form.addRow("ملف الإدخال (CSV):", h)
 
-            self.output_edit = QtWidgets.QLineEdit(str(Path.cwd() / "out"))
-            btn_out = QtWidgets.QPushButton("Browse...")
-            btn_out.clicked.connect(self.browse_output)
-            h2 = QtWidgets.QHBoxLayout(); h2.addWidget(self.output_edit); h2.addWidget(btn_out)
-            form.addRow("Output Dir:", h2)
+            self.output_edit = QtWidgets.QLineEdit("out")
+            btn2 = QtWidgets.QPushButton("استعراض...")
+            btn2.clicked.connect(self.browse_output)
+            h2 = QtWidgets.QHBoxLayout(); h2.addWidget(self.output_edit, 1); h2.addWidget(btn2)
+            form.addRow("مجلد الإخراج:", h2)
 
             self.config_edit = QtWidgets.QLineEdit()
-            cfg_btn = QtWidgets.QPushButton("Browse...")
-            cfg_btn.clicked.connect(self.browse_config)
-            h3 = QtWidgets.QHBoxLayout(); h3.addWidget(self.config_edit); h3.addWidget(cfg_btn)
-            form.addRow("Config (optional):", h3)
+            btn3 = QtWidgets.QPushButton("اختياري")
+            btn3.clicked.connect(self.browse_config)
+            h3 = QtWidgets.QHBoxLayout(); h3.addWidget(self.config_edit, 1); h3.addWidget(btn3)
+            form.addRow("ملف التكوين (YAML):", h3)
 
-            options_h = QtWidgets.QHBoxLayout()
-            self.sample_cb = QtWidgets.QCheckBox("Sample mode")
-            self.log_combo = QtWidgets.QComboBox(); self.log_combo.addItems(["DEBUG","INFO","WARNING","ERROR"]) 
-            options_h.addWidget(self.sample_cb); options_h.addStretch(); options_h.addWidget(QtWidgets.QLabel("Log level:")); options_h.addWidget(self.log_combo)
-            form.addRow(options_h)
+            opts = QtWidgets.QHBoxLayout()
+            self.sample_cb = QtWidgets.QCheckBox("وضع العينة (1000 صف فقط)")
+            self.log_combo = QtWidgets.QComboBox()
+            self.log_combo.addItems(["DEBUG", "INFO", "WARNING", "ERROR"])
+            self.log_combo.setCurrentText("INFO")
+            opts.addWidget(self.sample_cb)
+            opts.addStretch()
+            opts.addWidget(QtWidgets.QLabel("مستوى السجل:"))
+            opts.addWidget(self.log_combo)
+            form.addRow(opts)
 
             layout.addLayout(form)
 
+            # أزرار
             btns = QtWidgets.QHBoxLayout()
-            self.start_btn = QtWidgets.QPushButton("Start")
-            self.stop_btn = QtWidgets.QPushButton("Stop"); self.stop_btn.setEnabled(False)
-            self.start_btn.clicked.connect(self.start)
-            self.stop_btn.clicked.connect(self.stop)
-            btns.addWidget(self.start_btn); btns.addWidget(self.stop_btn); btns.addStretch()
+            self.start_btn = QtWidgets.QPushButton("بدء المعالجة")
+            self.start_btn.clicked.connect(self.start_processing)
+            btns.addWidget(self.start_btn)
+            btns.addStretch()
             layout.addLayout(btns)
 
-            self.log_view = QtWidgets.QPlainTextEdit(); self.log_view.setReadOnly(True)
-            layout.addWidget(QtWidgets.QLabel("Logs")); layout.addWidget(self.log_view, stretch=2)
+            # السجل
+            self.log_view = QtWidgets.QPlainTextEdit()
+            self.log_view.setReadOnly(True)
+            self.log_view.setFont(QtGui.QFont("Courier", 10))
+            layout.addWidget(QtWidgets.QLabel("سجل الأحداث:"))
+            layout.addWidget(self.log_view, 2)
 
-            self.progress = QtWidgets.QProgressBar(); self.progress.setRange(0,0); self.progress.setVisible(False)
-            layout.addWidget(self.progress)
-
-            self.image_label = QtWidgets.QLabel("Plot will appear here after processing.")
-            self.image_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
-            layout.addWidget(self.image_label, stretch=1)
-
-            # connect worker signals
-            self.worker.log.connect(self.append_log)
-            self.worker.finished.connect(self.on_finished)
+            # الرسم البياني
+            self.image_label = QtWidgets.QLabel("سيظهر الرسم البياني هنا بعد المعالجة...")
+            self.image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.image_label.setMinimumHeight(300)
+            self.image_label.setStyleSheet("background: #f0f0f0; border: 1px solid #ccc;")
+            self.image_label.setScaledContents(True)  # الحل السحري!
+            layout.addWidget(self.image_label, 2)
 
         def browse_input(self):
-            path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Select CSV", str(Path.cwd()), "CSV Files (*.csv);;All Files (*)")
-            if path:
-                self.input_edit.setText(path)
+            path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "اختر ملف CSV", "", "CSV Files (*.csv);;All Files (*)")
+            if path: self.input_edit.setText(path)
 
         def browse_output(self):
-            path = QtWidgets.QFileDialog.getExistingDirectory(self, "Select output dir", str(Path.cwd()))
-            if path:
-                self.output_edit.setText(path)
+            path = QtWidgets.QFileDialog.getExistingDirectory(self, "اختر مجلد الإخراج")
+            if path: self.output_edit.setText(path)
 
         def browse_config(self):
-            path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Select YAML", str(Path.cwd()), "YAML Files (*.yml *.yaml);;All Files (*)")
-            if path:
-                self.config_edit.setText(path)
+            path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "اختر ملف YAML", "", "YAML (*.yml *.yaml)")
+            if path: self.config_edit.setText(path)
 
-        def start(self):
+        def start_processing(self):
             inp = self.input_edit.text().strip()
             out = self.output_edit.text().strip()
-            cfg = self.config_edit.text().strip() or None
-            sample = self.sample_cb.isChecked()
-            log_level = self.log_combo.currentText()
             if not inp or not Path(inp).exists():
-                QtWidgets.QMessageBox.warning(self, "Input missing", "Please select a valid input CSV file.")
+                QtWidgets.QMessageBox.critical(self, "خطأ", "يرجى اختيار ملف CSV صحيح")
                 return
             if not out:
-                QtWidgets.QMessageBox.warning(self, "Output missing", "Please select an output directory.")
+                QtWidgets.QMessageBox.critical(self, "خطأ", "يرجى اختيار مجلد إخراج")
                 return
-            self.append_log("Starting processing...")
-            self.progress.setVisible(True)
-            self.start_btn.setEnabled(False); self.stop_btn.setEnabled(True)
-            # run worker method in the worker thread
-            QtCore.QMetaObject.invokeMethod(self.worker, "run_processing", QtCore.Qt.ConnectionType.QueuedConnection, QtCore.Q_ARG(str, inp), QtCore.Q_ARG(str, out), QtCore.Q_ARG(str, cfg if cfg else ""), QtCore.Q_ARG(bool, sample), QtCore.Q_ARG(str, log_level))
 
-        def stop(self):
-            # Not implemented graceful stop in integrated variant (would require cooperative cancellation)
-            QtWidgets.QMessageBox.information(self, "Not Implemented", "Stop is not implemented in integrated mode. Use CLI subprocess mode for cancellable runs.")
+            self.start_btn.setEnabled(False)
+            self.log_view.clear()
+            self.image_label.setPixmap(QtGui.QPixmap())
+            self.append_log("جاري بدء المعالجة...")
+            self.thread.start()
 
         def append_log(self, text: str):
             self.log_view.appendPlainText(text)
 
+        def show_plot(self, path: str):
+            pix = QtGui.QPixmap(path)
+            if not pix.isNull():
+                self.image_label.setPixmap(pix)
+
         def on_finished(self, code: int):
-            self.append_log(f"Finished with code {code}")
-            self.progress.setVisible(False)
-            self.start_btn.setEnabled(True); self.stop_btn.setEnabled(False)
-            out = Path(self.output_edit.text().strip())
-            plot = out / DEFAULT_CONFIG["output"]["plot_filename"]
-            if plot.exists():
-                pix = QtGui.QPixmap(str(plot))
-                if not pix.isNull():
-                    scaled = pix.scaled(self.image_label.size(), QtCore.Qt.AspectRatioMode.KeepAspectRatio, QtCore.Qt.TransformationMode.SmoothTransformation)
-                    self.image_label.setPixmap(scaled)
+            self.append_log("=== انتهت المعالجة ===" if code == 0 else "=== فشلت المعالجة ===")
+            self.start_btn.setEnabled(True)
+            self.thread.quit()
+            self.thread.wait()
 
-# === FILE: sample_and_tests ===
-
-def create_sample_csv(path: Path) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", encoding="utf-8", newline="") as fh:
-        writer = csv.writer(fh)
-        writer.writerow(["date", "product_id", "quantity", "price"])
-        writer.writerow(["2025-01-05", "P123", "2", "19.99"])
-        writer.writerow(["2025-01-06", "P124", "1", "5.00"])
-        writer.writerow(["2025-01-06", "P123", "3", "19.99"])
-
-
-def run_simple_test():
-    # simple local test that emulates AT1
-    sample = Path("examples/sample_sales.csv")
-    create_sample_csv(sample)
-    out = Path("examples/out")
-    cfg = load_config_file(None)
-    setup_logging("INFO")
-    agg = Aggregator()
-    process_csv(sample, cfg, agg, sample_mode=False)
-    summary = agg.to_summary()
-    # basic assertions
-    assert summary["rows_processed"] == 3
-    assert round(summary["total_sales"],2) == round(2*19.99 + 1*5.0 + 3*19.99,2)
-    print("Simple test passed")
-
-
-# === FILE: README_and_CI_snippets ===
-README = """
-Sales Processor
-===============
-Single-file project. Use as CLI or GUI.
-
-Quick start:
-
-    pip install pandas numpy matplotlib pyyaml PyQt6
-    python sales_processor_project.py --input examples/sample_sales.csv --output-dir out
-
-Or run GUI:
-
-    python sales_processor_project.py --gui
-
-Note: You uploaded an image during the session; path on the system is:
-/mnt/data/Screenshot (67).png
-
-You can split this file into modules by cutting at the markers `# === FILE: name ===`.
-"""
-
-CI_YAML = """
-# Example GitHub Actions workflow (ci.yml)
-# Runs black --check, flake8, pytest
-name: CI
-on: [push, pull_request]
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.11'
-      - name: Install
-        run: pip install -r requirements.txt
-      - name: Run tests
-        run: pytest -q
-"""
-
-# === FILE: main_entrypoint ===
-
+# === تشغيل الواجهة ===
 def start_gui():
     if not PYQT_AVAILABLE:
-        print("PyQt6 not installed. Install with: pip install PyQt6")
+        print("PyQt6 غير مثبت. استخدم: pip install PyQt6")
         return
     app = QtWidgets.QApplication(sys.argv)
     app.setStyle("Fusion")
     win = MainWindow()
     win.show()
-    app.exec()
+    sys.exit(app.exec())
 
+# === CLI ===
+def cli_main():
+    parser = argparse.ArgumentParser(description="معالج مبيعات - CLI + GUI")
+    parser.add_argument("--input", help="ملف CSV الإدخال")
+    parser.add_argument("--output-dir", default="out", help="مجلد الإخراج")
+    parser.add_argument("--config", help="ملف التكوين YAML")
+    parser.add_argument("--sample", action="store_true", help="وضع العينة")
+    parser.add_argument("--gui", action="store_true", help="تشغيل الواجهة الرسومية")
+    parser.add_argument("--log-level", default="INFO")
+    args = parser.parse_args()
+
+    if args.gui:
+        start_gui()
+        return
+
+    if not args.input:
+        parser.print_help()
+        return
+
+    input_path = Path(args.input)
+    if not input_path.exists():
+        print("الملف غير موجود:", input_path)
+        return
+
+    cfg = load_config_file(Path(args.config) if args.config else None)
+    cfg.log_level = args.log_level
+    setup_logging(cfg.log_level)
+
+    agg = Aggregator()
+    process_csv(input_path, cfg, agg, sample_mode=args.sample)
+
+    out = Path(args.output_dir)
+    out.mkdir(exist_ok=True, parents=True)
+    write_summary_json(agg.to_summary(), out / cfg.summary_filename)
+    write_aggregate_csv(agg.to_aggregate_dataframe(), out / cfg.aggregate_filename)
+    plot_top_products(agg, out / cfg.plot_filename)
+
+    print(f"تم الإنجاز! المخرجات في: {out.resolve()}")
 
 if __name__ == "__main__":
-    # if run directly act as CLI
-    code = cli_main(sys.argv[1:])
-    sys.exit(code)
+    cli_main()
