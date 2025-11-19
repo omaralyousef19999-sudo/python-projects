@@ -1,5 +1,5 @@
-# ucl_manager_perfect_final.py
-# النسخة النهائية 100% - أسماء الأندية تظهر في الرسم البياني - بدون أي خطأ
+# ucl_manager_perfect_arabic.py
+# النسخة النهائية المثالية - العربي يظهر صحيح 100% بدون عكس في الرسم البياني
 
 import sys
 import sqlite3
@@ -7,14 +7,22 @@ from pathlib import Path
 import pandas as pd
 import matplotlib.pyplot as plt
 
-# الحل السحري لدعم النصوص العربية في matplotlib
-plt.rcParams['font.family'] = 'Segoe UI', 'DejaVu Sans', 'Tahoma', 'Arial'
+# إعدادات الخط لدعم العربي والإنجليزي بشكل مثالي
+plt.rcParams['font.family'] = 'Segoe UI', 'Tahoma', 'DejaVu Sans', 'Arial'
 plt.rcParams['axes.unicode_minus'] = False
+
+# مكتبة تصحيح عرض النصوص العربية (مهمة جدًا)
+try:
+    from bidi.algorithm import get_display
+except ImportError:
+    import subprocess
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "python-bidi"])
+    from bidi.algorithm import get_display
 
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from PyQt6.QtWidgets import *
 from PyQt6.QtCore import Qt, QDate
-from PyQt6.QtGui import QColor, QFont
+from PyQt6.QtGui import QColor
 
 DB_PATH = Path("ucl_database.db")
 
@@ -102,26 +110,15 @@ class MainWindow(QMainWindow):
 
         self.setStyleSheet("""
             QMainWindow {background:#001f3f; color:white;}
-            QLabel {color:#FFD700; font-size:15px; font-weight:bold;}
-            QGroupBox {
-                color:#FFD700; font-size:18px; font-weight:bold;
-                border:2px solid #FFD700; border-radius:12px; margin:10px; padding:15px;
-            }
-            QPushButton {
-                background:#FFD700; color:#001f3f; font-size:14px; font-weight:bold;
-                padding:10px 20px; border-radius:10px; min-width:120px;
-            }
+            QGroupBox {color:#FFD700; font-size:18px; font-weight:bold; border:2px solid #FFD700; border-radius:12px; margin:10px; padding:15px;}
+            QPushButton {background:#FFD700; color:#001f3f; font-size:14px; font-weight:bold; padding:10px 20px; border-radius:10px; min-width:120px;}
             QPushButton:hover {background:#FFC107;}
             QTabWidget::pane {border:3px solid #FFD700; background:#112240; border-radius:12px;}
-            QTabBar::tab {
-                background:#003366; color:white; padding:12px 30px; font-size:16px; border-radius:10px;
-            }
+            QTabBar::tab {background:#003366; color:white; padding:12px 30px; font-size:16px; border-radius:10px;}
             QTabBar::tab:selected {background:#FFD700; color:#001f3f; font-weight:bold;}
-            QLineEdit, QComboBox, QSpinBox, QDateEdit {
-                padding:10px; font-size:14px; border-radius:8px; background:white; color:black;
-            }
+            QLineEdit, QComboBox, QSpinBox, QDateEdit {padding:10px; font-size:14px; border-radius:8px; background:white; color:black;}
             QTableWidget {font-size:14px; background:white; color:black;}
-            QHeaderView::section {background:#003366; color:#FFD700; padding:10px; font-size:15px;}
+            QHeaderView::section {background:#003366; color:#FFD700; padding:10px; font-size:15px; font-weight:bold;}
         """)
 
         central = QWidget()
@@ -203,8 +200,7 @@ class MainWindow(QMainWindow):
         btn = QPushButton("إضافة المباراة" if self.lang=="ar" else "Add Match")
         btn.clicked.connect(self.add_match_act)
         refresh = QPushButton("تحديث الفرق" if self.lang=="ar" else "Refresh Teams")
-        refresh.clicked.connect(lambda: (self.h.clear(), self.h.addItems(get_teams()),
-                                        self.a.clear(), self.a.addItems(get_teams())))
+        refresh.clicked.connect(lambda: (self.h.clear(), self.h.addItems(get_teams()), self.a.clear(), self.a.addItems(get_teams())))
         f.addRow("المضيف:" if self.lang=="ar" else "Home:", self.h)
         f.addRow("أهدافه:" if self.lang=="ar" else "Goals:", self.hg)
         f.addRow("الضيف:" if self.lang=="ar" else "Away:", self.a)
@@ -258,10 +254,18 @@ class MainWindow(QMainWindow):
         self.canvas.figure.clear()
         ax = self.canvas.figure.add_subplot(111)
 
-        teams = df["name"].tolist()
+        teams_raw = df["name"].tolist()
         points = df["Pts"].tolist()
 
-        bars = ax.barh(range(len(teams)), points, color="#FFD700", edgecolor="#001f3f", linewidth=1.5)
+        # تصحيح عرض النصوص العربية تمامًا
+        teams = []
+        for team in teams_raw:
+            if any(ord(c) >= 0x0600 for c in team):  # لو فيه حروف عربية
+                teams.append(get_display(team))
+            else:
+                teams.append(team)
+
+        bars = ax.barh(range(len(teams)), points, color="#FFD700", edgecolor="#001f3f", linewidth=1.5, height=0.7)
         ax.set_facecolor("#001f3f")
         self.canvas.figure.patch.set_facecolor("#001f3f")
 
@@ -279,7 +283,7 @@ class MainWindow(QMainWindow):
             ax.text(pt + 0.4, i, str(pt), va='center', ha='left', 
                     color="white", fontweight='bold', fontsize=14)
 
-        plt.subplots_adjust(left=0.35, right=0.95, top=0.9, bottom=0.1)
+        plt.subplots_adjust(left=0.38, right=0.95, top=0.9, bottom=0.1)
         self.canvas.draw()
 
 if __name__ == "__main__":
