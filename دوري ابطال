@@ -25,14 +25,11 @@ Window.size = (420, 850)
 # ملف حفظ البيانات
 DATA_FILE = "ucl_predictor_data.json"
 
-# لوجوهات الفرق
-team_logos = {
-    "Arsenal": "https://resources.premierleague.com/premierleague/badges/70/t3.png",
-    "Liverpool": "https://resources.premierleague.com/premierleague/badges/70/t14.png",
-    "Real Madrid": "https://ssl.gstatic.com/onebox/media/sports/logos/Th4fAVAZeBJXJ7Dx5R2u5w_96x96.png",
-    "Paris SG": "https://ssl.gstatic.com/onebox/media/sports/logos/z0t2Nes1pUlF5cQ5c7nL0A_96x96.png",
-    "Bayern Munich": "https://ssl.gstatic.com/onebox/media/sports/logos/6wyIvIig7fU8SCIo8N3yGw_96x96.png",
-    "Slavia Praha": "https://upload.wikimedia.org/wikipedia/en/thumb/9/9c/Slavia_Prague_logo.png/200px-Slavia_Prague_logo.png",
+# إيموجي الفرق
+team_emojis = {
+    "Arsenal": "🔴", "Liverpool": "🔴", "Real Madrid": "⚪", 
+    "Paris SG": "🔵", "Bayern Munich": "🔴", "Slavia Praha": "🔴",
+    "Man City": "🔵", "Barcelona": "🔵", "Inter": "🔵", "Dortmund": "🟡"
 }
 
 # المباريات الحقيقية - Matchday 5
@@ -40,6 +37,7 @@ matches = [
     {"id": "1", "team1": "Arsenal", "team2": "Slavia Praha", "date": "25 نوفمبر 2025 - 21:00", "played": False},
     {"id": "2", "team1": "Liverpool", "team2": "Real Madrid", "date": "26 نوفمبر 2025 - 20:45", "played": False},
     {"id": "3", "team1": "Paris SG", "team2": "Bayern Munich", "date": "25 نوفمبر 2025 - 21:00", "played": False},
+    {"id": "4", "team1": "Man City", "team2": "Barcelona", "date": "27 نوفمبر 2025 - 21:00", "played": False},
 ]
 
 class DataManager:
@@ -49,96 +47,275 @@ class DataManager:
             try:
                 with open(DATA_FILE, 'r', encoding='utf-8') as f:
                     return json.load(f)
-            except: return {"users": {}, "predictions": {}, "likes": []}
-        return {"users": {}, "predictions": {}, "likes": []}
+            except: 
+                return {"users": {}, "predictions": {}, "likes": [], "stats": {}}
+        return {"users": {}, "predictions": {}, "likes": [], "stats": {}}
     
     @staticmethod
     def save(data):
         with open(DATA_FILE, 'w', encoding='utf-8') as f:
             json.dump(data, f, indent=4, ensure_ascii=False)
 
+class ModernLabel(Label):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.color = (1, 1, 1, 1)
+        self.halign = 'center'
+        self.valign = 'middle'
+
+class ModernButton(Button):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.background_color = (0, 0.6, 1, 1)
+        self.color = (1, 1, 1, 1)
+        self.font_size = sp(16)
+        self.bold = True
+
 class LoginModal(ModalView):
     def __init__(self, app, **kwargs):
         super().__init__(**kwargs)
         self.app = app
-        self.size_hint = (0.85, 0.7)
+        self.size_hint = (0.9, 0.8)
         self.background_color = (0.08, 0.1, 0.2, 0.98)
+        self.overlay_color = (0, 0, 0, 0.5)
 
-        layout = BoxLayout(orientation='vertical', padding=dp(30), spacing=dp(20))
-        layout.add_widget(Label(text="تسجيل الدخول", font_size=sp(28), bold=True, color=(0,0.8,1,1)))
-
-        self.username = TextInput(hint_text="اسم المستخدم", size_hint_y=None, height=dp(50))
-        self.password = TextInput(hint_text="كلمة المرور", password=True, size_hint_y=None, height=dp(50))
+        layout = BoxLayout(orientation='vertical', padding=dp(30), spacing=dp(25))
         
-        layout.add_widget(self.username)
-        layout.add_widget(self.password)
+        # العنوان مع الإيموجي
+        title_layout = BoxLayout(orientation='horizontal', size_hint=(1, 0.15))
+        title_layout.add_widget(Label(text="🔐", font_size=sp(35)))
+        title_layout.add_widget(ModernLabel(text="تسجيل الدخول", font_size=sp(28), bold=True))
+        layout.add_widget(title_layout)
 
-        btns = BoxLayout(spacing=dp(15), size_hint_y=None, height=dp(55))
-        Button(text="دخول", background_color=(0,0.7,1,1), on_press=self.login).add_widget_to(btns)
-        Button(text="تسجيل جديد", background_color=(0.1,0.8,0.3,1), on_press=self.register).add_widget_to(btns)
+        # حاوية اسم المستخدم
+        user_container = BoxLayout(orientation='vertical', size_hint=(1, 0.2), spacing=dp(8))
+        user_container.add_widget(ModernLabel(text="👤 اسم المستخدم", font_size=sp(18)))
+        self.username = TextInput(
+            hint_text="اكتب اسمك هنا...",
+            size_hint_y=None, 
+            height=dp(55),
+            font_size=sp(18),
+            background_color=(0.15, 0.18, 0.25, 1),
+            foreground_color=(1, 1, 1, 1),
+            padding=[dp(15), dp(15)],
+            multiline=False
+        )
+        user_container.add_widget(self.username)
+        layout.add_widget(user_container)
+
+        # حاوية كلمة المرور
+        pass_container = BoxLayout(orientation='vertical', size_hint=(1, 0.2), spacing=dp(8))
+        pass_container.add_widget(ModernLabel(text="🔒 كلمة المرور", font_size=sp(18)))
+        self.password = TextInput(
+            hint_text="اكتب كلمة المرور...",
+            password=True,
+            size_hint_y=None, 
+            height=dp(55),
+            font_size=sp(18),
+            background_color=(0.15, 0.18, 0.25, 1),
+            foreground_color=(1, 1, 1, 1),
+            padding=[dp(15), dp(15)],
+            multiline=False
+        )
+        pass_container.add_widget(self.password)
+        layout.add_widget(pass_container)
+
+        # أزرار
+        btns = BoxLayout(spacing=dp(15), size_hint_y=None, height=dp(60))
+        login_btn = ModernButton(text="🚀 دخول", on_press=self.login)
+        register_btn = ModernButton(text="⭐ تسجيل جديد", background_color=(0.1, 0.8, 0.3, 1), on_press=self.register)
+        
+        btns.add_widget(login_btn)
+        btns.add_widget(register_btn)
         layout.add_widget(btns)
+
+        # معلومات إضافية
+        info_label = ModernLabel(
+            text="💡 سجل الآن لتتمكن من توقع المباريات ومتابعة إحصائياتك!",
+            font_size=sp(14),
+            color=(0.7, 0.8, 1, 1)
+        )
+        layout.add_widget(info_label)
 
         self.add_widget(layout)
 
     def login(self, btn):
+        if not self.username.text.strip():
+            return self.show_error("❌ الرجاء إدخال اسم المستخدم")
+        
         data = DataManager.load()
-        key = f"{self.username.text}_{hash(self.password.text)}"
-        if key in data["users"]:
-            self.app.current_user = data["users"][key]
+        key = f"{self.username.text.strip()}"
+        
+        # البحث عن المستخدم بالاسم فقط
+        user_found = None
+        for user_key, user_data in data["users"].items():
+            if user_data["name"] == self.username.text.strip():
+                user_found = user_data
+                break
+        
+        if user_found:
+            self.app.current_user = user_found
             self.app.update_header()
             self.dismiss()
-            self.app.show_popup("مرحباً بعودتك يا وحش!")
+            self.app.show_popup(f"🎉 مرحباً بعودتك {user_found['name']}!")
         else:
-            self.show_error("خطأ في الاسم أو كلمة المرور")
+            self.show_error("❌ اسم المستخدم غير موجود")
 
     def register(self, btn):
-        if not self.username.text or len(self.username.text) < 3:
-            return self.show_error("اسم المستخدم قصير")
+        username = self.username.text.strip()
+        password = self.password.text.strip()
+        
+        if not username or len(username) < 3:
+            return self.show_error("❌ اسم المستخدم يجب أن يكون 3 أحرف على الأقل")
+        
+        if not password or len(password) < 4:
+            return self.show_error("❌ كلمة المرور يجب أن تكون 4 أحرف على الأقل")
         
         data = DataManager.load()
-        key = f"{self.username.text}_{hash(self.password.text)}"
-        if key in data["users"]:
-            return self.show_error("الحساب موجود بالفعل")
         
-        data["users"][key] = {"name": self.username.text, "predictions": 0, "points": 0}
+        # التحقق من عدم وجود اسم مستخدم مكرر
+        for user_data in data["users"].values():
+            if user_data["name"] == username:
+                return self.show_error("❌ اسم المستخدم موجود مسبقاً")
+        
+        # إنشاء حساب جديد
+        new_user = {
+            "name": username,
+            "password": password,  # في الواقع يجب تشفيرها
+            "join_date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+            "predictions": 0,
+            "points": 0,
+            "correct_predictions": 0,
+            "favorite_team": "⚽"
+        }
+        
+        user_key = f"{username}_{datetime.now().timestamp()}"
+        data["users"][user_key] = new_user
         DataManager.save(data)
-        self.app.current_user = data["users"][key]
+        
+        self.app.current_user = new_user
         self.app.update_header()
         self.dismiss()
-        self.app.show_popup(f"تم إنشاء حساب {self.username.text}!")
+        self.app.show_popup(f"🎊 تم إنشاء حساب {username} بنجاح!")
 
     def show_error(self, msg):
-        Popup(title="خطأ", content=Label(text=msg), size_hint=(0.7,0.4), background_color=(0.9,0.2,0.2,1)).open()
+        popup = Popup(
+            title="",
+            content=ModernLabel(text=msg, font_size=sp(18)),
+            size_hint=(0.8, 0.4),
+            background_color=(0.9, 0.3, 0.3, 1)
+        )
+        popup.open()
+        Clock.schedule_once(lambda dt: popup.dismiss(), 3)
 
 class PredictModal(ModalView):
     def __init__(self, app, match, **kwargs):
         super().__init__(**kwargs)
         self.app = app
         self.match = match
-        self.size_hint = (0.92, 0.88)
+        self.size_hint = (0.95, 0.85)
+        self.background_color = (0.08, 0.1, 0.2, 0.98)
 
         layout = BoxLayout(orientation='vertical', padding=dp(25), spacing=dp(20))
-        layout.add_widget(Label(text=f"{match['team1']} vs {match['team2']}", font_size=sp(26), bold=True, color=(0,0.8,1,1)))
-        layout.add_widget(Label(text=match['date'], font_size=sp(16), color=(0.8,0.9,1,1)))
+        
+        # العنوان
+        title_layout = BoxLayout(orientation='horizontal', size_hint=(1, 0.15))
+        title_layout.add_widget(Label(text="🎯", font_size=sp(30)))
+        title_layout.add_widget(ModernLabel(
+            text=f"توقع نتيجة المباراة", 
+            font_size=sp(24), 
+            bold=True,
+            color=(0, 0.8, 1, 1)
+        ))
+        layout.add_widget(title_layout)
+        
+        # معلومات المباراة
+        match_info = BoxLayout(orientation='horizontal', size_hint=(1, 0.2), spacing=dp(20))
+        team1_layout = BoxLayout(orientation='vertical')
+        team1_layout.add_widget(ModernLabel(text=team_emojis.get(match['team1'], "⚽"), font_size=sp(35)))
+        team1_layout.add_widget(ModernLabel(text=match['team1'], font_size=sp(18), bold=True))
+        
+        vs_layout = BoxLayout(orientation='vertical')
+        vs_layout.add_widget(ModernLabel(text="VS", font_size=sp(20), color=(0.8, 0.8, 0.8, 1)))
+        vs_layout.add_widget(ModernLabel(text=match['date'], font_size=sp(14), color=(0.7, 0.9, 1, 1)))
+        
+        team2_layout = BoxLayout(orientation='vertical')
+        team2_layout.add_widget(ModernLabel(text=team_emojis.get(match['team2'], "⚽"), font_size=sp(35)))
+        team2_layout.add_widget(ModernLabel(text=match['team2'], font_size=sp(18), bold=True))
+        
+        match_info.add_widget(team1_layout)
+        match_info.add_widget(vs_layout)
+        match_info.add_widget(team2_layout)
+        layout.add_widget(match_info)
 
-        score = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(100), spacing=dp(30))
-        self.g1 = TextInput(text="2", font_size=sp(50), input_filter='int', halign='center')
-        self.g2 = TextInput(text="1", font_size=sp(50), input_filter='int', halign='center')
-        score.add_widget(self.g1)
-        score.add_widget(Label(text="-", font_size=sp(60)))
-        score.add_widget(self.g2)
-        layout.add_widget(score)
+        # إدخال النتيجة
+        score_layout = BoxLayout(orientation='vertical', size_hint=(1, 0.25), spacing=dp(10))
+        score_layout.add_widget(ModernLabel(text="📊 توقع النتيجة النهائية", font_size=sp(18)))
+        
+        score_inputs = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(100), spacing=dp(30))
+        self.g1 = TextInput(
+            text="2", 
+            font_size=sp(50), 
+            input_filter='int', 
+            halign='center',
+            background_color=(0.15, 0.18, 0.25, 1),
+            foreground_color=(1, 1, 1, 1),
+            padding=[dp(10), dp(10)]
+        )
+        self.g2 = TextInput(
+            text="1", 
+            font_size=sp(50), 
+            input_filter='int', 
+            halign='center',
+            background_color=(0.15, 0.18, 0.25, 1),
+            foreground_color=(1, 1, 1, 1),
+            padding=[dp(10), dp(10)]
+        )
+        score_inputs.add_widget(self.g1)
+        score_inputs.add_widget(ModernLabel(text="-", font_size=sp(50)))
+        score_inputs.add_widget(self.g2)
+        score_layout.add_widget(score_inputs)
+        layout.add_widget(score_layout)
 
-        self.scorers = TextInput(hint_text="الهدافين (اختياري)", size_hint_y=None, height=dp(90))
-        layout.add_widget(self.scorers)
+        # الهدافين
+        scorers_layout = BoxLayout(orientation='vertical', size_hint=(1, 0.3), spacing=dp(10))
+        scorers_layout.add_widget(ModernLabel(text="⚽ الهدافين المتوقعين (اختياري)", font_size=sp(16)))
+        self.scorers = TextInput(
+            hint_text="اكتب أسماء الهدافين المتوقعين...",
+            size_hint_y=None, 
+            height=dp(100),
+            font_size=sp(16),
+            background_color=(0.15, 0.18, 0.25, 1),
+            foreground_color=(1, 1, 1, 1),
+            padding=[dp(15), dp(15)],
+            multiline=True
+        )
+        scorers_layout.add_widget(self.scorers)
+        layout.add_widget(scorers_layout)
 
-        Button(text="حفظ التوقع", background_color=(0.1,0.8,0.3,1), size_hint_y=None, height=dp(60), on_press=self.save).add_widget_to(layout)
+        # زر الحفظ
+        save_btn = ModernButton(
+            text="💾 حفظ التوقع", 
+            background_color=(0.1, 0.8, 0.3, 1), 
+            size_hint_y=None, 
+            height=dp(60), 
+            on_press=self.save
+        )
+        layout.add_widget(save_btn)
+
         self.add_widget(layout)
 
     def save(self, btn):
         if not self.app.current_user:
-            self.app.show_popup("سجل دخول الأول يا وحش!")
+            self.app.show_popup("🔐 يرجى تسجيل الدخول أولاً!")
             self.dismiss()
+            return
+        
+        try:
+            score1 = int(self.g1.text) if self.g1.text else 0
+            score2 = int(self.g2.text) if self.g2.text else 0
+        except:
+            self.app.show_popup("❌ الرجاء إدخال أرقام صحيحة في النتيجة")
             return
         
         data = DataManager.load()
@@ -146,12 +323,19 @@ class PredictModal(ModalView):
         data["predictions"][pred_id] = {
             "match_id": self.match["id"],
             "user": self.app.current_user["name"],
-            "score": f"{self.g1.text}-{self.g2.text}",
+            "score": f"{score1}-{score2}",
             "scorers": self.scorers.text,
-            "time": datetime.now().strftime("%H:%M")
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
+            "match_info": f"{self.match['team1']} vs {self.match['team2']}"
         }
+        
+        # تحديث إحصائيات المستخدم
+        user_key = next((k for k, v in data["users"].items() if v["name"] == self.app.current_user["name"]), None)
+        if user_key:
+            data["users"][user_key]["predictions"] = data["users"][user_key].get("predictions", 0) + 1
+        
         DataManager.save(data)
-        self.app.show_popup("تم حفظ توقعك بنجاح!")
+        self.app.show_popup("✅ تم حفظ توقعك بنجاح!")
         self.dismiss()
 
 class MatchCard(BoxLayout):
@@ -159,103 +343,216 @@ class MatchCard(BoxLayout):
         super().__init__(**kwargs)
         self.app = app
         self.match = match
-        self.height = dp(220)
+        self.orientation = 'vertical'
+        self.height = dp(280)
         self.size_hint_y = None
-        self.padding = dp(15)
+        self.padding = dp(20)
+        self.spacing = dp(15)
 
         with self.canvas.before:
             Color(0.08, 0.10, 0.18, 1)
-            self.rect = RoundedRectangle(pos=self.pos, size=self.size, radius=[dp(18)])
-            Color(0.9, 0.2, 0.2, 1)
-            self.line = Line(width=dp(5))
+            self.rect = RoundedRectangle(pos=self.pos, size=self.size, radius=[dp(20)])
+            Color(0, 0.6, 1, 0.8)
+            self.line = Line(width=dp(3))
 
         self.bind(pos=self.update_gfx, size=self.update_gfx)
 
-        top = BoxLayout(spacing=dp(20))
-        left = BoxLayout(orientation='vertical')
-        left.add_widget(AsyncImage(source=team_logos.get(match['team1'], "")))
-        left.add_widget(Label(text=match['team1'], bold=True, font_size=sp(17)))
+        # رأس البطاقة
+        header = BoxLayout(orientation='horizontal', size_hint=(1, 0.3))
+        header.add_widget(ModernLabel(text="🏆 دوري الأبطال", font_size=sp(16), color=(0.7, 0.9, 1, 1)))
+        header.add_widget(ModernLabel(text=match['date'], font_size=sp(14), color=(0.8, 0.8, 0.8, 1)))
+        
+        # معلومات الفريقين
+        teams_layout = BoxLayout(orientation='horizontal', size_hint=(1, 0.5), spacing=dp(10))
+        
+        # الفريق الأول
+        team1_layout = BoxLayout(orientation='vertical')
+        team1_layout.add_widget(ModernLabel(text=team_emojis.get(match['team1'], "⚽"), font_size=sp(40)))
+        team1_layout.add_widget(ModernLabel(text=match['team1'], font_size=sp(18), bold=True))
+        
+        # VS
+        vs_layout = BoxLayout(orientation='vertical')
+        vs_layout.add_widget(ModernLabel(text="VS", font_size=sp(24), color=(1, 0.8, 0.2, 1)))
+        vs_layout.add_widget(ModernLabel(text="مباراة قادمة", font_size=sp(14), color=(0.6, 0.8, 1, 1)))
+        
+        # الفريق الثاني
+        team2_layout = BoxLayout(orientation='vertical')
+        team2_layout.add_widget(ModernLabel(text=team_emojis.get(match['team2'], "⚽"), font_size=sp(40)))
+        team2_layout.add_widget(ModernLabel(text=match['team2'], font_size=sp(18), bold=True))
+        
+        teams_layout.add_widget(team1_layout)
+        teams_layout.add_widget(vs_layout)
+        teams_layout.add_widget(team2_layout)
 
-        mid = BoxLayout(orientation='vertical')
-        mid.add_widget(Label(text=f"{match['team1']}\nvs\n{match['team2']}", bold=True, font_size=sp(18)))
-        mid.add_widget(Label(text=match['date'], font_size=sp(14), color=(0.7,0.9,1,1)))
+        # زر التوقع
+        predict_btn = ModernButton(
+            text="🎯 توقع نتيجة المباراة", 
+            background_color=(0, 0.7, 1, 1), 
+            size_hint_y=None, 
+            height=dp(55)
+        )
+        predict_btn.bind(on_press=lambda x: PredictModal(app, match).open())
 
-        right = BoxLayout(orientation='vertical')
-        right.add_widget(AsyncImage(source=team_logos.get(match['team2'], "")))
-        right.add_widget(Label(text=match['team2'], bold=True, font_size=sp(17)))
-
-        top.add_widget(left)
-        top.add_widget(mid)
-        top.add_widget(right)
-
-        btn = Button(text="توقع المباراة", background_color=(0,0.6,1,1), size_hint_y=None, height=dp(55))
-        btn.bind(on_press=lambda x: PredictModal(app, match).open())
-
-        self.add_widget(top)
-        self.add_widget(btn)
+        self.add_widget(header)
+        self.add_widget(teams_layout)
+        self.add_widget(predict_btn)
 
     def update_gfx(self, *args):
         self.rect.pos = self.pos
         self.rect.size = self.size
-        self.line.points = [self.x+dp(30), self.y+self.height-dp(8), self.x+self.width-dp(30), self.y+self.height-dp(8)]
+        self.line.points = [
+            self.x + dp(30), self.y + self.height - dp(5),
+            self.x + self.width - dp(30), self.y + self.height - dp(5)
+        ]
+
+class UserProfileModal(ModalView):
+    def __init__(self, app, **kwargs):
+        super().__init__(**kwargs)
+        self.app = app
+        self.size_hint = (0.85, 0.7)
+        self.background_color = (0.08, 0.1, 0.2, 0.98)
+        
+        layout = BoxLayout(orientation='vertical', padding=dp(30), spacing=dp(20))
+        
+        # العنوان
+        title = ModernLabel(text="👤 الملف الشخصي", font_size=sp(26), bold=True, color=(0, 0.8, 1, 1))
+        layout.add_widget(title)
+        
+        if self.app.current_user:
+            # معلومات المستخدم
+            user_info = BoxLayout(orientation='vertical', spacing=dp(15))
+            user_info.add_widget(ModernLabel(
+                text=f"🆔 {self.app.current_user['name']}", 
+                font_size=sp(22),
+                bold=True
+            ))
+            user_info.add_widget(ModernLabel(
+                text=f"📅 انضم في: {self.app.current_user.get('join_date', 'غير معروف')}",
+                font_size=sp(16)
+            ))
+            user_info.add_widget(ModernLabel(
+                text=f"📊 عدد التوقعات: {self.app.current_user.get('predictions', 0)}",
+                font_size=sp(16)
+            ))
+            user_info.add_widget(ModernLabel(
+                text=f"⭐ النقاط: {self.app.current_user.get('points', 0)}",
+                font_size=sp(16),
+                color=(1, 0.8, 0.2, 1)
+            ))
+            layout.add_widget(user_info)
+            
+            # زر تسجيل الخروج
+            logout_btn = ModernButton(
+                text="🚪 تسجيل الخروج", 
+                background_color=(0.9, 0.3, 0.3, 1),
+                on_press=self.logout
+            )
+            layout.add_widget(logout_btn)
+        else:
+            layout.add_widget(ModernLabel(text="❌ غير مسجل دخول", font_size=sp(20)))
+        
+        self.add_widget(layout)
+    
+    def logout(self, instance):
+        self.app.current_user = None
+        self.app.update_header()
+        self.dismiss()
+        self.app.show_popup("👋 تم تسجيل الخروج بنجاح!")
 
 class UCLApp(App):
     def build(self):
-        self.title = "UCL Predictor 2025"
+        self.title = "UCL Predictor 2025 🏆"
         self.current_user = None
         self.data = DataManager.load()
 
         root = BoxLayout(orientation='vertical')
 
-        # الهيدر
-        self.header = BoxLayout(size_hint_y=None, height=dp(110), padding=dp(20))
+        # الهيدر المحسن
+        self.header = BoxLayout(size_hint_y=None, height=dp(120), padding=dp(20))
         with self.header.canvas.before:
             Color(0.02, 0.04, 0.10, 1)
-            RoundedRectangle(pos=self.header.pos, size=self.header.size, radius=[0,0,dp(30),dp(30)])
+            RoundedRectangle(pos=self.header.pos, size=self.header.size, radius=[0,0,dp(35),dp(35)])
 
-        self.header_title = Label(text="UEFA Champions League", font_size=sp(26), bold=True)
-        self.user_label = Label(text="غير مسجل", font_size=sp(16), color=(0.7,0.9,1,1))
-        self.login_btn = Button(text="دخول", background_color=(0,0.7,1,1), size_hint_x=0.3, on_press=lambda x: LoginModal(self).open())
-
-        self.header.add_widget(self.header_title)
-        self.header.add_widget(self.user_label)
-        self.header.add_widget(self.login_btn)
+        # محتوى الهيدر
+        header_content = BoxLayout(orientation='horizontal')
+        
+        # العنوان مع الإيموجي
+        title_layout = BoxLayout(orientation='horizontal', size_hint_x=0.4)
+        title_layout.add_widget(Label(text="🏆", font_size=sp(30)))
+        title_layout.add_widget(ModernLabel(text="دوري الأبطال", font_size=sp(20), bold=True))
+        
+        # معلومات المستخدم
+        self.user_label = ModernLabel(text="👤 غير مسجل", font_size=sp(16), color=(0.7,0.9,1,1))
+        
+        # أزرار
+        btn_layout = BoxLayout(orientation='horizontal', size_hint_x=0.4, spacing=dp(10))
+        self.profile_btn = ModernButton(
+            text="👤", 
+            size_hint_x=0.3,
+            on_press=lambda x: UserProfileModal(self).open()
+        )
+        self.login_btn = ModernButton(
+            text="دخول", 
+            size_hint_x=0.7,
+            on_press=lambda x: LoginModal(self).open()
+        )
+        
+        btn_layout.add_widget(self.profile_btn)
+        btn_layout.add_widget(self.login_btn)
+        
+        header_content.add_widget(title_layout)
+        header_content.add_widget(self.user_label)
+        header_content.add_widget(btn_layout)
+        
+        self.header.add_widget(header_content)
         root.add_widget(self.header)
 
-        # المباريات
+        # المباريات في سكرول فيو
         scroll = ScrollView()
-        self.grid = GridLayout(cols=1, spacing=dp(20), size_hint_y=None, padding=dp(20))
+        self.grid = GridLayout(cols=1, spacing=dp(25), size_hint_y=None, padding=dp(25))
         self.grid.bind(minimum_height=self.grid.setter('height'))
 
         for m in matches:
             card = MatchCard(self, m)
             self.grid.add_widget(card)
             card.opacity = 0
-            anim = Animation(opacity=1, y=card.y + dp(50), duration=0.7, t='out_back')
-            Clock.schedule_once(lambda dt, c=card: anim.start(c), len(self.grid.children)*0.1)
+            anim = Animation(opacity=1, y=card.y + dp(50), duration=0.8, t='out_back')
+            Clock.schedule_once(lambda dt, c=card: anim.start(c), len(self.grid.children)*0.15)
 
         scroll.add_widget(self.grid)
         root.add_widget(scroll)
+        
         return root
 
     def update_header(self):
         if self.current_user:
-            self.user_label.text = f"مرحباً {self.current_user['name']}!"
+            self.user_label.text = f"👤 {self.current_user['name']}"
             self.login_btn.text = "تسجيل خروج"
+            self.login_btn.background_color = (0.9, 0.3, 0.3, 1)
             self.login_btn.bind(on_press=self.logout)
         else:
-            self.user_label.text = "غير مسجل"
+            self.user_label.text = "👤 غير مسجل"
             self.login_btn.text = "دخول"
+            self.login_btn.background_color = (0, 0.7, 1, 1)
             self.login_btn.bind(on_press=lambda x: LoginModal(self).open())
 
     def logout(self, btn):
         self.current_user = None
         self.update_header()
-        self.show_popup("تم تسجيل الخروج")
+        self.show_popup("👋 تم تسجيل الخروج")
 
     def show_popup(self, msg):
-        Popup(title="", content=Label(text=msg, font_size=sp(20)), size_hint=(0.8,0.5), background_color=(0.1,0.7,0.2,1)).open()
-        Clock.schedule_once(lambda dt: Popup.dismiss_all(), 2)
+        content = BoxLayout(orientation='vertical', padding=dp(20), spacing=dp(10))
+        content.add_widget(ModernLabel(text=msg, font_size=sp(20)))
+        
+        popup = Popup(
+            title="",
+            content=content,
+            size_hint=(0.8, 0.4),
+            background_color=(0.1, 0.2, 0.3, 1)
+        )
+        popup.open()
+        Clock.schedule_once(lambda dt: popup.dismiss(), 2)
 
 if __name__ == '__main__':
     UCLApp().run()
