@@ -1,5 +1,5 @@
-# ucl_manager_final.py
-# النسخة النهائية 100% شغالة - عربي/إنجليزي - RTL/LTR - رسم بياني ممتاز
+# ucl_manager_perfect.py
+# نسخة أنيقة واحترافية 100% - أزرار متناسقة - نصوص مرتبة - لا تأخذ السطر كله
 
 import sys
 import sqlite3
@@ -9,27 +9,16 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from PyQt6.QtWidgets import *
 from PyQt6.QtCore import Qt, QDate
-from PyQt6.QtGui import QColor
+from PyQt6.QtGui import QColor, QFont
 
 DB_PATH = Path("ucl_database.db")
 
 def init_db():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS teams (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT UNIQUE NOT NULL,
-        country TEXT,
-        group_char TEXT
-    )''')
-    c.execute('''CREATE TABLE IF NOT EXISTS matches (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        home_team TEXT,
-        away_team TEXT,
-        home_goals INTEGER,
-        away_goals INTEGER,
-        date TEXT
-    )''')
+    c.execute('''CREATE TABLE IF NOT EXISTS teams (id INTEGER PRIMARY KEY, name TEXT UNIQUE, country TEXT, group_char TEXT)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS matches (id INTEGER PRIMARY KEY, home_team TEXT, away_team TEXT,
+                 home_goals INTEGER, away_goals INTEGER, date TEXT)''')
     conn.commit()
     conn.close()
 
@@ -40,10 +29,8 @@ def add_team(name, country, group):
         c.execute("INSERT INTO teams (name, country, group_char) VALUES (?, ?, ?)", (name, country, group))
         conn.commit()
         return True
-    except sqlite3.IntegrityError:
-        return False
-    finally:
-        conn.close()
+    except: return False
+    finally: conn.close()
 
 def add_match(home, away, hg, ag, date):
     conn = sqlite3.connect(DB_PATH)
@@ -58,27 +45,22 @@ def get_teams():
     try:
         df = pd.read_sql_query("SELECT name FROM teams ORDER BY name", conn)
         return df["name"].tolist()
-    except:
-        return []
-    finally:
-        conn.close()
+    except: return []
+    finally: conn.close()
 
 def get_standings():
     conn = sqlite3.connect(DB_PATH)
     query = """
     SELECT t.name,
            COUNT(m.id) AS P,
-           SUM(CASE WHEN (m.home_team = t.name AND m.home_goals > m.away_goals) OR 
-                         (m.away_team = t.name AND m.away_goals > m.home_goals) THEN 1 ELSE 0 END) AS W,
+           SUM(CASE WHEN (m.home_team = t.name AND m.home_goals > m.away_goals) OR (m.away_team = t.name AND m.away_goals > m.home_goals) THEN 1 ELSE 0 END) AS W,
            SUM(CASE WHEN m.home_goals = m.away_goals AND m.home_goals IS NOT NULL THEN 1 ELSE 0 END) AS D,
-           SUM(CASE WHEN (m.home_team = t.name AND m.home_goals < m.away_goals) OR 
-                         (m.away_team = t.name AND m.away_goals < m.home_goals) THEN 1 ELSE 0 END) AS L,
+           SUM(CASE WHEN (m.home_team = t.name AND m.home_goals < m.away_goals) OR (m.away_team = t.name AND m.away_goals < m.home_goals) THEN 1 ELSE 0 END) AS L,
            COALESCE(SUM(CASE WHEN m.home_team = t.name THEN m.home_goals ELSE m.away_goals END), 0) AS GF,
            COALESCE(SUM(CASE WHEN m.home_team = t.name THEN m.away_goals ELSE m.home_goals END), 0) AS GA,
            (COALESCE(SUM(CASE WHEN m.home_team = t.name THEN m.home_goals ELSE m.away_goals END), 0) -
             COALESCE(SUM(CASE WHEN m.home_team = t.name THEN m.away_goals ELSE m.home_goals END), 0)) AS GD,
-           SUM(CASE WHEN (m.home_team = t.name AND m.home_goals > m.away_goals) OR 
-                        (m.away_team = t.name AND m.away_goals > m.home_goals) THEN 3
+           SUM(CASE WHEN (m.home_team = t.name AND m.home_goals > m.away_goals) OR (m.away_team = t.name AND m.away_goals > m.home_goals) THEN 3
                 WHEN m.home_goals = m.away_goals AND m.home_goals IS NOT NULL THEN 1 ELSE 0 END) AS Pts
     FROM teams t LEFT JOIN matches m ON m.home_team = t.name OR m.away_team = t.name
     GROUP BY t.name
@@ -94,22 +76,49 @@ class MainWindow(QMainWindow):
         self.lang = "ar"
         self.setWindowTitle("نظام دوري أبطال أوروبا")
         self.resize(1400, 800)
-        self.setStyleSheet("background:#001f3f; color:white;")
+
+        # ستايل أنيق ومرتب
+        self.setStyleSheet("""
+            QMainWindow {background:#001f3f; color:white;}
+            QLabel {color:#FFD700; font-size:15px; font-weight:bold;}
+            QGroupBox {
+                color:#FFD700; font-size:18px; font-weight:bold;
+                border:2px solid #FFD700; border-radius:12px; margin:10px; padding:15px;
+            }
+            QPushButton {
+                background:#FFD700; color:#001f3f; font-size:14px; font-weight:bold;
+                padding:10px 20px; border-radius:10px; min-width:120px;
+            }
+            QPushButton:hover {background:#FFC107;}
+            QTabWidget::pane {border:3px solid #FFD700; background:#112240; border-radius:12px;}
+            QTabBar::tab {
+                background:#003366; color:white; padding:12px 30px; font-size:16px; border-radius:10px;
+            }
+            QTabBar::tab:selected {background:#FFD700; color:#001f3f; font-weight:bold;}
+            QLineEdit, QComboBox, QSpinBox, QDateEdit {
+                padding:10px; font-size:14px; border-radius:8px; background:white; color:black;
+            }
+            QTableWidget {font-size:14px; background:white; color:black; gridline-color:#ddd;}
+            QHeaderView::section {background:#003366; color:#FFD700; padding:10px; font-size:15px; font-weight:bold;}
+        """)
 
         central = QWidget()
         self.setCentralWidget(central)
         layout = QVBoxLayout(central)
+        layout.setSpacing(15)
+        layout.setContentsMargins(20, 20, 20, 20)
 
-        # شريط اللغة
+        # زر اللغة صغير وأنيق في الزاوية
         top = QHBoxLayout()
         top.addStretch()
         self.lang_btn = QPushButton("English")
+        self.lang_btn.setFixedSize(120, 40)
         self.lang_btn.clicked.connect(self.toggle_lang)
-        self.lang_btn.setStyleSheet("background:#FFD700; color:#001f3f; padding:10px; font-weight:bold;")
         top.addWidget(self.lang_btn)
         layout.addLayout(top)
 
         self.tabs = QTabWidget()
+        self.tabs.setFont(QFont("Segoe UI", 14))
         layout.addWidget(self.tabs)
 
         self.apply_direction()
@@ -132,102 +141,140 @@ class MainWindow(QMainWindow):
 
     def refresh_ui(self):
         self.tabs.clear()
-        t = ["الفرق","المباريات","الترتيب","التحليل"] if self.lang=="ar" else ["Teams","Matches","Standings","Analysis"]
-        self.tabs.addTab(self.tab_teams(), t[0])
-        self.tabs.addTab(self.tab_matches(), t[1])
-        self.tabs.addTab(self.tab_standings(), t[2])
-        self.tabs.addTab(self.tab_chart(), t[3])
+        titles = ["الفرق","المباريات","الترتيب","التحليل"] if self.lang=="ar" else ["Teams","Matches","Standings","Analysis"]
+        self.tabs.addTab(self.tab_teams(), titles[0])
+        self.tabs.addTab(self.tab_matches(), titles[1])
+        self.tabs.addTab(self.tab_standings(), titles[2])
+        self.tabs.addTab(self.tab_chart(), titles[3])
 
     def tab_teams(self):
-        w = QWidget(); l = QVBoxLayout(w)
-        g = QGroupBox("إضافة فريق" if self.lang=="ar" else "Add Team")
+        w = QWidget()
+        l = QVBoxLayout(w)
+        g = QGroupBox("إضافة فريق جديد" if self.lang=="ar" else "Add New Team")
         f = QFormLayout(g)
+        f.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
+        f.setFormAlignment(Qt.AlignmentFlag.AlignHCenter)
+
         self.t_name = QLineEdit()
         self.t_country = QLineEdit()
-        self.t_group = QComboBox(); self.t_group.addItems(["A","B","C","D","E","F","G","H"])
-        btn = QPushButton("إضافة" if self.lang=="ar" else "Add")
+        self.t_group = QComboBox()
+        self.t_group.addItems(["A","B","C","D","E","F","G","H"])
+
+        btn = QPushButton("إضافة الفريق" if self.lang=="ar" else "Add Team")
         btn.clicked.connect(self.add_team_act)
-        f.addRow("اسم الفريق:" if self.lang=="ar" else "Name:", self.t_name)
+
+        f.addRow("اسم الفريق:" if self.lang=="ar" else "Team Name:", self.t_name)
         f.addRow("الدولة:" if self.lang=="ar" else "Country:", self.t_country)
         f.addRow("المجموعة:" if self.lang=="ar" else "Group:", self.t_group)
-        f.addRow(btn); l.addWidget(g); l.addStretch(); return w
+        f.addRow("", btn)  # زر في السطر لوحده ومتوسط
+        l.addWidget(g)
+        l.addStretch()
+        return w
 
     def add_team_act(self):
         if add_team(self.t_name.text().strip(), self.t_country.text().strip(), self.t_group.currentText()):
-            QMessageBox.information(self, "تم", "تم إضافة الفريق")
+            QMessageBox.information(self, "تم", "تم إضافة الفريق بنجاح")
             self.t_name.clear(); self.t_country.clear()
             self.refresh_ui()
         else:
-            QMessageBox.warning(self, "خطأ", "الفريق موجود")
+            QMessageBox.warning(self, "خطأ", "الفريق موجود مسبقًا")
 
     def tab_matches(self):
-        w = QWidget(); l = QVBoxLayout(w)
-        g = QGroupBox("إضافة مباراة" if self.lang=="ar" else "Add Match")
-        f = QFormLayout(g)
+        w = QWidget()
+        l = QVBoxLayout(w)
+        g = QGroupBox("إضافة مباراة جديدة" if self.lang=="ar" else "Add New Match")
+        form = QFormLayout(g)
+
         teams = get_teams()
         self.h = QComboBox(); self.h.addItems(teams)
         self.a = QComboBox(); self.a.addItems(teams)
         self.hg = QSpinBox(); self.hg.setRange(0,15)
         self.ag = QSpinBox(); self.ag.setRange(0,15)
-        btn = QPushButton("إضافة" if self.lang=="ar" else "Add")
+        self.date = QDateEdit(); self.date.setDate(QDate.currentDate())
+
+        btn = QPushButton("إضافة المباراة" if self.lang=="ar" else "Add Match")
         btn.clicked.connect(self.add_match_act)
-        f.addRow("المضيف:" if self.lang=="ar" else "Home:", self.h)
-        f.addRow("أهدافه:" if self.lang=="ar" else "Goals:", self.hg)
-        f.addRow("الضيف:" if self.lang=="ar" else "Away:", self.a)
-        f.addRow("أهدافه:" if self.lang=="ar" else "Goals:", self.ag)
-        f.addRow(btn)
-        r = QPushButton("تحديث الفرق" if self.lang=="ar" else "Refresh Teams")
-        r.clicked.connect(lambda: (self.h.clear(), self.h.addItems(get_teams()), self.a.clear(), self.a.addItems(get_teams())))
-        l.addWidget(g); l.addWidget(r); l.addStretch(); return w
+
+        refresh = QPushButton("تحديث الفرق" if self.lang=="ar" else "Refresh Teams")
+        refresh.clicked.connect(lambda: (self.h.clear(), self.h.addItems(get_teams()),
+                                        self.a.clear(), self.a.addItems(get_teams())))
+
+        form.addRow("الفريق المضيف:" if self.lang=="ar" else "Home Team:", self.h)
+        form.addRow("أهدافه:" if self.lang=="ar" else "Goals:", self.hg)
+        form.addRow("الفريق الضيف:" if self.lang=="ar" else "Away Team:", self.a)
+        form.addRow("أهدافه:" if self.lang=="ar" else "Goals:", self.ag)
+        form.addRow("التاريخ:" if self.lang=="ar" else "Date:", self.date)
+        form.addRow("", btn)
+
+        l.addWidget(g)
+        l.addWidget(refresh, alignment=Qt.AlignmentFlag.AlignCenter)
+        l.addStretch()
+        return w
 
     def add_match_act(self):
-        h, a = self.h.currentText(), self.a.currentText()
+        h = self.h.currentText()
+        a = self.a.currentText()
         if h and a and h != a:
-            add_match(h, a, self.hg.value(), self.ag.value(), QDate.currentDate().toString("yyyy-MM-dd"))
-            QMessageBox.information(self, "تم", "تمت الإضافة")
+            add_match(h, a, self.hg.value(), self.ag.value(), self.date.date().toString("yyyy-MM-dd"))
+            QMessageBox.information(self, "تم", "تم إضافة المباراة")
             self.refresh_ui()
+        else:
+            QMessageBox.warning(self, "خطأ", "اختر فريقين مختلفين")
 
     def tab_standings(self):
-        w = QWidget(); l = QVBoxLayout(w)
-        self.table = QTableWidget(); l.addWidget(self.table)
-        b = QPushButton("تحديث" if self.lang=="ar" else "Refresh")
-        b.clicked.connect(self.update_table); l.addWidget(b)
-        self.update_table(); return w
+        w = QWidget()
+        l = QVBoxLayout(w)
+        self.table = QTableWidget()
+        l.addWidget(self.table)
+        btn = QPushButton("تحديث الترتيب" if self.lang=="ar" else "Refresh Standings")
+        btn.clicked.connect(self.update_table)
+        l.addWidget(btn, alignment=Qt.AlignmentFlag.AlignCenter)
+        self.update_table()
+        return w
 
     def update_table(self):
         df = get_standings()
         if df.empty: return
-        h = ["الفريق","لعب","ف","ت","خ","له","عليه","فارق","نقاط"] if self.lang=="ar" else ["Team","P","W","D","L","GF","GA","GD","Pts"]
-        self.table.setColumnCount(9); self.table.setHorizontalHeaderLabels(h)
+        headers = ["الفريق","لعب","فوز","تعادل","خسارة","له","عليه","فارق","نقاط"] if self.lang=="ar" else \
+                  ["Team","P","W","D","L","GF","GA","GD","Pts"]
+        self.table.setColumnCount(9)
+        self.table.setHorizontalHeaderLabels(headers)
         self.table.setRowCount(len(df))
-        for i, r in df.iterrows():
-            for j, val in enumerate([r["name"],r["P"],r["W"],r["D"],r["L"],r["GF"],r["GA"],r["GD"],r["Pts"]]):
-                item = QTableWidgetItem(str(val))
-                if i < 4: item.setBackground(QColor(0,200,0,100))
+        for i, row in df.iterrows():
+            values = [row["name"],str(row["P"]),str(row["W"]),str(row["D"]),str(row["L"]),
+                     str(row["GF"]),str(row["GA"]),str(row["GD"]),str(row["Pts"])]
+            for j, val in enumerate(values):
+                item = QTableWidgetItem(val)
+                if i < 4: item.setBackground(QColor(0,200,0,80))
                 self.table.setItem(i, j, item)
+        self.table.resizeColumnsToContents()
 
     def tab_chart(self):
-        w = QWidget(); l = QVBoxLayout(w)
-        self.canvas = FigureCanvas(plt.Figure(figsize=(12,8)))
+        w = QWidget()
+        l = QVBoxLayout(w)
+        self.canvas = FigureCanvas(plt.Figure(figsize=(10,7)))
         l.addWidget(self.canvas)
-        b = QPushButton("تحديث الرسم البياني" if self.lang=="ar" else "Update Chart")
-        b.clicked.connect(self.draw_chart); l.addWidget(b)
-        self.draw_chart(); return w
+        btn = QPushButton("تحديث الرسم البياني" if self.lang=="ar" else "Update Chart")
+        btn.clicked.connect(self.draw_chart)
+        l.addWidget(btn, alignment=Qt.AlignmentFlag.AlignCenter)
+        self.draw_chart()
+        return w
 
     def draw_chart(self):
         df = get_standings().head(12)
         if df.empty: return
         self.canvas.figure.clear()
         ax = self.canvas.figure.add_subplot(111)
-        ax.barh(df["name"], df["Pts"], color="#FFD700")
+        bars = ax.barh(df["name"], df["Pts"], color="#FFD700", edgecolor="#001f3f", linewidth=1)
         ax.set_facecolor("#001f3f")
         ax.tick_params(colors="white", labelsize=12)
-        ax.set_xlabel("النقاط" if self.lang=="ar" else "Points", color="white")
-        ax.set_title("أفضل 12 فريق" if self.lang=="ar" else "Top 12 Teams", color="#FFD700", fontsize=18)
+        ax.set_xlabel("النقاط" if self.lang=="ar" else "Points", color="white", fontsize=14)
+        ax.set_title("أفضل 12 فريق" if self.lang=="ar" else "Top 12 Teams", color="#FFD700", fontsize=18, fontweight="bold")
         ax.invert_yaxis()
+        ax.grid(True, axis='x', color='gray', alpha=0.3, linestyle='--')
         for i, v in enumerate(df["Pts"]):
-            ax.text(v + 0.3, i, str(v), color="white", va='center', fontweight='bold')
-        plt.subplots_adjust(left=0.3)
+            ax.text(v + 0.3, i, str(v), color="white", va='center', fontweight='bold', fontsize=12)
+        plt.subplots_adjust(left=0.3, right=0.95)
         self.canvas.draw()
 
 if __name__ == "__main__":
