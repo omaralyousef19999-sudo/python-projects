@@ -4,34 +4,23 @@ from kivy.uix.label import Label
 from kivy.uix.button import Button
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.gridlayout import GridLayout
-from kivy.uix.carousel import Carousel
-from kivy.uix.image import Image
 from kivy.uix.tabbedpanel import TabbedPanel, TabbedPanelItem
 from kivy.clock import Clock
 from kivy.graphics import Color, Rectangle
-from kivy.core.text import LabelBase
+from kivy.core.window import Window
 import requests
-import json
-from datetime import datetime
 import threading
 
-# تسجيل الخط العربي
-try:
-    LabelBase.register(name='Arabic', fn_regular='fonts/arial.ttf')
-except:
-    pass
+# تعيين لون الخلفية للنافذة
+Window.clearcolor = (0.96, 0.96, 0.96, 1)
 
 class ChampionsLeagueApp(App):
     def build(self):
-        self.title = "دوري أبطال أوروبا 🏆"
+        self.title = "UEFA Champions League 🏆"
         self.data_manager = DataManager()
         
         # الواجهة الرئيسية
-        self.main_layout = BoxLayout(orientation='vertical', spacing=10, padding=10)
-        self.main_layout.canvas.before.clear()
-        with self.main_layout.canvas.before:
-            Color(0.96, 0.96, 0.96, 1)  # خلفية فاتحة
-            Rectangle(pos=self.main_layout.pos, size=self.main_layout.size)
+        self.main_layout = BoxLayout(orientation='vertical', spacing=5, padding=5)
         
         self.create_header()
         self.create_stats_bar()
@@ -44,61 +33,58 @@ class ChampionsLeagueApp(App):
     
     def create_header(self):
         # شريط العنوان
-        header = BoxLayout(size_hint=(1, 0.1), padding=10)
-        header.canvas.before.clear()
+        header = BoxLayout(size_hint=(1, 0.08), padding=5)
         with header.canvas.before:
             Color(0, 0.27, 0.68, 1)  # أزرق دوري الأبطال
             Rectangle(pos=header.pos, size=header.size)
         
         title = Label(
-            text='دوري أبطال أوروبا 🏆',
-            font_size='20sp',
+            text='UEFA Champions League 🏆',
+            font_size='18sp',
             bold=True,
             color=(1, 1, 1, 1),
-            font_name='Arabic'
+            halign='center'
         )
-        header.add_widget(title)
         
         refresh_btn = Button(
             text='🔄',
-            size_hint=(0.2, 1),
-            background_color=(0, 0.27, 0.68, 1),
+            size_hint=(0.15, 1),
+            background_color=(0.2, 0.5, 0.8, 1),
             on_press=self.refresh_data
         )
+        
+        header.add_widget(title)
         header.add_widget(refresh_btn)
         
         self.main_layout.add_widget(header)
     
     def create_stats_bar(self):
         # شريط الإحصائيات
-        stats_layout = BoxLayout(size_hint=(1, 0.08), spacing=10)
+        stats_layout = BoxLayout(size_hint=(1, 0.07), spacing=5, padding=5)
         
         stats_data = [
-            ('16', 'الفرق'),
-            ('45', 'مباراة'),
-            ('128', 'هدف'),
-            ('8', 'أسبوع')
+            ('16', 'Teams'),
+            ('45', 'Matches'),
+            ('128', 'Goals'),
+            ('8', 'Weeks')
         ]
         
         for value, label in stats_data:
             stat_box = BoxLayout(orientation='vertical')
-            stat_box.canvas.before.clear()
             with stat_box.canvas.before:
                 Color(1, 1, 1, 1)
                 Rectangle(pos=stat_box.pos, size=stat_box.size)
             
             value_label = Label(
                 text=value,
-                font_size='16sp',
+                font_size='14sp',
                 bold=True,
-                color=(0, 0.27, 0.68, 1),
-                font_name='Arabic'
+                color=(0, 0.27, 0.68, 1)
             )
             label_label = Label(
                 text=label,
-                font_size='12sp',
-                color=(0.5, 0.5, 0.5, 1),
-                font_name='Arabic'
+                font_size='10sp',
+                color=(0.5, 0.5, 0.5, 1)
             )
             
             stat_box.add_widget(value_label)
@@ -110,39 +96,40 @@ class ChampionsLeagueApp(App):
     def create_tabs(self):
         # إنشاء التبويبات
         self.tabs = TabbedPanel(
-            size_hint=(1, 0.82),
+            size_hint=(1, 0.85),
             tab_pos='top',
-            do_default_tab=False
+            do_default_tab=False,
+            background_color=(0.9, 0.9, 0.9, 1)
         )
         
         # تبويب المباريات
-        matches_tab = TabbedPanelItem(text='المباريات ⚽')
+        matches_tab = TabbedPanelItem(text='Matches ⚽')
         self.matches_content = ScrollView()
-        self.matches_layout = GridLayout(cols=1, spacing=10, size_hint_y=None)
+        self.matches_layout = GridLayout(cols=1, spacing=8, size_hint_y=None)
         self.matches_layout.bind(minimum_height=self.matches_layout.setter('height'))
         self.matches_content.add_widget(self.matches_layout)
         matches_tab.add_widget(self.matches_content)
         
         # تبويب الترتيب
-        standings_tab = TabbedPanelItem(text='الترتيب 📊')
+        standings_tab = TabbedPanelItem(text='Standings 📊')
         self.standings_content = ScrollView()
-        self.standings_layout = GridLayout(cols=1, spacing=5, size_hint_y=None)
+        self.standings_layout = GridLayout(cols=1, spacing=2, size_hint_y=None)
         self.standings_layout.bind(minimum_height=self.standings_layout.setter('height'))
         self.standings_content.add_widget(self.standings_layout)
         standings_tab.add_widget(self.standings_content)
         
         # تبويب الأخبار
-        news_tab = TabbedPanelItem(text='الأخبار 📰')
+        news_tab = TabbedPanelItem(text='News 📰')
         self.news_content = ScrollView()
-        self.news_layout = GridLayout(cols=1, spacing=10, size_hint_y=None)
+        self.news_layout = GridLayout(cols=1, spacing=8, size_hint_y=None)
         self.news_layout.bind(minimum_height=self.news_layout.setter('height'))
         self.news_content.add_widget(self.news_layout)
         news_tab.add_widget(self.news_content)
         
         # تبويب الفعاليات
-        events_tab = TabbedPanelItem(text='الفعاليات 🎯')
+        events_tab = TabbedPanelItem(text='Events 🎯')
         self.events_content = ScrollView()
-        self.events_layout = GridLayout(cols=1, spacing=10, size_hint_y=None)
+        self.events_layout = GridLayout(cols=1, spacing=8, size_hint_y=None)
         self.events_layout.bind(minimum_height=self.events_layout.setter('height'))
         self.events_content.add_widget(self.events_layout)
         events_tab.add_widget(self.events_content)
@@ -156,11 +143,11 @@ class ChampionsLeagueApp(App):
     
     def load_data(self):
         # تحميل البيانات في خيط منفصل
-        threading.Thread(target=self._load_data_thread).start()
+        threading.Thread(target=self._load_data_thread, daemon=True).start()
     
     def _load_data_thread(self):
         try:
-            # جلب البيانات من الإنترنت
+            # جلب البيانات
             matches_data = self.data_manager.get_live_matches()
             standings_data = self.data_manager.get_standings()
             news_data = self.data_manager.get_news()
@@ -184,7 +171,7 @@ class ChampionsLeagueApp(App):
         self.standings_layout.clear_widgets()
         self.standings_layout.add_widget(self.create_standings_header())
         for team in standings:
-            self.standings_layout.add_widget(self.create_team_row(team))
+            self.standings_layout.add_widget(self.create_team_row(team, team['rank']))
         
         # تحديث واجهة الأخبار
         self.news_layout.clear_widgets()
@@ -200,11 +187,10 @@ class ChampionsLeagueApp(App):
         card = BoxLayout(
             orientation='vertical',
             size_hint_y=None,
-            height=120,
-            padding=10,
-            spacing=5
+            height=100,
+            padding=8,
+            spacing=3
         )
-        card.canvas.before.clear()
         with card.canvas.before:
             Color(1, 1, 1, 1)
             Rectangle(pos=card.pos, size=card.size)
@@ -214,23 +200,24 @@ class ChampionsLeagueApp(App):
         
         team1 = Label(
             text=match['team1'],
-            font_size='14sp',
+            font_size='13sp',
             bold=True,
-            font_name='Arabic'
+            halign='center'
         )
         
         score = Label(
             text=match['score'],
-            font_size='18sp',
+            font_size='16sp',
             bold=True,
-            color=(0.8, 0, 0, 1)
+            color=(0.8, 0, 0, 1),
+            halign='center'
         )
         
         team2 = Label(
             text=match['team2'],
-            font_size='14sp',
+            font_size='13sp',
             bold=True,
-            font_name='Arabic'
+            halign='center'
         )
         
         match_info.add_widget(team1)
@@ -242,16 +229,14 @@ class ChampionsLeagueApp(App):
         
         stage = Label(
             text=match['stage'],
-            font_size='12sp',
-            color=(0.5, 0.5, 0.5, 1),
-            font_name='Arabic'
+            font_size='11sp',
+            color=(0.5, 0.5, 0.5, 1)
         )
         
         time = Label(
             text=f"{match['date']} - {match['time']}",
-            font_size='12sp',
-            color=(0.5, 0.5, 0.5, 1),
-            font_name='Arabic'
+            font_size='11sp',
+            color=(0.5, 0.5, 0.5, 1)
         )
         
         details.add_widget(stage)
@@ -265,35 +250,35 @@ class ChampionsLeagueApp(App):
     def create_standings_header(self):
         header = BoxLayout(
             size_hint_y=None,
-            height=40,
-            padding=10
+            height=35,
+            padding=5
         )
-        header.canvas.before.clear()
         with header.canvas.before:
             Color(0, 0.27, 0.68, 1)
             Rectangle(pos=header.pos, size=header.size)
         
-        headers = ['الترتيب', 'الفريق', 'ن', 'ف', 'ت', 'خ', 'نقاط']
+        headers = ['Pos', 'Team', 'P', 'W', 'D', 'L', 'Pts']
         for text in headers:
-            header.add_widget(Label(
+            header_label = Label(
                 text=text,
                 font_size='12sp',
                 bold=True,
                 color=(1, 1, 1, 1),
-                font_name='Arabic'
-            ))
+                halign='center'
+            )
+            header.add_widget(header_label)
         
         return header
     
-    def create_team_row(self, team):
+    def create_team_row(self, team, rank):
         row = BoxLayout(
             size_hint_y=None,
-            height=35,
-            padding=10
+            height=30,
+            padding=5
         )
-        row.canvas.before.clear()
+        bg_color = (0.95, 0.95, 0.95, 1) if rank % 2 == 0 else (1, 1, 1, 1)
         with row.canvas.before:
-            Color(0.95, 0.95, 0.95, 1) if team['rank'] % 2 == 0 else Color(1, 1, 1, 1)
+            Color(*bg_color)
             Rectangle(pos=row.pos, size=row.size)
         
         data = [
@@ -307,11 +292,12 @@ class ChampionsLeagueApp(App):
         ]
         
         for text in data:
-            row.add_widget(Label(
+            row_label = Label(
                 text=text,
-                font_size='12sp',
-                font_name='Arabic'
-            ))
+                font_size='11sp',
+                halign='center'
+            )
+            row.add_widget(row_label)
         
         return row
     
@@ -319,11 +305,10 @@ class ChampionsLeagueApp(App):
         card = BoxLayout(
             orientation='vertical',
             size_hint_y=None,
-            height=180,
-            padding=15,
-            spacing=8
+            height=150,
+            padding=10,
+            spacing=5
         )
-        card.canvas.before.clear()
         with card.canvas.before:
             Color(1, 1, 1, 1)
             Rectangle(pos=card.pos, size=card.size)
@@ -331,57 +316,45 @@ class ChampionsLeagueApp(App):
         # عنوان الخبر
         title = Label(
             text=news_item['title'],
-            font_size='16sp',
+            font_size='14sp',
             bold=True,
             size_hint_y=None,
-            height=40,
+            height=35,
             text_size=(None, None),
-            halign='right',
-            font_name='Arabic'
+            halign='left'
         )
         
         # محتوى الخبر
         content = Label(
             text=news_item['content'],
-            font_size='12sp',
+            font_size='11sp',
             size_hint_y=None,
-            height=80,
+            height=70,
             text_size=(None, None),
-            halign='right',
-            color=(0.3, 0.3, 0.3, 1),
-            font_name='Arabic'
+            halign='left',
+            color=(0.3, 0.3, 0.3, 1)
         )
         
         # تفاعلات
-        interactions = BoxLayout(size_hint_y=None, height=30)
+        interactions = BoxLayout(size_hint_y=None, height=25)
         
         likes = Label(
             text=f"👍 {news_item['likes']}",
-            font_size='10sp',
-            font_name='Arabic'
+            font_size='10sp'
         )
         
         comments = Label(
             text=f"💬 {news_item['comments']}",
-            font_size='10sp',
-            font_name='Arabic'
-        )
-        
-        shares = Label(
-            text=f"↗️ {news_item['shares']}",
-            font_size='10sp',
-            font_name='Arabic'
+            font_size='10sp'
         )
         
         date = Label(
             text=news_item['date'],
             font_size='10sp',
-            color=(0.5, 0.5, 0.5, 1),
-            font_name='Arabic'
+            color=(0.5, 0.5, 0.5, 1)
         )
         
         interactions.add_widget(date)
-        interactions.add_widget(shares)
         interactions.add_widget(comments)
         interactions.add_widget(likes)
         
@@ -395,27 +368,26 @@ class ChampionsLeagueApp(App):
         card = BoxLayout(
             orientation='vertical',
             size_hint_y=None,
-            height=80,
-            padding=15,
-            spacing=5
+            height=70,
+            padding=10,
+            spacing=3
         )
-        card.canvas.before.clear()
         with card.canvas.before:
             Color(1, 1, 1, 1)
             Rectangle(pos=card.pos, size=card.size)
         
         title = Label(
             text=event['title'],
-            font_size='16sp',
+            font_size='14sp',
             bold=True,
-            font_name='Arabic'
+            halign='left'
         )
         
         time = Label(
             text=f"{event['date']} - {event['time']}",
-            font_size='12sp',
+            font_size='11sp',
             color=(0.5, 0.5, 0.5, 1),
-            font_name='Arabic'
+            halign='left'
         )
         
         card.add_widget(title)
@@ -430,52 +402,57 @@ class ChampionsLeagueApp(App):
         print(f"Error: {error_msg}")
 
 class DataManager:
-    def __init__(self):
-        self.base_url = "https://api.football-data.org/v4"
-        self.api_key = "YOUR_API_KEY"  # احصل على مفتاح من football-data.org
-    
     def get_live_matches(self):
-        # بيانات تجريبية (يمكن استبدالها ببيانات حقيقية من API)
         return [
             {
-                'team1': 'ريال مدريد',
-                'team2': 'مانشستر سيتي', 
+                'team1': 'Real Madrid',
+                'team2': 'Man City', 
                 'score': '3-2',
                 'date': '2024-04-09',
                 'time': '21:00',
-                'stage': 'ربع النهائي'
+                'stage': 'Quarter Final'
             },
             {
-                'team1': 'بايرن ميونخ',
-                'team2': 'أرسنال',
+                'team1': 'Bayern Munich',
+                'team2': 'Arsenal',
                 'score': '2-2', 
                 'date': '2024-04-10',
                 'time': '21:00',
-                'stage': 'ربع النهائي'
+                'stage': 'Quarter Final'
+            },
+            {
+                'team1': 'Barcelona',
+                'team2': 'PSG',
+                'score': '3-2',
+                'date': '2024-04-11', 
+                'time': '21:00',
+                'stage': 'Quarter Final'
             }
         ]
     
     def get_standings(self):
         return [
-            {'rank': 1, 'name': 'ريال مدريد', 'played': 6, 'won': 5, 'drawn': 1, 'lost': 0, 'points': 16},
-            {'rank': 2, 'name': 'مانشستر سيتي', 'played': 6, 'won': 4, 'drawn': 2, 'lost': 0, 'points': 14},
-            {'rank': 3, 'name': 'بايرن ميونخ', 'played': 6, 'won': 4, 'drawn': 1, 'lost': 1, 'points': 13},
+            {'rank': 1, 'name': 'Real Madrid', 'played': 6, 'won': 5, 'drawn': 1, 'lost': 0, 'points': 16},
+            {'rank': 2, 'name': 'Man City', 'played': 6, 'won': 4, 'drawn': 2, 'lost': 0, 'points': 14},
+            {'rank': 3, 'name': 'Bayern Munich', 'played': 6, 'won': 4, 'drawn': 1, 'lost': 1, 'points': 13},
+            {'rank': 4, 'name': 'Arsenal', 'played': 6, 'won': 4, 'drawn': 1, 'lost': 1, 'points': 13},
+            {'rank': 5, 'name': 'Barcelona', 'played': 6, 'won': 4, 'drawn': 0, 'lost': 2, 'points': 12},
         ]
     
     def get_news(self):
         return [
             {
-                'title': 'إصابة جديدة تهز صفوف ريال مدريد',
-                'content': 'تعرض اللاعب البرازيلي لإصابة عضوية تبعده عن الملاعب لمدة 3 أسابيع قبل مواجهة مانشستر سيتي.',
+                'title': 'New Injury Shakes Real Madrid Squad',
+                'content': 'Brazilian player suffered muscle injury that will keep him out for 3 weeks before Man City match.',
                 'likes': '1.2K',
-                'comments': '245',
+                'comments': '245', 
                 'shares': '89',
                 'date': '2024-04-08'
             },
             {
-                'title': 'هداف جديد في دوري الأبطال',
-                'content': 'سجل المهاجم النرويجي هدفه العاشر في البطولة ليصبح الهداف التاريخي لهذا الموسم.',
-                'likes': '2.1K', 
+                'title': 'New Top Scorer in Champions League',
+                'content': 'Norwegian striker scored his 10th goal in the tournament to become this seasons top scorer.',
+                'likes': '2.1K',
                 'comments': '356',
                 'shares': '124',
                 'date': '2024-04-07'
@@ -484,9 +461,9 @@ class DataManager:
     
     def get_events(self):
         return [
-            {'title': 'قرعة نصف النهائي', 'date': '2024-04-15', 'time': '19:00'},
-            {'title': 'مهرجان الجماهير', 'date': '2024-04-20', 'time': '16:00'},
-            {'title': 'حفل توزيع الجوائز', 'date': '2024-05-10', 'time': '20:00'}
+            {'title': 'Semi-Final Draw', 'date': '2024-04-15', 'time': '19:00'},
+            {'title': 'Fan Festival', 'date': '2024-04-20', 'time': '16:00'},
+            {'title': 'Awards Ceremony', 'date': '2024-05-10', 'time': '20:00'}
         ]
 
 if __name__ == '__main__':
