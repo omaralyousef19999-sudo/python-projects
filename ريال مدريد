@@ -18,6 +18,7 @@ from kivy.animation import Animation
 from functools import partial
 import random
 import datetime
+import math
 
 # --------------------------
 # Theme class: يستخدم في كل واجهة ليعطي تدرجات لون الأزرق + تركواز
@@ -211,6 +212,10 @@ KV = '''
         font_size: '12sp'
 
 <MatchRow@BoxLayout>:
+    match_id: 0
+    home_name: ""
+    away_name: "" 
+    dt_str: ""
     orientation: 'horizontal'
     size_hint_y: None
     height: '40dp'
@@ -233,6 +238,15 @@ KV = '''
         on_release: app.open_score_popup(root.match_id)
 
 <StandRow@BoxLayout>:
+    pos: ""
+    team: ""
+    played: 0
+    won: 0
+    draw: 0
+    lost: 0
+    goals_for: 0
+    goals_against: 0
+    points: 0
     orientation: 'horizontal'
     size_hint_y: None
     height: '30dp'
@@ -603,13 +617,24 @@ class MatchesScreen(Screen):
         # عرض كل المباريات المسجلة
         for m in STATE.drawn_matches:
             dtstr = m["datetime"].strftime("%Y-%m-%d %H:%M:%S")
-            row = Builder.template('''
-MatchRow:
-    match_id: %d
-    home_name: "%s"
-    away_name: "%s"
-    dt_str: "%s"
-''' % (m["id"], m["home"]["name"], m["away"]["name"], dtstr))
+            
+            # إنشاء صف المباراة يدوياً بدلاً من استخدام Template
+            row = BoxLayout(orientation='horizontal', size_hint_y=None, height='40dp')
+            row.match_id = m["id"]
+            
+            home_label = Label(text=m["home"]["name"])
+            dash_label = Label(text="-", size_hint_x=None, width='20dp')
+            away_label = Label(text=m["away"]["name"])
+            dt_label = Label(text=dtstr, size_hint_x=None, width='150dp')
+            edit_btn = Button(text="تحرير نتيجة", size_hint_x=None, width='120dp')
+            edit_btn.bind(on_release=lambda btn, mid=m["id"]: App.get_running_app().open_score_popup(mid))
+            
+            row.add_widget(home_label)
+            row.add_widget(dash_label)
+            row.add_widget(away_label)
+            row.add_widget(dt_label)
+            row.add_widget(edit_btn)
+            
             gl.add_widget(row)
 
     def qualify_next_round(self):
@@ -648,19 +673,28 @@ class StandingsScreen(Screen):
         table = STATE.compute_standings(STATE.remaining_teams)
         pos = 1
         for row in table:
-            wid = Builder.template('''
-StandRow:
-    pos: "%d"
-    team: "%s"
-    played: %d
-    won: %d
-    draw: %d
-    lost: %d
-    goals_for: %d
-    goals_against: %d
-    points: %d
-''' % (pos, row["team"], row["played"], row["won"], row["draw"], row["lost"], row["for"], row["against"], row["points"]))
-            gl.add_widget(wid)
+            # إنشاء صف الترتيب يدوياً
+            stand_row = BoxLayout(orientation='horizontal', size_hint_y=None, height='30dp')
+            
+            pos_label = Label(text=str(pos), size_hint_x=None, width='30dp')
+            team_label = Label(text=row["team"])
+            played_label = Label(text=str(row["played"]), size_hint_x=None, width='50dp')
+            won_label = Label(text=str(row["won"]), size_hint_x=None, width='50dp')
+            draw_label = Label(text=str(row["draw"]), size_hint_x=None, width='50dp')
+            lost_label = Label(text=str(row["lost"]), size_hint_x=None, width='50dp')
+            goals_label = Label(text=f"{row['for']}:{row['against']}", size_hint_x=None, width='80dp')
+            points_label = Label(text=str(row["points"]), size_hint_x=None, width='60dp')
+            
+            stand_row.add_widget(pos_label)
+            stand_row.add_widget(team_label)
+            stand_row.add_widget(played_label)
+            stand_row.add_widget(won_label)
+            stand_row.add_widget(draw_label)
+            stand_row.add_widget(lost_label)
+            stand_row.add_widget(goals_label)
+            stand_row.add_widget(points_label)
+            
+            gl.add_widget(stand_row)
             pos += 1
 
 class RootWidget(BoxLayout):
@@ -698,8 +732,8 @@ class UefaApp(App):
         row.add_widget(Label(text="أهداف ضيف"))
         row.add_widget(away_in)
         btn_row = BoxLayout(size_hint_y=None, height='40dp', spacing=6)
-        save_btn = LabelButton(text='حفظ', size_hint_x=None, width='120dp')
-        cancel_btn = LabelButton(text='إلغاء', size_hint_x=None, width='120dp')
+        save_btn = Button(text='حفظ', size_hint_x=None, width='120dp')
+        cancel_btn = Button(text='إلغاء', size_hint_x=None, width='120dp')
         btn_row.add_widget(save_btn)
         btn_row.add_widget(cancel_btn)
         content.add_widget(lbl)
@@ -719,8 +753,8 @@ class UefaApp(App):
             self.update_standings()
         def do_cancel(*a):
             popup.dismiss()
-        save_btn.bind(on_touch_down=lambda inst, touch: do_save() if inst.collide_point(*touch.pos) else None)
-        cancel_btn.bind(on_touch_down=lambda inst, touch: do_cancel() if inst.collide_point(*touch.pos) else None)
+        save_btn.bind(on_release=do_save)
+        cancel_btn.bind(on_release=do_cancel)
         popup.open()
 
     def update_matches_list(self):
@@ -728,15 +762,15 @@ class UefaApp(App):
         try:
             matches_screen = self.root.ids.matches_screen
             matches_screen.populate_matches()
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"Error updating matches: {e}")
 
     def update_standings(self):
         try:
             standings_screen = self.root.ids.standings_screen
             standings_screen.update_table()
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"Error updating standings: {e}")
 
     def start_fireworks(self, winner_name):
         # نجعل شاشة الترتيب تعرض مؤثر بسيط حول فريق الفائز: نافذة منبثقة أو رسم على الشاشة
@@ -745,19 +779,12 @@ class UefaApp(App):
         content.add_widget(Label(text=f"الفائز: {winner_name}", font_size='20sp'))
         fire_widget = FireworksWidget()
         content.add_widget(fire_widget)
-        btn = LabelButton(text='إغلاق', size_hint_y=None, height='40dp')
+        btn = Button(text='إغلاق', size_hint_y=None, height='40dp')
         content.add_widget(btn)
-        btn.bind(on_touch_down=lambda inst, touch: popup.dismiss() if inst.collide_point(*touch.pos) else None)
+        btn.bind(on_release=lambda x: popup.dismiss())
         popup.content = content
         popup.open()
         fire_widget.start()
-
-# --------------------------
-# عناصر مساعدة (أزرار نصية صغيرة)
-# --------------------------
-from kivy.uix.button import Button
-class LabelButton(Button):
-    pass
 
 # --------------------------
 # مؤثر الألعاب النارية (جسيمات بسيطة)
@@ -793,14 +820,14 @@ class FireworksWidget(Widget):
 
     def _spawn_burst(self, dt):
         # انفجار في موقع عشوائي داخل المساحة
-        cx = self.center_x
-        cy = self.center_y
+        cx = random.uniform(self.x + 50, self.right - 50)
+        cy = random.uniform(self.y + 50, self.top - 50)
         colors = [(1,0.6,0.2,1),(1,0.2,0.2,1),(0.2,1,0.6,1),(0.2,0.6,1,1),(1,1,0.2,1)]
         for i in range(18):
             ang = random.random() * 6.28
             spd = random.uniform(50,200)
-            vx = spd * random.uniform(0.2,1.0) * math_cos(ang)
-            vy = spd * random.uniform(0.2,1.0) * math_sin(ang)
+            vx = spd * random.uniform(0.2,1.0) * math.cos(ang)
+            vy = spd * random.uniform(0.2,1.0) * math.sin(ang)
             c = random.choice(colors)
             p = Particle(cx, cy, vx, vy, c, life=random.uniform(0.8,1.8))
             self.particles.append(p)
@@ -824,11 +851,6 @@ class FireworksWidget(Widget):
                 Ellipse(pos=(p.x - d/2, p.y - d/2), size=(d, d))
         for r in to_remove:
             self.particles.remove(r)
-
-# دوال رياضية خفيفة لتجنب استدعاء math مرارا
-import math
-def math_sin(a): return math.sin(a)
-def math_cos(a): return math.cos(a)
 
 # --------------------------
 # تشغيل التطبيق
