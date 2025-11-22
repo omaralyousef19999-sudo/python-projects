@@ -1,139 +1,766 @@
+# uefa_app.py
 from kivy.app import App
+from kivy.lang import Builder
+from kivy.properties import StringProperty, BooleanProperty, ObjectProperty, NumericProperty
+from kivy.uix.screenmanager import Screen
+from kivy.clock import Clock
 from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.gridlayout import GridLayout
+from kivy.uix.popup import Popup
 from kivy.uix.label import Label
 from kivy.uix.button import Button
 from kivy.uix.scrollview import ScrollView
-from kivy.uix.gridlayout import GridLayout
-from kivy.uix.tabbedpanel import TabbedPanel, TabbedPanelItem
-from kivy.uix.modalview import ModalView
-from kivy.uix.popup import Popup
-from kivy.clock import Clock
-from kivy.graphics import Color, Rectangle, RoundedRectangle
-from kivy.core.window import Window
-from kivy.metrics import dp
-from kivy.uix.image import AsyncImage
-import json
-import os
-from datetime import datetime
+from kivy.graphics import Color, Rectangle, Ellipse
+from kivy.uix.widget import Widget
+from kivy.uix.textinput import TextInput
+import random
+import datetime
+import math
 
-Window.clearcolor = (0.05, 0.08, 0.15, 1)
-
-team_logos = {
-    "Paris Saint-Germain": "https://upload.wikimedia.org/wikipedia/en/a/a7/Paris_Saint-Germain_F.C..svg",
-    "Real Madrid": "https://upload.wikimedia.org/wikipedia/en/5/56/Real_Madrid_CF.svg",
-    "Manchester City": "https://upload.wikimedia.org/wikipedia/en/e/eb/Manchester_City_FC_badge.svg",
-    "Bayern München": "https://upload.wikimedia.org/wikipedia/en/1/1f/FC_Bayern_München_logo_%282017%29.svg",
-    "Liverpool": "https://upload.wikimedia.org/wikipedia/en/0/0c/Liverpool_FC.svg",
-    "Inter": "https://upload.wikimedia.org/wikipedia/commons/0/05/FC_Internazionale_Milano_2021.svg",
-    "Chelsea": "https://upload.wikimedia.org/wikipedia/en/c/cc/Chelsea_FC.svg",
+# Teams data - 36 teams total
+TEAMS_BY_COUNTRY = {
+    "England": ["Manchester City", "Liverpool", "Arsenal", "Chelsea", "Manchester United", "Newcastle"],
+    "Spain": ["Real Madrid", "Barcelona", "Atletico Madrid", "Sevilla", "Villarreal", "Real Sociedad"],
+    "Germany": ["Bayern Munich", "Borussia Dortmund", "RB Leipzig", "Bayer Leverkusen", "Eintracht Frankfurt"],
+    "Italy": ["Inter", "AC Milan", "Juventus", "Napoli", "Roma", "Atalanta"],
+    "France": ["PSG", "Marseille", "Lyon", "Monaco", "Lille"],
+    "Portugal": ["Benfica", "Porto", "Sporting CP"],
+    "Netherlands": ["Ajax", "PSV", "Feyenoord"],
+    "Other": ["Club Brugge", "Celtic", "Shakhtar Donetsk", "Red Bull Salzburg"]
 }
 
-class ModernLabel(Label):
+ALL_TEAMS = []
+team_id = 1
+for country, teams in TEAMS_BY_COUNTRY.items():
+    for team in teams:
+        ALL_TEAMS.append({
+            "id": team_id,
+            "name": team, 
+            "country": country,
+            "matches_played": 0,
+            "home_matches": 0,
+            "away_matches": 0,
+            "points": 0,
+            "goals_for": 0,
+            "goals_against": 0,
+            "goal_difference": 0,
+            "wins": 0,
+            "draws": 0,
+            "losses": 0,
+            "opponents": []  # Track which teams they've played against
+        })
+        team_id += 1
+
+# Tournament state
+class TournamentState:
+    def __init__(self):
+        self.phase = "league"  # league, playoffs, knockout
+        self.drawn_matches = []
+        self.next_match_id = 1
+        self.round = 1
+        self.remaining_teams = ALL_TEAMS.copy()
+        self.winner = None
+        self.league_completed = False
+        self.standings = []
+
+    def can_play_match(self, team1, team2):
+        """Check if teams can play based on rules"""
+        # Check if teams have played before
+        if team2["id"] in team1["opponents"]:
+            return False
+        
+        # Check if team has reached match limit
+        if team1["matches_played"] >= 8 or team2["matches_played"] >= 8:
+            return False
+            
+        # Check home/away balance (max 4 home, 4 away)
+        return True
+
+    def add_match(self, home, away, is_home_away=True):
+        """Add a match with home/away designation"""
+        if not self.can_play_match(home, away):
+            return None
+            
+        m = {
+            "id": self.next_match_id,
+            "home": home,
+            "away": away, 
+            "datetime": datetime.datetime.now(),
+            "score": None,
+            "is_league": True
+        }
+        self.next_match_id += 1
+        self.drawn_matches.append(m)
+        
+        # Update team match counts
+        home["matches_played"] += 1
+        home["home_matches"] += 1
+        home["opponents"].append(away["id"])
+        
+        away["matches_played"] += 1  
+        away["away_matches"] += 1
+        away["opponents"].append(home["id"])
+        
+        return m
+
+    def save_score(self, match_id, home_goals, away_goals):
+        for m in self.drawn_matches:
+            if m["id"] == match_id:
+                m["score"] = (int(home_goals), int(away_goals))
+                
+                # Update team statistics
+                home = m["home"]
+                away = m["away"]
+                
+                home["goals_for"] += home_goals
+                home["goals_against"] += away_goals
+                home["goal_difference"] = home["goals_for"] - home["goals_against"]
+                
+                away["goals_for"] += away_goals
+                away["goals_against"] += home_goals
+                away["goal_difference"] = away["goals_for"] - away["goals_against"]
+                
+                if home_goals > away_goals:
+                    home["wins"] += 1
+                    home["points"] += 3
+                    away["losses"] += 1
+                elif home_goals < away_goals:
+                    away["wins"] += 1
+                    away["points"] += 3
+                    home["losses"] += 1
+                else:
+                    home["draws"] += 1
+                    away["draws"] += 1
+                    home["points"] += 1
+                    away["points"] += 1
+                    
+                return m
+        return None
+
+    def calculate_standings(self):
+        """Calculate current league standings"""
+        self.standings = sorted(self.remaining_teams, 
+                              key=lambda x: (-x["points"], -x["goal_difference"], -x["goals_for"], x["name"]))
+        return self.standings
+
+    def check_league_completion(self):
+        """Check if league phase is completed"""
+        # All teams should play exactly 8 matches
+        for team in self.remaining_teams:
+            if team["matches_played"] < 8:
+                return False
+        self.league_completed = True
+        return True
+
+    def qualify_teams(self):
+        """Qualify teams based on standings after league phase"""
+        if not self.league_completed:
+            return False
+            
+        standings = self.calculate_standings()
+        
+        # Positions 1-8: Direct qualification to Round of 16
+        direct_qualified = standings[:8]
+        
+        # Positions 9-24: Playoff round
+        playoff_teams = standings[8:24]
+        
+        # Positions 25-36: Eliminated
+        eliminated_teams = standings[24:]
+        
+        self.phase = "playoffs"
+        
+        # Create playoff matches (teams 9-16 vs teams 17-24)
+        playoff_matches = []
+        for i in range(8):
+            home_team = playoff_teams[i]      # Teams 9-16
+            away_team = playoff_teams[16 + i] # Teams 17-24
+            match = {
+                "id": self.next_match_id,
+                "home": home_team,
+                "away": away_team,
+                "datetime": datetime.datetime.now(),
+                "score": None,
+                "is_playoff": True,
+                "is_knockout": True
+            }
+            self.next_match_id += 1
+            playoff_matches.append(match)
+        
+        self.drawn_matches.extend(playoff_matches)
+        
+        return {
+            "direct_qualified": direct_qualified,
+            "playoff_teams": playoff_teams,
+            "eliminated": eliminated_teams,
+            "playoff_matches": playoff_matches
+        }
+
+    def advance_knockout_round(self):
+        """Advance to next knockout round"""
+        # This would handle Round of 16, Quarter-finals, Semi-finals, Final
+        self.phase = "knockout"
+        # Implementation for knockout rounds would go here
+
+STATE = TournamentState()
+
+# UI
+KV = '''
+<DrawScreen>:
+    BoxLayout:
+        orientation: 'vertical'
+        padding: 20
+        spacing: 10
+        
+        Label:
+            text: 'Champions League - New System'
+            font_size: 24
+            size_hint_y: None
+            height: 50
+        
+        BoxLayout:
+            size_hint_y: None
+            height: 50
+            spacing: 10
+            Button:
+                text: 'Matches'
+                on_release: app.root.current = 'matches'
+            Button:
+                text: 'Standings' 
+                on_release: app.root.current = 'standings'
+            Button:
+                text: 'Reset'
+                on_release: root.reset_tournament()
+        
+        BoxLayout:
+            size_hint_y: None
+            height: 30
+            Label:
+                text: 'Phase: ' + root.phase_label
+            Label:
+                text: 'Round: ' + str(root.round_label)
+        
+        BoxLayout:
+            spacing: 20
+            BoxLayout:
+                orientation: 'vertical'
+                size_hint_x: 0.4
+                Label:
+                    text: root.left_name
+                    font_size: 18
+                    text_size: self.width, None
+                    halign: 'center'
+                Label:
+                    text: root.left_country
+                    font_size: 12
+                    color: 0.7, 0.7, 0.7, 1
+                Label:
+                    text: 'Played: ' + root.left_matches
+                    font_size: 10
+                    color: 0.5, 0.5, 0.5, 1
+            
+            BoxLayout:
+                orientation: 'vertical'
+                size_hint_x: 0.2
+                spacing: 10
+                Button:
+                    text: 'Random Draw'
+                    on_release: root.spin_once()
+                Button:
+                    text: 'Save Match'
+                    on_release: root.save_match()
+                Button:
+                    text: 'Auto Draw'
+                    on_release: root.auto_draw_round()
+                Button:
+                    text: 'End League'
+                    on_release: root.end_league_phase()
+            
+            BoxLayout:
+                orientation: 'vertical'
+                size_hint_x: 0.4
+                Label:
+                    text: root.right_name
+                    font_size: 18
+                    text_size: self.width, None
+                    halign: 'center'
+                Label:
+                    text: root.right_country
+                    font_size: 12
+                    color: 0.7, 0.7, 0.7, 1
+                Label:
+                    text: 'Played: ' + root.right_matches
+                    font_size: 10
+                    color: 0.5, 0.5, 0.5, 1
+        
+        ScrollView:
+            Label:
+                id: log_label
+                text_size: self.width, None
+                size_hint_y: None
+                height: self.texture_size[1]
+                text: root.log_text
+
+<MatchesScreen>:
+    BoxLayout:
+        orientation: 'vertical'
+        padding: 20
+        spacing: 10
+        
+        BoxLayout:
+            size_hint_y: None
+            height: 50
+            Button:
+                text: 'Draw'
+                on_release: app.root.current = 'draw'
+            Button:
+                text: 'Standings'
+                on_release: app.root.current = 'standings'
+            Button:
+                text: 'Next Phase'
+                on_release: root.advance_phase()
+        
+        Label:
+            text: root.phase_info
+            size_hint_y: None
+            height: 40
+        
+        ScrollView:
+            GridLayout:
+                id: matches_grid
+                cols: 1
+                size_hint_y: None
+                height: self.minimum_height
+                spacing: 5
+
+<StandingsScreen>:
+    BoxLayout:
+        orientation: 'vertical'
+        padding: 20
+        spacing: 10
+        
+        BoxLayout:
+            size_hint_y: None
+            height: 50
+            Button:
+                text: 'Draw'
+                on_release: app.root.current = 'draw'
+            Button:
+                text: 'Matches'
+                on_release: app.root.current = 'matches'
+            Label:
+                text: 'Phase: ' + root.phase_label
+        
+        ScrollView:
+            GridLayout:
+                id: standings_grid
+                cols: 1
+                size_hint_y: None
+                height: self.minimum_height
+
+ScreenManager:
+    id: screen_manager
+    DrawScreen:
+        name: 'draw'
+    MatchesScreen:
+        name: 'matches'
+    StandingsScreen:
+        name: 'standings'
+'''
+
+class DrawScreen(Screen):
+    left_name = StringProperty("---")
+    left_country = StringProperty("")
+    left_matches = StringProperty("")
+    right_name = StringProperty("---")
+    right_country = StringProperty("")
+    right_matches = StringProperty("")
+    round_label = NumericProperty(1)
+    phase_label = StringProperty("League Phase")
+    log_text = StringProperty("")
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.color = (1,1,1,1)
+        self.round_label = STATE.round
+        self.update_phase_label()
+        self.update_log()
 
-class ModernButton(Button):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.background_normal = ''
-        self.background_color = (0.2, 0.4, 0.8, 1)
-        self.color = (1,1,1,1)
+    def update_phase_label(self):
+        if STATE.phase == "league":
+            self.phase_label = "League Phase"
+        elif STATE.phase == "playoffs":
+            self.phase_label = "Playoff Round"
+        else:
+            self.phase_label = "Knockout Phase"
 
+    def spin_once(self):
+        if STATE.phase != "league":
+            self.log_text += "\\nLeague phase completed! Use playoff/knockout features."
+            return
 
-class CardLayout(BoxLayout):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.orientation = 'vertical'
-        self.padding = dp(10)
-        with self.canvas.before:
-            Color(0.15, 0.2, 0.3, 1)
-            self.rect = RoundedRectangle(pos=self.pos, size=self.size, radius=[dp(10)])
-        self.bind(pos=self.update_rect, size=self.update_rect)
-    def update_rect(self, *args):
-        self.rect.pos = self.pos
-        self.rect.size = self.size
+        # Find teams that haven't played 8 matches yet
+        available_teams = [t for t in STATE.remaining_teams if t["matches_played"] < 8]
+        
+        if len(available_teams) < 2:
+            self.log_text += "\\nNot enough available teams for draw!"
+            return
 
+        # Try to find valid match
+        attempts = 0
+        while attempts < 50:
+            left = random.choice(available_teams)
+            right = random.choice(available_teams)
+            
+            if (left["id"] != right["id"] and 
+                STATE.can_play_match(left, right)):
+                break
+            attempts += 1
+        else:
+            self.log_text += "\\nCould not find valid match. Try auto-draw."
+            return
+
+        self.left_name = left["name"]
+        self.left_country = left["country"]
+        self.left_matches = f"{left['matches_played']}/8"
+        self.right_name = right["name"]
+        self.right_country = right["country"]
+        self.right_matches = f"{right['matches_played']}/8"
+
+    def save_match(self):
+        if self.left_name == "---" or self.right_name == "---":
+            self.log_text += "\\nPlease draw first!"
+            return
+
+        # Find the actual team objects
+        left_team = next((t for t in STATE.remaining_teams if t["name"] == self.left_name), None)
+        right_team = next((t for t in STATE.remaining_teams if t["name"] == self.right_name), None)
+        
+        if not left_team or not right_team:
+            self.log_text += "\\nError: Teams not found!"
+            return
+
+        match = STATE.add_match(left_team, right_team)
+        if match:
+            self.log_text += f"\\nAdded: {left_team['name']} vs {right_team['name']}"
+            
+            # Reset display
+            self.left_name = "---"
+            self.left_country = ""
+            self.left_matches = ""
+            self.right_name = "---" 
+            self.right_country = ""
+            self.right_matches = ""
+            
+            # Check if league is completed
+            if STATE.check_league_completion():
+                self.log_text += "\\n\\nLEAGUE PHASE COMPLETED!\\nGo to Matches screen to advance."
+        else:
+            self.log_text += "\\nCannot add this match (teams may have played before or reached limit)"
+
+    def auto_draw_round(self):
+        """Automatically draw multiple valid matches"""
+        if STATE.phase != "league":
+            return
+
+        available_teams = [t for t in STATE.remaining_teams if t["matches_played"] < 8]
+        matches_added = 0
+        
+        for _ in range(10):  # Try to add up to 10 matches
+            if len(available_teams) < 2:
+                break
+                
+            attempts = 0
+            while attempts < 50:
+                left = random.choice(available_teams)
+                right = random.choice(available_teams)
+                
+                if (left["id"] != right["id"] and 
+                    STATE.can_play_match(left, right)):
+                    
+                    match = STATE.add_match(left, right)
+                    if match:
+                        self.log_text += f"\\nAuto-added: {left['name']} vs {right['name']}"
+                        matches_added += 1
+                        
+                        # Update available teams list
+                        available_teams = [t for t in STATE.remaining_teams if t["matches_played"] < 8]
+                    break
+                attempts += 1
+        
+        self.log_text += f"\\nAdded {matches_added} matches automatically."
+        
+        # Check if league is completed
+        if STATE.check_league_completion():
+            self.log_text += "\\n\\nLEAGUE PHASE COMPLETED!\\nGo to Matches screen to advance."
+
+    def end_league_phase(self):
+        """Force end league phase and qualify teams"""
+        qualification = STATE.qualify_teams()
+        if qualification:
+            self.log_text += "\\n\\nLEAGUE PHASE ENDED!\\n"
+            self.log_text += f"Direct qualified: {len(qualification['direct_qualified'])} teams\\n"
+            self.log_text += f"Playoff teams: {len(qualification['playoff_teams'])} teams\\n"
+            self.log_text += f"Eliminated: {len(qualification['eliminated'])} teams"
+            self.update_phase_label()
+            App.get_running_app().update_all_screens()
+
+    def update_log(self):
+        self.log_text = "Match Log:\\n"
+        for match in STATE.drawn_matches[-10:]:
+            match_type = ""
+            if match.get("is_playoff"):
+                match_type = " [PLAYOFF]"
+            elif match.get("is_knockout"):
+                match_type = " [KNOCKOUT]"
+                
+            self.log_text += f"{match['home']['name']} vs {match['away']['name']}{match_type}\\n"
+
+    def reset_tournament(self):
+        global STATE
+        STATE = TournamentState()
+        self.round_label = STATE.round
+        self.left_name = "---"
+        self.right_name = "---"
+        self.update_phase_label()
+        self.update_log()
+        App.get_running_app().update_all_screens()
+
+class MatchesScreen(Screen):
+    phase_info = StringProperty("")
+
+    def on_enter(self):
+        self.update_matches()
+        self.update_phase_info()
+
+    def update_phase_info(self):
+        if STATE.phase == "league":
+            completed_matches = sum(1 for t in STATE.remaining_teams if t["matches_played"] == 8)
+            total_teams = len(STATE.remaining_teams)
+            self.phase_info = f"League Phase: {completed_matches}/{total_teams} teams completed 8 matches"
+        elif STATE.phase == "playoffs":
+            self.phase_info = "Playoff Round: Teams 9-24 competing for 8 spots"
+        else:
+            self.phase_info = "Knockout Phase"
+
+    def update_matches(self):
+        grid = self.ids.matches_grid
+        grid.clear_widgets()
+
+        for match in STATE.drawn_matches:
+            row = BoxLayout(size_hint_y=None, height=40)
+            
+            # Match info
+            match_type = ""
+            if match.get("is_playoff"):
+                match_type = " [PLAYOFF]"
+            elif match.get("is_knockout"):
+                match_type = " [KNOCKOUT]"
+                
+            teams_label = Label(
+                text=f"{match['home']['name']} vs {match['away']['name']}{match_type}",
+                size_hint_x=0.6
+            )
+            
+            # Score display or input button
+            if match["score"]:
+                score_label = Label(
+                    text=f"{match['score'][0]} - {match['score'][1]}",
+                    size_hint_x=0.3
+                )
+                row.add_widget(score_label)
+            else:
+                score_btn = Button(
+                    text="Enter Score",
+                    size_hint_x=0.3,
+                    on_release=lambda btn, m=match: App.get_running_app().open_score_popup(m["id"])
+                )
+                row.add_widget(score_btn)
+            
+            row.add_widget(teams_label)
+            grid.add_widget(row)
+
+    def advance_phase(self):
+        if STATE.phase == "league" and STATE.check_league_completion():
+            qualification = STATE.qualify_teams()
+            if qualification:
+                popup = Popup(
+                    title='League Phase Completed!',
+                    content=Label(text=f'''
+Direct Qualified: {len(qualification['direct_qualified'])} teams
+Playoff Round: {len(qualification['playoff_teams'])} teams
+Eliminated: {len(qualification['eliminated'])} teams
+
+Playoff matches have been created!'''),
+                    size_hint=(0.8, 0.6)
+                )
+                popup.open()
+                App.get_running_app().update_all_screens()
+        elif STATE.phase == "playoffs":
+            # Check if all playoff matches have scores
+            playoff_matches = [m for m in STATE.drawn_matches if m.get("is_playoff")]
+            incomplete = [m for m in playoff_matches if m["score"] is None]
+            
+            if incomplete:
+                Popup(
+                    title='Warning',
+                    content=Label(text='Some playoff matches dont have scores!'),
+                    size_hint=(0.6, 0.3)
+                ).open()
+                return
+            
+            # Advance to knockout phase
+            STATE.advance_knockout_round()
+            Popup(
+                title='Advanced to Knockout Phase!',
+                content=Label(text='Round of 16 matches ready!'),
+                size_hint=(0.6, 0.3)
+            ).open()
+            App.get_running_app().update_all_screens()
+
+class StandingsScreen(Screen):
+    phase_label = StringProperty("")
+
+    def on_enter(self):
+        self.update_standings()
+        self.update_phase_label()
+
+    def update_phase_label(self):
+        if STATE.phase == "league":
+            self.phase_label = "League Standings"
+        elif STATE.phase == "playoffs":
+            self.phase_label = "Final League Standings + Playoffs"
+        else:
+            self.phase_label = "Knockout Stage"
+
+    def update_standings(self):
+        grid = self.ids.standings_grid
+        grid.clear_widgets()
+
+        standings = STATE.calculate_standings()
+        
+        # Header
+        header = BoxLayout(size_hint_y=None, height=30)
+        headers = ["Pos", "Team", "P", "W", "D", "L", "GF", "GA", "GD", "Pts"]
+        widths = [0.08, 0.3, 0.08, 0.08, 0.08, 0.08, 0.08, 0.08, 0.08, 0.08]
+        
+        for i, header_text in enumerate(headers):
+            header.add_widget(Label(text=header_text, size_hint_x=widths[i]))
+        grid.add_widget(header)
+
+        # Team rows with qualification status
+        for pos, team in enumerate(standings, 1):
+            row = BoxLayout(size_hint_y=None, height=25)
+            
+            # Position with qualification indicator
+            pos_text = str(pos)
+            if STATE.league_completed:
+                if pos <= 8:
+                    pos_text += " ✅"  # Direct qualification
+                elif pos <= 24:
+                    pos_text += " 🔄"  # Playoff round
+                else:
+                    pos_text += " ❌"  # Eliminated
+            
+            row.add_widget(Label(text=pos_text, size_hint_x=0.08))
+            row.add_widget(Label(text=team["name"], size_hint_x=0.3))
+            row.add_widget(Label(text=str(team["matches_played"]), size_hint_x=0.08))
+            row.add_widget(Label(text=str(team["wins"]), size_hint_x=0.08))
+            row.add_widget(Label(text=str(team["draws"]), size_hint_x=0.08))
+            row.add_widget(Label(text=str(team["losses"]), size_hint_x=0.08))
+            row.add_widget(Label(text=str(team["goals_for"]), size_hint_x=0.08))
+            row.add_widget(Label(text=str(team["goals_against"]), size_hint_x=0.08))
+            row.add_widget(Label(text=str(team["goal_difference"]), size_hint_x=0.08))
+            row.add_widget(Label(text=str(team["points"]), size_hint_x=0.08))
+            
+            grid.add_widget(row)
 
 class ChampionsLeagueApp(App):
     def build(self):
-        self.title = "UEFA Champions League 🏆"
-        self.data_manager = DataManager()
+        self.title = "UEFA Champions League - New System"
+        return Builder.load_string(KV)
 
-        self.main_layout = BoxLayout(orientation='vertical')
+    def on_start(self):
+        self.update_all_screens()
 
-        self.create_header()
-        self.create_tabs()
+    def update_all_screens(self):
+        draw_screen = self.root.get_screen('draw')
+        draw_screen.round_label = STATE.round
+        draw_screen.update_phase_label()
+        draw_screen.update_log()
 
-        # 🔥 تحميل المباريات بعد إنشاء الواجهة
-        Clock.schedule_once(self.load_data, 0.3)
+        matches_screen = self.root.get_screen('matches')
+        matches_screen.update_matches()
+        matches_screen.update_phase_info()
 
-        return self.main_layout
+        standings_screen = self.root.get_screen('standings')
+        standings_screen.update_standings()
+        standings_screen.update_phase_label()
 
-    def create_header(self):
-        header = BoxLayout(size_hint=(1, None), height=dp(60), padding=dp(10))
-        with header.canvas.before:
-            Color(0.1, 0.15, 0.25, 1)
-            Rectangle(pos=header.pos, size=header.size)
-        header.bind(size=self._update_bg, pos=self._update_bg)
+    def open_score_popup(self, match_id):
+        match = next((m for m in STATE.drawn_matches if m["id"] == match_id), None)
+        if not match:
+            return
 
-        title = ModernLabel(text='🏆 UEFA Champions League', font_size=dp(20))
-        header.add_widget(title)
-        self.main_layout.add_widget(header)
+        content = BoxLayout(orientation='vertical', spacing=10, padding=10)
+        
+        # Match title
+        match_type = ""
+        if match.get("is_playoff"):
+            match_type = " [PLAYOFF]"
+        elif match.get("is_knockout"):
+            match_type = " [KNOCKOUT]"
+            
+        title = Label(text=f"{match['home']['name']} vs {match['away']['name']}{match_type}")
+        content.add_widget(title)
 
-    def _update_bg(self, instance, value):
-        instance.canvas.before.children[-1].pos = instance.pos
-        instance.canvas.before.children[-1].size = instance.size
+        # Score input
+        score_layout = BoxLayout(size_hint_y=None, height=50)
+        home_input = TextInput(
+            text=str(match["score"][0]) if match["score"] else "0",
+            input_filter='int',
+            size_hint_x=0.3
+        )
+        away_input = TextInput(
+            text=str(match["score"][1]) if match["score"] else "0", 
+            input_filter='int',
+            size_hint_x=0.3
+        )
+        
+        score_layout.add_widget(Label(text="Goals", size_hint_x=0.2))
+        score_layout.add_widget(home_input)
+        score_layout.add_widget(Label(text="-", size_hint_x=0.1))
+        score_layout.add_widget(away_input)
+        score_layout.add_widget(Label(text="Goals", size_hint_x=0.2))
+        content.add_widget(score_layout)
 
-    def create_tabs(self):
-        self.tabs = TabbedPanel(do_default_tab=False)
+        # Save/Cancel buttons
+        btn_layout = BoxLayout(size_hint_y=None, height=50)
+        save_btn = Button(text="Save")
+        cancel_btn = Button(text="Cancel")
+        btn_layout.add_widget(save_btn)
+        btn_layout.add_widget(cancel_btn)
+        content.add_widget(btn_layout)
 
-        matches_tab = TabbedPanelItem(text='⚽ Matches')
+        popup = Popup(
+            title='Enter Score',
+            content=content,
+            size_hint=(0.8, 0.4)
+        )
 
-        self.matches_content = ScrollView()
-        self.matches_layout = GridLayout(cols=1, spacing=dp(10), size_hint_y=None)
-        self.matches_layout.bind(minimum_height=self.matches_layout.setter('height'))
-        self.matches_content.add_widget(self.matches_layout)
-        matches_tab.add_widget(self.matches_content)
+        def save_score(instance):
+            try:
+                home_goals = int(home_input.text)
+                away_goals = int(away_input.text)
+                STATE.save_score(match_id, home_goals, away_goals)
+                self.update_all_screens()
+                popup.dismiss()
+            except ValueError:
+                pass
 
-        self.tabs.add_widget(matches_tab)
-        self.main_layout.add_widget(self.tabs)
-
-    def load_data(self, *args):
-        matches = self.data_manager.get_live_matches()
-        self.update_matches(matches)
-
-    def update_matches(self, matches):
-        self.matches_layout.clear_widgets()
-        for m in matches:
-            self.matches_layout.add_widget(self.create_match_card(m))
-
-    def create_match_card(self, match):
-        card = CardLayout(size_hint_y=None, height=dp(120))
-        layout = BoxLayout()
-
-        def logo(team):
-            if team in team_logos:
-                return AsyncImage(source=team_logos[team], size_hint=(None,None), size=(dp(50),dp(50)))
-            return ModernLabel(text=team[0], font_size=dp(28))
-
-        layout.add_widget(logo(match['team1']))
-        center_text = ModernLabel(text=f"{match['team1']} VS {match['team2']}", font_size=dp(15))
-        layout.add_widget(center_text)
-        layout.add_widget(logo(match['team2']))
-
-        card.add_widget(layout)
-        return card
-
-
-class DataManager:
-    def get_live_matches(self):
-        return [
-            {'team1': 'Real Madrid', 'team2': 'Manchester City'},
-            {'team1': 'Bayern München', 'team2': 'Liverpool'},
-            {'team1': 'Inter', 'team2': 'Chelsea'},
-        ]
-
+        save_btn.bind(on_release=save_score)
+        cancel_btn.bind(on_release=popup.dismiss)
+        
+        popup.open()
 
 if __name__ == '__main__':
     ChampionsLeagueApp().run()
