@@ -17,13 +17,13 @@ import random
 import datetime
 import math
 
-# بيانات الفرق
+# Teams data
 TEAMS_BY_COUNTRY = {
-    "إسبانيا": ["Real Madrid", "Barcelona", "Atletico Madrid", "Sevilla"],
-    "فرنسا": ["PSG", "Marseille", "Lyon", "Monaco"],
-    "ألمانيا": ["Bayern Munich", "Borussia Dortmund", "RB Leipzig", "Bayer Leverkusen"],
-    "إنجلترا": ["Manchester City", "Manchester United", "Chelsea", "Liverpool"],
-    "إيطاليا": ["Juventus", "Inter", "AC Milan", "Napoli"],
+    "Spain": ["Real Madrid", "Barcelona", "Atletico Madrid", "Sevilla"],
+    "France": ["PSG", "Marseille", "Lyon", "Monaco"],
+    "Germany": ["Bayern Munich", "Borussia Dortmund", "RB Leipzig", "Bayer Leverkusen"],
+    "England": ["Manchester City", "Manchester United", "Chelsea", "Liverpool"],
+    "Italy": ["Juventus", "Inter", "AC Milan", "Napoli"],
 }
 
 ALL_TEAMS = []
@@ -31,7 +31,7 @@ for country, teams in TEAMS_BY_COUNTRY.items():
     for team in teams:
         ALL_TEAMS.append({"name": team, "country": country})
 
-# حالة البطولة
+# Tournament state
 class TournamentState:
     def __init__(self):
         self.drawn_matches = []
@@ -82,7 +82,7 @@ class TournamentState:
 
 STATE = TournamentState()
 
-# واجهة المستخدم
+# UI
 KV = '''
 <DrawScreen>:
     BoxLayout:
@@ -91,7 +91,7 @@ KV = '''
         spacing: 10
         
         Label:
-            text: 'دوري أبطال أوروبا - نظام القرعة'
+            text: 'Champions League - Draw System'
             font_size: 24
             size_hint_y: None
             height: 50
@@ -101,17 +101,17 @@ KV = '''
             height: 50
             spacing: 10
             Button:
-                text: 'المباريات'
+                text: 'Matches'
                 on_release: app.root.current = 'matches'
             Button:
-                text: 'الترتيب' 
+                text: 'Standings' 
                 on_release: app.root.current = 'standings'
             Button:
-                text: 'إعادة الضبط'
+                text: 'Reset'
                 on_release: root.reset_tournament()
         
         Label:
-            text: 'الجولة: ' + str(root.round_label)
+            text: 'Round: ' + str(root.round_label)
             size_hint_y: None
             height: 30
         
@@ -135,10 +135,10 @@ KV = '''
                 size_hint_x: 0.2
                 spacing: 10
                 Button:
-                    text: 'سحب عشوائي'
+                    text: 'Random Draw'
                     on_release: root.spin_once()
                 Button:
-                    text: 'حفظ المباراة'
+                    text: 'Save Match'
                     on_release: root.save_match()
             
             BoxLayout:
@@ -172,13 +172,13 @@ KV = '''
             size_hint_y: None
             height: 50
             Button:
-                text: 'القرعة'
+                text: 'Draw'
                 on_release: app.root.current = 'draw'
             Button:
-                text: 'الترتيب'
+                text: 'Standings'
                 on_release: app.root.current = 'standings'
             Button:
-                text: 'الجولة التالية'
+                text: 'Next Round'
                 on_release: root.qualify_next_round()
         
         ScrollView:
@@ -199,13 +199,13 @@ KV = '''
             size_hint_y: None
             height: 50
             Button:
-                text: 'القرعة'
+                text: 'Draw'
                 on_release: app.root.current = 'draw'
             Button:
-                text: 'المباريات'
+                text: 'Matches'
                 on_release: app.root.current = 'matches'
             Label:
-                text: 'الجولة: ' + str(root.round_label)
+                text: 'Round: ' + str(root.round_label)
         
         ScrollView:
             GridLayout:
@@ -239,13 +239,13 @@ class DrawScreen(Screen):
 
     def spin_once(self):
         if len(STATE.remaining_teams) < 2:
-            self.log_text += "\\nلا يوجد فرق كافية للسحب!"
+            self.log_text += "\\nNot enough teams for draw!"
             return
 
         left = random.choice(STATE.remaining_teams)
         right = random.choice(STATE.remaining_teams)
         
-        # التأكد من أن الفريقين مختلفين
+        # Make sure teams are different
         attempts = 0
         while left["name"] == right["name"] and attempts < 10:
             right = random.choice(STATE.remaining_teams)
@@ -258,23 +258,23 @@ class DrawScreen(Screen):
 
     def save_match(self):
         if self.left_name == "---" or self.right_name == "---":
-            self.log_text += "\\nقم بالسحب أولاً!"
+            self.log_text += "\\nPlease draw first!"
             return
 
         home_team = {"name": self.left_name, "country": self.left_country}
         away_team = {"name": self.right_name, "country": self.right_country}
         
         match = STATE.add_match(home_team, away_team)
-        self.log_text += f"\\nتم إضافة: {home_team['name']} vs {away_team['name']}"
+        self.log_text += f"\\nAdded: {home_team['name']} vs {away_team['name']}"
         
-        # إعادة تعيين العروض
+        # Reset display
         self.left_name = "---"
         self.left_country = ""
         self.right_name = "---" 
         self.right_country = ""
 
     def update_log(self):
-        self.log_text = "سجل المباريات:\\n"
+        self.log_text = "Match Log:\\n"
         for match in STATE.drawn_matches[-10:]:
             self.log_text += f"{match['home']['name']} vs {match['away']['name']}\\n"
 
@@ -296,16 +296,16 @@ class MatchesScreen(Screen):
         grid.clear_widgets()
 
         for match in STATE.drawn_matches:
-            # صف المباراة
+            # Match row
             row = BoxLayout(size_hint_y=None, height=40)
             
-            # عرض الفريقين
+            # Teams display
             teams_label = Label(
                 text=f"{match['home']['name']} vs {match['away']['name']}",
                 size_hint_x=0.6
             )
             
-            # عرض النتيجة أو زر الإدخال
+            # Score display or input button
             if match["score"]:
                 score_label = Label(
                     text=f"{match['score'][0]} - {match['score'][1]}",
@@ -314,7 +314,7 @@ class MatchesScreen(Screen):
                 row.add_widget(score_label)
             else:
                 score_btn = Button(
-                    text="إدخال النتيجة",
+                    text="Enter Score",
                     size_hint_x=0.3,
                     on_release=lambda btn, m=match: App.get_running_app().open_score_popup(m["id"])
                 )
@@ -324,12 +324,12 @@ class MatchesScreen(Screen):
             grid.add_widget(row)
 
     def qualify_next_round(self):
-        # التحقق من اكتمال جميع النتائج
+        # Check if all matches have scores
         incomplete = [m for m in STATE.drawn_matches if m["score"] is None]
         if incomplete:
             Popup(
-                title='تنبيه',
-                content=Label(text='يوجد مباريات بدون نتائج!'),
+                title='Warning',
+                content=Label(text='Some matches dont have scores!'),
                 size_hint=(0.6, 0.3)
             ).open()
             return
@@ -348,20 +348,20 @@ class StandingsScreen(Screen):
         grid = self.ids.standings_grid
         grid.clear_widgets()
 
-        # رأس الجدول
+        # Table header
         header = BoxLayout(size_hint_y=None, height=30)
-        header.add_widget(Label(text="الفريق", size_hint_x=0.4))
-        header.add_widget(Label(text="ل", size_hint_x=0.15))
-        header.add_widget(Label(text="ف", size_hint_x=0.15))
-        header.add_widget(Label(text="ت", size_hint_x=0.15))
-        header.add_widget(Label(text="خ", size_hint_x=0.15))
+        header.add_widget(Label(text="Team", size_hint_x=0.4))
+        header.add_widget(Label(text="P", size_hint_x=0.15))
+        header.add_widget(Label(text="W", size_hint_x=0.15))
+        header.add_widget(Label(text="D", size_hint_x=0.15))
+        header.add_widget(Label(text="L", size_hint_x=0.15))
         grid.add_widget(header)
 
-        # بيانات الفرق
+        # Team data
         for team in STATE.remaining_teams:
             row = BoxLayout(size_hint_y=None, height=25)
             row.add_widget(Label(text=team["name"], size_hint_x=0.4))
-            # إحصائيات افتراضية (يمكن تطويرها لاحقاً)
+            # Default stats (can be improved later)
             row.add_widget(Label(text="0", size_hint_x=0.15))
             row.add_widget(Label(text="0", size_hint_x=0.15))
             row.add_widget(Label(text="0", size_hint_x=0.15))
@@ -370,14 +370,14 @@ class StandingsScreen(Screen):
 
 class ChampionsLeagueApp(App):
     def build(self):
-        self.title = "دوري الأبطال"
+        self.title = "Champions League"
         return Builder.load_string(KV)
 
     def on_start(self):
         self.update_all_screens()
 
     def update_all_screens(self):
-        # تحديث جميع الشاشات
+        # Update all screens
         draw_screen = self.root.get_screen('draw')
         draw_screen.round_label = STATE.round
         draw_screen.update_log()
@@ -395,11 +395,11 @@ class ChampionsLeagueApp(App):
 
         content = BoxLayout(orientation='vertical', spacing=10, padding=10)
         
-        # عنوان المباراة
+        # Match title
         title = Label(text=f"{match['home']['name']} vs {match['away']['name']}")
         content.add_widget(title)
 
-        # حقل إدخال النتيجة
+        # Score input
         score_layout = BoxLayout(size_hint_y=None, height=50)
         home_input = TextInput(
             text=str(match["score"][0]) if match["score"] else "0",
@@ -412,23 +412,23 @@ class ChampionsLeagueApp(App):
             size_hint_x=0.3
         )
         
-        score_layout.add_widget(Label(text="أهداف", size_hint_x=0.2))
+        score_layout.add_widget(Label(text="Goals", size_hint_x=0.2))
         score_layout.add_widget(home_input)
         score_layout.add_widget(Label(text="-", size_hint_x=0.1))
         score_layout.add_widget(away_input)
-        score_layout.add_widget(Label(text="أهداف", size_hint_x=0.2))
+        score_layout.add_widget(Label(text="Goals", size_hint_x=0.2))
         content.add_widget(score_layout)
 
-        # أزرار الحفظ والإلغاء
+        # Save/Cancel buttons
         btn_layout = BoxLayout(size_hint_y=None, height=50)
-        save_btn = Button(text="حفظ")
-        cancel_btn = Button(text="إلغاء")
+        save_btn = Button(text="Save")
+        cancel_btn = Button(text="Cancel")
         btn_layout.add_widget(save_btn)
         btn_layout.add_widget(cancel_btn)
         content.add_widget(btn_layout)
 
         popup = Popup(
-            title='إدخال النتيجة',
+            title='Enter Score',
             content=content,
             size_hint=(0.8, 0.4)
         )
