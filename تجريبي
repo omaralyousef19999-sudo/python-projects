@@ -1,0 +1,139 @@
+from kivy.app import App
+from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.label import Label
+from kivy.uix.button import Button
+from kivy.uix.scrollview import ScrollView
+from kivy.uix.gridlayout import GridLayout
+from kivy.uix.tabbedpanel import TabbedPanel, TabbedPanelItem
+from kivy.uix.modalview import ModalView
+from kivy.uix.popup import Popup
+from kivy.clock import Clock
+from kivy.graphics import Color, Rectangle, RoundedRectangle
+from kivy.core.window import Window
+from kivy.metrics import dp
+from kivy.uix.image import AsyncImage
+import json
+import os
+from datetime import datetime
+
+Window.clearcolor = (0.05, 0.08, 0.15, 1)
+
+team_logos = {
+    "Paris Saint-Germain": "https://upload.wikimedia.org/wikipedia/en/a/a7/Paris_Saint-Germain_F.C..svg",
+    "Real Madrid": "https://upload.wikimedia.org/wikipedia/en/5/56/Real_Madrid_CF.svg",
+    "Manchester City": "https://upload.wikimedia.org/wikipedia/en/e/eb/Manchester_City_FC_badge.svg",
+    "Bayern München": "https://upload.wikimedia.org/wikipedia/en/1/1f/FC_Bayern_München_logo_%282017%29.svg",
+    "Liverpool": "https://upload.wikimedia.org/wikipedia/en/0/0c/Liverpool_FC.svg",
+    "Inter": "https://upload.wikimedia.org/wikipedia/commons/0/05/FC_Internazionale_Milano_2021.svg",
+    "Chelsea": "https://upload.wikimedia.org/wikipedia/en/c/cc/Chelsea_FC.svg",
+}
+
+class ModernLabel(Label):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.color = (1,1,1,1)
+
+class ModernButton(Button):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.background_normal = ''
+        self.background_color = (0.2, 0.4, 0.8, 1)
+        self.color = (1,1,1,1)
+
+
+class CardLayout(BoxLayout):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.orientation = 'vertical'
+        self.padding = dp(10)
+        with self.canvas.before:
+            Color(0.15, 0.2, 0.3, 1)
+            self.rect = RoundedRectangle(pos=self.pos, size=self.size, radius=[dp(10)])
+        self.bind(pos=self.update_rect, size=self.update_rect)
+    def update_rect(self, *args):
+        self.rect.pos = self.pos
+        self.rect.size = self.size
+
+
+class ChampionsLeagueApp(App):
+    def build(self):
+        self.title = "UEFA Champions League 🏆"
+        self.data_manager = DataManager()
+
+        self.main_layout = BoxLayout(orientation='vertical')
+
+        self.create_header()
+        self.create_tabs()
+
+        # 🔥 تحميل المباريات بعد إنشاء الواجهة
+        Clock.schedule_once(self.load_data, 0.3)
+
+        return self.main_layout
+
+    def create_header(self):
+        header = BoxLayout(size_hint=(1, None), height=dp(60), padding=dp(10))
+        with header.canvas.before:
+            Color(0.1, 0.15, 0.25, 1)
+            Rectangle(pos=header.pos, size=header.size)
+        header.bind(size=self._update_bg, pos=self._update_bg)
+
+        title = ModernLabel(text='🏆 UEFA Champions League', font_size=dp(20))
+        header.add_widget(title)
+        self.main_layout.add_widget(header)
+
+    def _update_bg(self, instance, value):
+        instance.canvas.before.children[-1].pos = instance.pos
+        instance.canvas.before.children[-1].size = instance.size
+
+    def create_tabs(self):
+        self.tabs = TabbedPanel(do_default_tab=False)
+
+        matches_tab = TabbedPanelItem(text='⚽ Matches')
+
+        self.matches_content = ScrollView()
+        self.matches_layout = GridLayout(cols=1, spacing=dp(10), size_hint_y=None)
+        self.matches_layout.bind(minimum_height=self.matches_layout.setter('height'))
+        self.matches_content.add_widget(self.matches_layout)
+        matches_tab.add_widget(self.matches_content)
+
+        self.tabs.add_widget(matches_tab)
+        self.main_layout.add_widget(self.tabs)
+
+    def load_data(self, *args):
+        matches = self.data_manager.get_live_matches()
+        self.update_matches(matches)
+
+    def update_matches(self, matches):
+        self.matches_layout.clear_widgets()
+        for m in matches:
+            self.matches_layout.add_widget(self.create_match_card(m))
+
+    def create_match_card(self, match):
+        card = CardLayout(size_hint_y=None, height=dp(120))
+        layout = BoxLayout()
+
+        def logo(team):
+            if team in team_logos:
+                return AsyncImage(source=team_logos[team], size_hint=(None,None), size=(dp(50),dp(50)))
+            return ModernLabel(text=team[0], font_size=dp(28))
+
+        layout.add_widget(logo(match['team1']))
+        center_text = ModernLabel(text=f"{match['team1']} VS {match['team2']}", font_size=dp(15))
+        layout.add_widget(center_text)
+        layout.add_widget(logo(match['team2']))
+
+        card.add_widget(layout)
+        return card
+
+
+class DataManager:
+    def get_live_matches(self):
+        return [
+            {'team1': 'Real Madrid', 'team2': 'Manchester City'},
+            {'team1': 'Bayern München', 'team2': 'Liverpool'},
+            {'team1': 'Inter', 'team2': 'Chelsea'},
+        ]
+
+
+if __name__ == '__main__':
+    ChampionsLeagueApp().run()
