@@ -1,0 +1,35 @@
+def update_table(self):
+    df = get_standings()
+    if df.empty:
+        return
+
+    headers = ["الفريق","لعب","ف","ت","خ","له","عليه","فارق","نقاط"] if self.lang=="ar" else \
+              ["Team","P","W","D","L","GF","GA","GD","Pts"]
+
+    self.table.setColumnCount(len(headers))
+    self.table.setHorizontalHeaderLabels(headers)
+    self.table.setRowCount(len(df))
+
+    for i, r in df.iterrows():
+        row_values = [
+            r["name"], r["P"], r["W"], r["D"],
+            r["L"], r["GF"], r["GA"], r["GD"], r["Pts"]
+        ]
+
+        for col, val in enumerate(row_values):
+            item = QTableWidgetItem(str(val))
+            item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+
+            # أفضل 4 فرق — تمييز
+            if i == 0:
+                item.setBackground(QColor(0, 80, 150, 180))
+                item.setForeground(QColor(255, 215, 0))
+                item.setFont(QFont("Arial", 19, QFont.Weight.Bold))
+            elif i < 4:
+                item.setBackground(QColor(0, 60, 120, 160))
+            else:
+                item.setBackground(QColor(0, 40, 90, 120))
+
+            self.table.setItem(i, col, item)
+
+    self.table.resizeColumnsToContents()
