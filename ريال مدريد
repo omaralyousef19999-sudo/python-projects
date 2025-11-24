@@ -1,4 +1,4 @@
-# ucl_manager_auto_matches.py
+# ucl_manager_auto_matches_fixed.py
 import sys
 import sqlite3
 from pathlib import Path
@@ -12,8 +12,8 @@ import traceback
 
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from PyQt6.QtWidgets import *
-from PyQt6.QtCore import Qt, QDate
-from PyQt6.QtGui import QColor, QIcon, QFont
+from PyQt6.QtCore import Qt, QDate, QTimer
+from PyQt6.QtGui import QColor, QIcon, QFont, QKeyEvent
 
 # مكتبات التصدير
 try:
@@ -452,7 +452,7 @@ def get_qualified_for_next_stage(current_stage):
         return get_winners_from_stage(current_stage)
 
 def generate_all_group_matches():
-    """توليد جميع مباريات دور المجموعات تلقائياً"""
+    """توليد جميع مباريات دور المجموعات تلقائياً - الإصدار المعدل"""
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     try:
@@ -482,6 +482,8 @@ def generate_all_group_matches():
             
             # توليد جميع المباريات الممكنة في المجموعة (ذهاب وإياب)
             match_days = 0
+            matches_generated = 0
+            
             for i in range(len(group_teams)):
                 for j in range(i + 1, len(group_teams)):
                     # مباراة الذهاب
@@ -495,6 +497,7 @@ def generate_all_group_matches():
                     
                     if add_match(home_team, away_team, home_goals, away_goals, match_date, "Group Stage"):
                         match_count += 1
+                        matches_generated += 1
                     
                     # مباراة الإياب (بعد 3 أيام)
                     match_date_return = base_date.addDays(match_days + 3).toString("yyyy-MM-dd")
@@ -503,8 +506,14 @@ def generate_all_group_matches():
                     
                     if add_match(away_team, home_team, home_goals_return, away_goals_return, match_date_return, "Group Stage"):
                         match_count += 1
+                        matches_generated += 1
                     
-                    match_days += 6  # زيادة 6 أيام للمباراة التالية
+                    # زيادة الأيام بعد كل زوج من المباريات
+                    match_days += 6
+                    
+                    # تحديث الواجهة كل 4 مباريات لمنع التوقف
+                    if matches_generated % 4 == 0:
+                        QApplication.processEvents()
         
         conn.commit()
         return match_count
@@ -590,6 +599,9 @@ def generate_knockout_stage_matches(stage):
                        stage, 'single', 0, home_extra, away_extra, 
                        home_pen, away_pen, winner, win_method):
                 match_count += 1
+            
+            # تحديث الواجهة بعد كل مباراة
+            QApplication.processEvents()
         
         return match_count
         
@@ -597,7 +609,19 @@ def generate_knockout_stage_matches(stage):
         print(f"Error in generate_knockout_stage_matches: {e}")
         return 0
 
-# ---------- واجهة المستخدم ----------
+# ---------- واجهة المستخدم مع دعم الإدخال بالإنتر ----------
+class EnterLineEdit(QLineEdit):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.enter_callback = None
+        
+    def keyPressEvent(self, event: QKeyEvent):
+        if event.key() == Qt.Key.Key_Return or event.key() == Qt.Key.Key_Enter:
+            if self.enter_callback:
+                self.enter_callback()
+        else:
+            super().keyPressEvent(event)
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -757,7 +781,7 @@ class MainWindow(QMainWindow):
                 "تم إعادة تعيين البطولة بنجاح" if self.lang=="ar" else "Tournament reset successfully")
             self.refresh_ui()
 
-    # ---------- تاب الفرق ----------
+    # ---------- تاب الفرق مع دعم الإدخال بالإنتر ----------
     def tab_teams(self):
         w = QWidget()
         l = QVBoxLayout(w)
@@ -768,16 +792,33 @@ class MainWindow(QMainWindow):
         reset_teams_btn.clicked.connect(self.reset_teams)
         l.addWidget(reset_teams_btn)
         
-        g = QGroupBox("إضافة فريق جديد" if self.lang=="ar" else "Add New Team")
+        g = QGroupBox("إضافة فريق جديد (اضغط Enter للإضافة)" if self.lang=="ar" else "Add New Team (Press Enter to Add)")
         f = QFormLayout(g)
-        self.t_name_ar = QLineEdit()
-        self.t_name_en = QLineEdit()
-        self.t_country_ar = QLineEdit()
-        self.t_country_en = QLineEdit()
+        
+        # استخدام EnterLineEdit بدلاً من QLineEdit العادي
+        self.t_name_ar = EnterLineEdit()
+        self.t_name_ar.setPlaceholderText("أدخل اسم الفريق بالعربية" if self.lang=="ar" else "Enter team name in Arabic")
+        
+        self.t_name_en = EnterLineEdit()
+        self.t_name_en.setPlaceholderText("أدخل اسم الفريق بالإنجليزية" if self.lang=="ar" else "Enter team name in English")
+        
+        self.t_country_ar = EnterLineEdit()
+        self.t_country_ar.setPlaceholderText("أدخل اسم الدولة بالعربية" if self.lang=="ar" else "Enter country in Arabic")
+        
+        self.t_country_en = EnterLineEdit()
+        self.t_country_en.setPlaceholderText("أدخل اسم الدولة بالإنجليزية" if self.lang=="ar" else "Enter country in English")
+        
         self.t_group = QComboBox()
         self.t_group.addItems(["A","B","C","D","E","F","G","H"])
+        
         btn = QPushButton("إضافة الفريق" if self.lang=="ar" else "Add Team")
         btn.clicked.connect(self.add_team_act)
+        
+        # تعيين وظيفة الإنتر للحقول
+        self.t_name_ar.enter_callback = self.add_team_act
+        self.t_name_en.enter_callback = self.add_team_act
+        self.t_country_ar.enter_callback = self.add_team_act
+        self.t_country_en.enter_callback = self.add_team_act
         
         f.addRow("اسم الفريق (عربي):" if self.lang=="ar" else "Team Name (Arabic):", self.t_name_ar)
         f.addRow("اسم الفريق (إنجليزي):" if self.lang=="ar" else "Team Name (English):", self.t_name_en)
@@ -966,7 +1007,7 @@ class MainWindow(QMainWindow):
         else:
             QMessageBox.warning(self, "خطأ" if self.lang=="ar" else "Error", "املأ كل الحقول" if self.lang=="ar" else "Fill all fields")
 
-    # ---------- تاب المباريات ----------
+    # ---------- تاب المباريات مع دعم الإدخال بالإنتر ----------
     def tab_matches(self):
         w = QWidget()
         l = QVBoxLayout(w)
@@ -993,7 +1034,7 @@ class MainWindow(QMainWindow):
         reset_matches_btn.clicked.connect(self.reset_matches)
         l.addWidget(reset_matches_btn)
         
-        g = QGroupBox("إضافة مباراة" if self.lang=="ar" else "Add Match")
+        g = QGroupBox("إضافة مباراة (اضغط Enter للإضافة)" if self.lang=="ar" else "Add Match (Press Enter to Add)")
         f = QFormLayout(g)
         
         teams_df = get_teams()
@@ -1001,8 +1042,15 @@ class MainWindow(QMainWindow):
         
         self.h = QComboBox(); self.h.addItems(team_names)
         self.a = QComboBox(); self.a.addItems(team_names)
-        self.hg = QSpinBox(); self.hg.setRange(0,20)
-        self.ag = QSpinBox(); self.ag.setRange(0,20)
+        
+        # استخدام EnterLineEdit للأهداف
+        self.hg = EnterLineEdit()
+        self.hg.setPlaceholderText("0")
+        self.hg.setText("0")
+        
+        self.ag = EnterLineEdit()
+        self.ag.setPlaceholderText("0")
+        self.ag.setText("0")
         
         self.match_date = QDateEdit()
         self.match_date.setDate(QDate.currentDate())
@@ -1015,6 +1063,10 @@ class MainWindow(QMainWindow):
         
         btn = QPushButton("إضافة" if self.lang=="ar" else "Add")
         btn.clicked.connect(self.add_match_act)
+        
+        # تعيين وظيفة الإنتر لحقول الأهداف
+        self.hg.enter_callback = self.add_match_act
+        self.ag.enter_callback = self.add_match_act
         
         f.addRow("المضيف:" if self.lang=="ar" else "Home:", self.h)
         f.addRow("أهدافه:" if self.lang=="ar" else "Home Goals:", self.hg)
@@ -1090,7 +1142,7 @@ class MainWindow(QMainWindow):
         dlg.exec()
 
     def generate_all_matches(self, dlg):
-        """توليد جميع مباريات البطولة تلقائياً"""
+        """توليد جميع مباريات البطولة تلقائياً - الإصدار المعدل"""
         try:
             total_matches = 0
             
@@ -1100,9 +1152,13 @@ class MainWindow(QMainWindow):
             QApplication.processEvents()
             
             group_matches = generate_all_group_matches()
+            if group_matches == 0:
+                raise Exception("فشل في توليد مباريات دور المجموعات")
+            
             total_matches += group_matches
             
             # الانتظار قليلاً لعرض التقدم
+            QTimer.singleShot(500, lambda: None)
             QApplication.processEvents()
             
             # المرحلة 2: دور الـ16
@@ -1206,10 +1262,22 @@ class MainWindow(QMainWindow):
         stage = self.stage_combo.currentText()
         date = self.match_date.date().toString("yyyy-MM-dd")
         
+        # التحقق من صحة الأهداف
+        try:
+            hg = int(self.hg.text()) if self.hg.text() else 0
+            ag = int(self.ag.text()) if self.ag.text() else 0
+        except ValueError:
+            QMessageBox.warning(self, "خطأ" if self.lang=="ar" else "Error", 
+                "أدخل أرقاماً صحيحة للأهداف" if self.lang=="ar" else "Enter valid numbers for goals")
+            return
+        
         if h and a and h != a:
-            if add_match(h, a, self.hg.value(), self.ag.value(), date, stage):
+            if add_match(h, a, hg, ag, date, stage):
                 QMessageBox.information(self, "تم" if self.lang=="ar" else "Done", "تمت الإضافة" if self.lang=="ar" else "Added")
                 self.populate_matches_table()
+                # مسح الحقول بعد الإضافة
+                self.hg.setText("0")
+                self.ag.setText("0")
             else:
                 QMessageBox.warning(self, "خطأ" if self.lang=="ar" else "Error", "فشل في إضافة المباراة" if self.lang=="ar" else "Failed to add match")
         else:
