@@ -1,4 +1,4 @@
-# ucl_manager_enhanced_knockouts.py
+# ucl_manager_auto_matches.py
 import sys
 import sqlite3
 from pathlib import Path
@@ -451,6 +451,152 @@ def get_qualified_for_next_stage(current_stage):
     else:
         return get_winners_from_stage(current_stage)
 
+def generate_all_group_matches():
+    """توليد جميع مباريات دور المجموعات تلقائياً"""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    try:
+        # حذف مباريات المجموعات الحالية أولاً
+        c.execute("DELETE FROM matches WHERE stage = 'Group Stage'")
+        
+        # الحصول على جميع الفرق
+        teams_df = get_all_teams()
+        if teams_df.empty:
+            return 0
+        
+        match_count = 0
+        base_date = QDate.currentDate()
+        
+        # تجميع الفرق حسب المجموعات
+        groups = {}
+        for _, team in teams_df.iterrows():
+            group = team["group_char"]
+            if group not in groups:
+                groups[group] = []
+            groups[group].append(team["name_ar"])
+        
+        # توليد مباريات كل مجموعة
+        for group, group_teams in groups.items():
+            if len(group_teams) < 4:
+                continue
+            
+            # توليد جميع المباريات الممكنة في المجموعة (ذهاب وإياب)
+            match_days = 0
+            for i in range(len(group_teams)):
+                for j in range(i + 1, len(group_teams)):
+                    # مباراة الذهاب
+                    home_team = group_teams[i]
+                    away_team = group_teams[j]
+                    match_date = base_date.addDays(match_days).toString("yyyy-MM-dd")
+                    
+                    # نتائج عشوائية منطقية
+                    home_goals = random.randint(0, 4)
+                    away_goals = random.randint(0, 3)
+                    
+                    if add_match(home_team, away_team, home_goals, away_goals, match_date, "Group Stage"):
+                        match_count += 1
+                    
+                    # مباراة الإياب (بعد 3 أيام)
+                    match_date_return = base_date.addDays(match_days + 3).toString("yyyy-MM-dd")
+                    home_goals_return = random.randint(0, 3)
+                    away_goals_return = random.randint(0, 4)
+                    
+                    if add_match(away_team, home_team, home_goals_return, away_goals_return, match_date_return, "Group Stage"):
+                        match_count += 1
+                    
+                    match_days += 6  # زيادة 6 أيام للمباراة التالية
+        
+        conn.commit()
+        return match_count
+        
+    except Exception as e:
+        print(f"Error in generate_all_group_matches: {e}")
+        conn.rollback()
+        return 0
+    finally:
+        conn.close()
+
+def generate_knockout_stage_matches(stage):
+    """توليد مباريات مرحلة إقصائية تلقائياً"""
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        # الحصول على الفرق المتأهلة لهذه المرحلة
+        qualified_teams = get_qualified_for_next_stage(stage)
+        
+        if not qualified_teams:
+            return 0
+        
+        # تحديد عدد المباريات المطلوبة
+        if stage == "Round of 16":
+            required_teams = 16
+            matches_needed = 8
+        elif stage == "Quarter Final":
+            required_teams = 8
+            matches_needed = 4
+        elif stage == "Semi Final":
+            required_teams = 4
+            matches_needed = 2
+        elif stage == "Final":
+            required_teams = 2
+            matches_needed = 1
+        else:
+            return 0
+        
+        if len(qualified_teams) < required_teams:
+            return 0
+        
+        # استخدام الفرق المتاحة
+        available_teams = qualified_teams[:required_teams]
+        random.shuffle(available_teams)
+        match_count = 0
+        base_date = QDate.currentDate()
+        
+        for i in range(matches_needed):
+            home_team = available_teams[i * 2]
+            away_team = available_teams[i * 2 + 1]
+            
+            match_date = base_date.addDays(i * 3).toString("yyyy-MM-dd")
+            
+            # توليد نتائج واقعية
+            home_goals = random.randint(0, 3)
+            away_goals = random.randint(0, 2)
+            
+            # تحديد الفائز وطريقة الفوز
+            winner = ""
+            win_method = "normal"
+            home_extra = 0
+            away_extra = 0
+            home_pen = 0
+            away_pen = 0
+            
+            if home_goals == away_goals:
+                # وقت إضافي
+                home_extra = random.randint(0, 2)
+                away_extra = random.randint(0, 2)
+                
+                if home_goals + home_extra == away_goals + away_extra:
+                    # ركلات ترجيح
+                    win_method = "penalties"
+                    home_pen = random.randint(3, 5)
+                    away_pen = random.randint(2, 4)
+                    winner = home_team if home_pen > away_pen else away_team
+                else:
+                    win_method = "extra_time"
+                    winner = home_team if (home_goals + home_extra) > (away_goals + away_extra) else away_team
+            else:
+                winner = home_team if home_goals > away_goals else away_team
+            
+            if add_match(home_team, away_team, home_goals, away_goals, match_date, 
+                       stage, 'single', 0, home_extra, away_extra, 
+                       home_pen, away_pen, winner, win_method):
+                match_count += 1
+        
+        return match_count
+        
+    except Exception as e:
+        print(f"Error in generate_knockout_stage_matches: {e}")
+        return 0
+
 # ---------- واجهة المستخدم ----------
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -825,6 +971,22 @@ class MainWindow(QMainWindow):
         w = QWidget()
         l = QVBoxLayout(w)
         
+        # زر عمل مباريات تلقائي
+        auto_matches_group = QGroupBox("توليد المباريات تلقائياً" if self.lang=="ar" else "Auto Generate Matches")
+        auto_layout = QVBoxLayout(auto_matches_group)
+        
+        auto_desc = QLabel("سيتم توليد جميع مباريات المجموعات تلقائياً وإرسالها لواجهة الإقصاء" if self.lang=="ar" 
+                          else "Will generate all group stage matches automatically and send to knockout interface")
+        auto_desc.setWordWrap(True)
+        auto_layout.addWidget(auto_desc)
+        
+        auto_btn = QPushButton("عمل مباريات تلقائي لجميع المراحل" if self.lang=="ar" else "Auto Generate All Stage Matches")
+        auto_btn.setStyleSheet("background: #32CD32; color: white; font-weight: bold; padding: 12px; font-size: 16px;")
+        auto_btn.clicked.connect(self.generate_all_matches_dialog)
+        auto_layout.addWidget(auto_btn)
+        
+        l.addWidget(auto_matches_group)
+        
         # زر Reset خاص بالمباريات
         reset_matches_btn = QPushButton("حذف جميع المباريات" if self.lang=="ar" else "Delete All Matches")
         reset_matches_btn.setStyleSheet("background: #FF6B6B; color: white;")
@@ -881,6 +1043,136 @@ class MainWindow(QMainWindow):
         l.addWidget(self.matches_table)
         self.populate_matches_table()
         return w
+
+    def generate_all_matches_dialog(self):
+        """نافذة حوار لتوليد جميع مباريات البطولة تلقائياً"""
+        dlg = QDialog(self)
+        dlg.setWindowTitle("توليد جميع المباريات تلقائياً" if self.lang=="ar" else "Auto Generate All Matches")
+        dlg.resize(600, 500)
+        
+        layout = QVBoxLayout(dlg)
+        
+        # وصف العملية
+        desc_label = QLabel("سيتم توليد مباريات جميع مراحل البطولة تلقائياً:\n\n"
+                           "• دور المجموعات: 48 مباراة (6 مباريات لكل مجموعة)\n"
+                           "• دور الـ16: 8 مباريات\n" 
+                           "• ربع النهائي: 4 مباريات\n"
+                           "• نصف النهائي: 2 مباريات\n"
+                           "• النهائي: 1 مباراة\n\n"
+                           "سيتم إرسال النتائج تلقائياً لواجهة الإقصاء" 
+                           if self.lang=="ar" else
+                           "Will generate all tournament stages matches automatically:\n\n"
+                           "• Group Stage: 48 matches (6 per group)\n"
+                           "• Round of 16: 8 matches\n"
+                           "• Quarter Final: 4 matches\n"
+                           "• Semi Final: 2 matches\n"
+                           "• Final: 1 match\n\n"
+                           "Results will be sent automatically to knockout interface")
+        desc_label.setWordWrap(True)
+        desc_label.setStyleSheet("color: #E6F0FF; background: rgba(255,255,255,0.1); padding: 15px; border-radius: 8px; font-size: 14px;")
+        layout.addWidget(desc_label)
+        
+        # تقدم العملية
+        self.progress_label = QLabel("جاهز للبدء..." if self.lang=="ar" else "Ready to start...")
+        self.progress_label.setStyleSheet("color: #FFD700; font-weight: bold; font-size: 14px;")
+        layout.addWidget(self.progress_label)
+        
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setRange(0, 5)  # 5 مراحل
+        layout.addWidget(self.progress_bar)
+        
+        # زر البدء
+        start_btn = QPushButton("بدء توليد المباريات" if self.lang=="ar" else "Start Generating Matches")
+        start_btn.setStyleSheet("background: #32CD32; color: white; font-weight: bold; padding: 15px; font-size: 16px;")
+        start_btn.clicked.connect(lambda: self.generate_all_matches(dlg))
+        layout.addWidget(start_btn)
+        
+        dlg.exec()
+
+    def generate_all_matches(self, dlg):
+        """توليد جميع مباريات البطولة تلقائياً"""
+        try:
+            total_matches = 0
+            
+            # المرحلة 1: دور المجموعات
+            self.progress_label.setText("جاري توليد مباريات دور المجموعات..." if self.lang=="ar" else "Generating group stage matches...")
+            self.progress_bar.setValue(1)
+            QApplication.processEvents()
+            
+            group_matches = generate_all_group_matches()
+            total_matches += group_matches
+            
+            # الانتظار قليلاً لعرض التقدم
+            QApplication.processEvents()
+            
+            # المرحلة 2: دور الـ16
+            self.progress_label.setText("جاري توليد مباريات دور الـ16..." if self.lang=="ar" else "Generating Round of 16 matches...")
+            self.progress_bar.setValue(2)
+            QApplication.processEvents()
+            
+            round16_matches = generate_knockout_stage_matches("Round of 16")
+            total_matches += round16_matches
+            
+            # المرحلة 3: ربع النهائي
+            self.progress_label.setText("جاري توليد مباريات ربع النهائي..." if self.lang=="ar" else "Generating Quarter Final matches...")
+            self.progress_bar.setValue(3)
+            QApplication.processEvents()
+            
+            quarter_matches = generate_knockout_stage_matches("Quarter Final")
+            total_matches += quarter_matches
+            
+            # المرحلة 4: نصف النهائي
+            self.progress_label.setText("جاري توليد مباريات نصف النهائي..." if self.lang=="ar" else "Generating Semi Final matches...")
+            self.progress_bar.setValue(4)
+            QApplication.processEvents()
+            
+            semi_matches = generate_knockout_stage_matches("Semi Final")
+            total_matches += semi_matches
+            
+            # المرحلة 5: النهائي
+            self.progress_label.setText("جاري توليد مباراة النهائي..." if self.lang=="ar" else "Generating Final match...")
+            self.progress_bar.setValue(5)
+            QApplication.processEvents()
+            
+            final_matches = generate_knockout_stage_matches("Final")
+            total_matches += final_matches
+            
+            # اكتمال العملية
+            self.progress_label.setText("اكتمل توليد جميع المباريات!" if self.lang=="ar" else "All matches generated successfully!")
+            
+            # عرض النتائج
+            result_text = (f"تم توليد {total_matches} مباراة بنجاح:\n"
+                          f"• دور المجموعات: {group_matches} مباراة\n"
+                          f"• دور الـ16: {round16_matches} مباراة\n"
+                          f"• ربع النهائي: {quarter_matches} مباراة\n"
+                          f"• نصف النهائي: {semi_matches} مباراة\n"
+                          f"• النهائي: {final_matches} مباراة\n\n"
+                          "تم إرسال النتائج لواجهة الإقصاء تلقائياً" 
+                          if self.lang=="ar" else
+                          f"Successfully generated {total_matches} matches:\n"
+                          f"• Group Stage: {group_matches} matches\n"
+                          f"• Round of 16: {round16_matches} matches\n"
+                          f"• Quarter Final: {quarter_matches} matches\n"
+                          f"• Semi Final: {semi_matches} matches\n"
+                          f"• Final: {final_matches} matches\n\n"
+                          "Results sent to knockout interface automatically")
+            
+            QMessageBox.information(dlg, "تم بنجاح" if self.lang=="ar" else "Success", result_text)
+            
+            # تحديث الواجهات
+            self.populate_matches_table()
+            self.refresh_ui()
+            
+            # الانتقال لواجهة الإقصاء تلقائياً
+            self.tabs.setCurrentIndex(3)  # الفهرس 3 هو واجهة الإقصاء
+            
+            dlg.accept()
+            
+        except Exception as e:
+            print(f"خطأ في توليد المباريات: {str(e)}")
+            QMessageBox.critical(dlg, "خطأ" if self.lang=="ar" else "Error", 
+                f"حدث خطأ أثناء توليد المباريات: {str(e)}" if self.lang=="ar" 
+                else f"Error generating matches: {str(e)}")
 
     def refresh_teams_combo(self):
         teams_df = get_teams()
@@ -1417,81 +1709,7 @@ class MainWindow(QMainWindow):
         """توليد مباريات المرحلة الحالية تلقائياً"""
         try:
             current_stage = self.k_stage_combo.currentText()
-            qualified_teams = get_qualified_for_next_stage(current_stage)
-            
-            if not qualified_teams:
-                QMessageBox.warning(self, "تحذير" if self.lang=="ar" else "Warning",
-                    "لا توجد فرق متأهلة للمرحلة الحالية" if self.lang=="ar" 
-                    else "No qualified teams for current stage")
-                return
-            
-            # تحديد عدد المباريات المطلوبة
-            if current_stage == "Round of 16":
-                required_teams = 16
-                matches_needed = 8
-            elif current_stage == "Quarter Final":
-                required_teams = 8
-                matches_needed = 4
-            elif current_stage == "Semi Final":
-                required_teams = 4
-                matches_needed = 2
-            elif current_stage == "Final":
-                required_teams = 2
-                matches_needed = 1
-            else:
-                return
-            
-            if len(qualified_teams) < required_teams:
-                QMessageBox.warning(self, "تحذير" if self.lang=="ar" else "Warning",
-                    f"يحتاج إلى {required_teams} فرق، يوجد فقط {len(qualified_teams)}" if self.lang=="ar" 
-                    else f"Need {required_teams} teams, only {len(qualified_teams)} available")
-                return
-            
-            # استخدام الفرق المتاحة
-            available_teams = qualified_teams[:required_teams]
-            random.shuffle(available_teams)
-            match_count = 0
-            base_date = QDate.currentDate()
-            
-            for i in range(matches_needed):
-                home_team = available_teams[i * 2]
-                away_team = available_teams[i * 2 + 1]
-                
-                match_date = base_date.addDays(i * 3).toString("yyyy-MM-dd")
-                
-                # توليد نتائج واقعية
-                home_goals = random.randint(0, 3)
-                away_goals = random.randint(0, 2)
-                
-                # تحديد الفائز وطريقة الفوز
-                winner = ""
-                win_method = "normal"
-                home_extra = 0
-                away_extra = 0
-                home_pen = 0
-                away_pen = 0
-                
-                if home_goals == away_goals:
-                    # وقت إضافي
-                    home_extra = random.randint(0, 2)
-                    away_extra = random.randint(0, 2)
-                    
-                    if home_goals + home_extra == away_goals + away_extra:
-                        # ركلات ترجيح
-                        win_method = "penalties"
-                        home_pen = random.randint(3, 5)
-                        away_pen = random.randint(2, 4)
-                        winner = home_team if home_pen > away_pen else away_team
-                    else:
-                        win_method = "extra_time"
-                        winner = home_team if (home_goals + home_extra) > (away_goals + away_extra) else away_team
-                else:
-                    winner = home_team if home_goals > away_goals else away_team
-                
-                if add_match(home_team, away_team, home_goals, away_goals, match_date, 
-                           current_stage, 'single', 0, home_extra, away_extra, 
-                           home_pen, away_pen, winner, win_method):
-                    match_count += 1
+            match_count = generate_knockout_stage_matches(current_stage)
             
             if match_count > 0:
                 QMessageBox.information(self, "تم" if self.lang=="ar" else "Done", 
@@ -1502,7 +1720,8 @@ class MainWindow(QMainWindow):
                 self.update_qualified_teams_display()
             else:
                 QMessageBox.warning(self, "تحذير" if self.lang=="ar" else "Warning",
-                    "لم يتم إضافة أي مباريات" if self.lang=="ar" else "No matches were added")
+                    "لا توجد فرق كافية أو لم يتم توليد أي مباريات" if self.lang=="ar" 
+                    else "Not enough teams or no matches generated")
                 
         except Exception as e:
             print(f"خطأ في توليد المباريات: {str(e)}")
