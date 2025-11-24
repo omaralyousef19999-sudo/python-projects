@@ -1,5 +1,5 @@
-# ucl_manager_final_fixed_v5.py
-# كامل ومحدّث: إصلاح أخطاء قاعدة البيانات، زر Reset في كل واجهات، نظام الذهاب والإياب
+# ucl_manager_final_fixed_v6.py
+# كامل ومحدّث: إصلاح جميع الأخطاء بما فيها توليد المباريات الافتراضية
 import sys
 import sqlite3
 from pathlib import Path
@@ -9,6 +9,7 @@ import tempfile
 import os
 import datetime
 import random
+import traceback
 
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from PyQt6.QtWidgets import *
@@ -1346,14 +1347,21 @@ class MainWindow(QMainWindow):
 
     def generate_demo_knockout_matches(self):
         try:
+            # الحصول على الفرق (باستخدام الاسم العربي دائماً في قاعدة البيانات)
             teams_df = get_teams()
-            team_names = teams_df["name_ar"].tolist() if self.lang == "ar" else teams_df["name_en"].tolist()
-            
-            if len(team_names) < 2:
+            if teams_df.empty or len(teams_df) < 2:
                 QMessageBox.warning(self, "خطأ" if self.lang=="ar" else "Error", "لا يوجد فرق كافية" if self.lang=="ar" else "Not enough teams")
                 return
             
             stage = self.k_stage_combo.currentText()
+            
+            # استخدام الاسم العربي دائماً في قاعدة البيانات
+            team_names = teams_df["name_ar"].tolist()
+            
+            if len(team_names) < 2:
+                QMessageBox.warning(self, "خطأ" if self.lang=="ar" else "Error", "لا يوجد فرق كافية" if self.lang=="ar" else "Not enough teams")
+                return
+                
             import random
             
             # نسخ القائمة وتحديد عدد المباريات الآمن
@@ -1365,6 +1373,9 @@ class MainWindow(QMainWindow):
             match_count = 0
             
             for i in range(max_matches):
+                if (i * 2 + 1) >= len(available_teams):
+                    break  # تجنب تجاوز حدود المصفوفة
+                    
                 pair_id = random.randint(1000, 9999)
                 home = available_teams[i * 2]
                 away = available_teams[i * 2 + 1]
@@ -1383,6 +1394,7 @@ class MainWindow(QMainWindow):
             
         except Exception as e:
             print(f"Error in generate_demo_knockout_matches: {e}")
+            print(f"Full traceback: {traceback.format_exc()}")
             QMessageBox.critical(self, "خطأ" if self.lang=="ar" else "Error", 
                 f"حدث خطأ غير متوقع: {str(e)}" if self.lang=="ar" else f"Unexpected error: {str(e)}")
 
