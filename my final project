@@ -1,4 +1,4 @@
-# ucl_manager_final_fixed_v4.py
+# ucl_manager_final_fixed_v5.py
 # كامل ومحدّث: إصلاح أخطاء قاعدة البيانات، زر Reset في كل واجهات، نظام الذهاب والإياب
 import sys
 import sqlite3
@@ -41,13 +41,17 @@ def init_db():
     c.execute("DROP TABLE IF EXISTS teams")
     c.execute("DROP TABLE IF EXISTS matches")
     
-    # إنشاء جدول الفرق مع الحقل eliminated
+    # إنشاء جدول الفرق مع الحقول الجديدة
     c.execute('''CREATE TABLE IF NOT EXISTS teams (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT UNIQUE NOT NULL,
-        country TEXT,
+        name_ar TEXT NOT NULL,
+        name_en TEXT NOT NULL,
+        country_ar TEXT,
+        country_en TEXT,
         group_char TEXT,
-        eliminated BOOLEAN DEFAULT 0
+        eliminated BOOLEAN DEFAULT 0,
+        banned BOOLEAN DEFAULT 0,
+        UNIQUE(name_ar, name_en)
     )''')
     
     # إنشاء جدول المباريات مع الحقول الجديدة
@@ -60,74 +64,76 @@ def init_db():
         date TEXT,
         stage TEXT,
         leg TEXT DEFAULT 'single',
-        knockout_pair_id INTEGER DEFAULT 0
+        knockout_pair_id INTEGER DEFAULT 0,
+        status TEXT DEFAULT 'scheduled'
     )''')
     
-    # إضافة فرق دوري الأبطال الافتراضية
+    # إضافة فرق دوري الأبطال الافتراضية (عربي وإنجليزي)
     default_teams = [
         # المجموعة A
-        ("بايرن ميونخ", "ألمانيا", "A"),
-        ("مانشستر يونايتد", "إنجلترا", "A"),
-        ("كوبنهاغن", "الدنمارك", "A"),
-        ("غلطة سراي", "تركيا", "A"),
+        ("بايرن ميونخ", "Bayern Munich", "ألمانيا", "Germany", "A"),
+        ("مانشستر يونايتد", "Manchester United", "إنجلترا", "England", "A"),
+        ("كوبنهاغن", "Copenhagen", "الدنمارك", "Denmark", "A"),
+        ("غلطة سراي", "Galatasaray", "تركيا", "Turkey", "A"),
         
         # المجموعة B
-        ("أرسنال", "إنجلترا", "B"),
-        ("بوروسيا دورتموند", "ألمانيا", "B"),
-        ("آيندهوفن", "هولندا", "B"),
-        ("نابولي", "إيطاليا", "B"),
+        ("أرسنال", "Arsenal", "إنجلترا", "England", "B"),
+        ("بوروسيا دورتموند", "Borussia Dortmund", "ألمانيا", "Germany", "B"),
+        ("آيندهوفن", "PSV Eindhoven", "هولندا", "Netherlands", "B"),
+        ("نابولي", "Napoli", "إيطاليا", "Italy", "B"),
         
         # المجموعة C
-        ("ريال مدريد", "إسبانيا", "C"),
-        ("إنتر ميلان", "إيطاليا", "C"),
-        ("بنفيكا", "البرتغال", "C"),
-        ("ريد بل زالتسبورغ", "النمسا", "C"),
+        ("ريال مدريد", "Real Madrid", "إسبانيا", "Spain", "C"),
+        ("إنتر ميلان", "Inter Milan", "إيطاليا", "Italy", "C"),
+        ("بنفيكا", "Benfica", "البرتغال", "Portugal", "C"),
+        ("ريد بل زالتسبورغ", "Red Bull Salzburg", "النمسا", "Austria", "C"),
         
         # المجموعة D
-        ("أتلتيكو مدريد", "إسبانيا", "D"),
-        ("آينتراخت فرانكفورت", "ألمانيا", "D"),
-        ("سبورتنج لشبونة", "البرتغال", "D"),
-        ("سلتا فيغو", "إسبانيا", "D"),
+        ("أتلتيكو مدريد", "Atletico Madrid", "إسبانيا", "Spain", "D"),
+        ("آينتراخت فرانكفورت", "Eintracht Frankfurt", "ألمانيا", "Germany", "D"),
+        ("سبورتنج لشبونة", "Sporting Lisbon", "البرتغال", "Portugal", "D"),
+        ("سلتا فيغو", "Celta Vigo", "إسبانيا", "Spain", "D"),
         
         # المجموعة E
-        ("مانشستر سيتي", "إنجلترا", "E"),
-        ("برشلونة", "إسبانيا", "E"),
-        ("باير ليفركوزن", "ألمانيا", "E"),
-        ("شاختار دونيتسك", "أوكرانيا", "E"),
+        ("مانشستر سيتي", "Manchester City", "إنجلترا", "England", "E"),
+        ("برشلونة", "Barcelona", "إسبانيا", "Spain", "E"),
+        ("باير ليفركوزن", "Bayer Leverkusen", "ألمانيا", "Germany", "E"),
+        ("شاختار دونيتسك", "Shakhtar Donetsk", "أوكرانيا", "Ukraine", "E"),
         
         # المجموعة F
-        ("باريس سان جيرمان", "فرنسا", "F"),
-        ("يوفنتوس", "إيطاليا", "F"),
-        ("سي إف آر كلوج", "رومانيا", "F"),
-        ("سلافيا براغ", "التشيك", "F"),
+        ("باريس سان جيرمان", "Paris Saint-Germain", "فرنسا", "France", "F"),
+        ("يوفنتوس", "Juventus", "إيطاليا", "Italy", "F"),
+        ("سي إف آر كلوج", "CFR Cluj", "رومانيا", "Romania", "F"),
+        ("سلافيا براغ", "Slavia Prague", "التشيك", "Czech Republic", "F"),
         
         # المجموعة G
-        ("تشيلسي", "إنجلترا", "G"),
-        ("إيه سي ميلان", "إيطاليا", "G"),
-        ("أياكس", "هولندا", "G"),
-        ("فينورد", "هولندا", "G"),
+        ("تشيلسي", "Chelsea", "إنجلترا", "England", "G"),
+        ("إيه سي ميلان", "AC Milan", "إيطاليا", "Italy", "G"),
+        ("أياكس", "Ajax", "هولندا", "Netherlands", "G"),
+        ("فينورد", "Feyenoord", "هولندا", "Netherlands", "G"),
         
         # المجموعة H
-        ("ليفربول", "إنجلترا", "H"),
-        ("أتلتيك بيلباو", "إسبانيا", "H"),
-        ("أولمبيك مارسيليا", "فرنسا", "H"),
-        ("سلوفان براتيسلافا", "سلوفاكيا", "H")
+        ("ليفربول", "Liverpool", "إنجلترا", "England", "H"),
+        ("أتلتيك بيلباو", "Athletic Bilbao", "إسبانيا", "Spain", "H"),
+        ("أولمبيك مارسيليا", "Olympique Marseille", "فرنسا", "France", "H"),
+        ("سلوفان براتيسلافا", "Slovan Bratislava", "سلوفاكيا", "Slovakia", "H")
     ]
     
     for team in default_teams:
         try:
-            c.execute("INSERT INTO teams (name, country, group_char) VALUES (?, ?, ?)", team)
+            c.execute("INSERT INTO teams (name_ar, name_en, country_ar, country_en, group_char) VALUES (?, ?, ?, ?, ?)", team)
         except sqlite3.IntegrityError:
             pass  # تجاهل إذا كان الفريق موجوداً مسبقاً
     
     conn.commit()
     conn.close()
 
-def add_team(name, country, group):
+def add_team(name_ar, name_en, country_ar, country_en, group):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     try:
-        c.execute("INSERT INTO teams (name, country, group_char) VALUES (?, ?, ?)", (name, country, group))
+        c.execute("INSERT INTO teams (name_ar, name_en, country_ar, country_en, group_char) VALUES (?, ?, ?, ?, ?)", 
+                  (name_ar, name_en, country_ar, country_en, group))
         conn.commit()
         return True
     except sqlite3.IntegrityError:
@@ -144,24 +150,45 @@ def add_match(home, away, hg, ag, date, stage, leg='single', pair_id=0):
     conn.commit()
     conn.close()
 
-def get_teams(include_eliminated=False):
+def get_teams(include_eliminated=False, include_banned=False):
     conn = sqlite3.connect(DB_PATH)
     try:
-        if include_eliminated:
-            df = pd.read_sql_query("SELECT name FROM teams ORDER BY name", conn)
-        else:
-            df = pd.read_sql_query("SELECT name FROM teams WHERE eliminated = 0 ORDER BY name", conn)
-        return df["name"].tolist()
+        query = "SELECT name_ar, name_en FROM teams WHERE 1=1"
+        params = []
+        
+        if not include_eliminated:
+            query += " AND eliminated = 0"
+        if not include_banned:
+            query += " AND banned = 0"
+            
+        query += " ORDER BY name_ar"
+        
+        df = pd.read_sql_query(query, conn, params=params)
+        return df
     except Exception as e:
         print(f"Error in get_teams: {e}")
-        return []
+        return pd.DataFrame()
     finally:
         conn.close()
+
+def get_team_names(lang="ar", include_eliminated=False, include_banned=False):
+    df = get_teams(include_eliminated, include_banned)
+    if df.empty:
+        return []
+    
+    if lang == "ar":
+        return df["name_ar"].tolist()
+    else:
+        return df["name_en"].tolist()
 
 def get_all_teams():
     conn = sqlite3.connect(DB_PATH)
     try:
-        df = pd.read_sql_query("SELECT name, country, group_char, eliminated FROM teams ORDER BY name", conn)
+        df = pd.read_sql_query("""
+            SELECT name_ar, name_en, country_ar, country_en, group_char, eliminated, banned, id 
+            FROM teams 
+            ORDER BY name_ar
+        """, conn)
         return df
     except Exception as e:
         print(f"Error in get_all_teams: {e}")
@@ -173,51 +200,29 @@ def get_standings():
     conn = sqlite3.connect(DB_PATH)
     try:
         query = """
-        SELECT t.name, t.country, t.group_char, t.eliminated,
+        SELECT t.name_ar, t.name_en, t.country_ar, t.country_en, t.group_char, t.eliminated, t.banned,
                COUNT(m.id) AS P,
-               SUM(CASE WHEN (m.home_team = t.name AND m.home_goals > m.away_goals) OR 
-                             (m.away_team = t.name AND m.away_goals > m.home_goals) THEN 1 ELSE 0 END) AS W,
+               SUM(CASE WHEN (m.home_team = t.name_ar AND m.home_goals > m.away_goals) OR 
+                             (m.away_team = t.name_ar AND m.away_goals > m.home_goals) THEN 1 ELSE 0 END) AS W,
                SUM(CASE WHEN m.home_goals = m.away_goals AND m.home_goals IS NOT NULL THEN 1 ELSE 0 END) AS D,
-               SUM(CASE WHEN (m.home_team = t.name AND m.home_goals < m.away_goals) OR 
-                             (m.away_team = t.name AND m.away_goals < m.home_goals) THEN 1 ELSE 0 END) AS L,
-               COALESCE(SUM(CASE WHEN m.home_team = t.name THEN m.home_goals ELSE m.away_goals END), 0) AS GF,
-               COALESCE(SUM(CASE WHEN m.home_team = t.name THEN m.away_goals ELSE m.home_goals END), 0) AS GA,
-               (COALESCE(SUM(CASE WHEN m.home_team = t.name THEN m.home_goals ELSE m.away_goals END), 0) -
-                COALESCE(SUM(CASE WHEN m.home_team = t.name THEN m.away_goals ELSE m.home_goals END), 0)) AS GD,
-               SUM(CASE WHEN (m.home_team = t.name AND m.home_goals > m.away_goals) OR 
-                            (m.away_team = t.name AND m.away_goals > m.home_goals) THEN 3
+               SUM(CASE WHEN (m.home_team = t.name_ar AND m.home_goals < m.away_goals) OR 
+                             (m.away_team = t.name_ar AND m.away_goals < m.home_goals) THEN 1 ELSE 0 END) AS L,
+               COALESCE(SUM(CASE WHEN m.home_team = t.name_ar THEN m.home_goals ELSE m.away_goals END), 0) AS GF,
+               COALESCE(SUM(CASE WHEN m.home_team = t.name_ar THEN m.away_goals ELSE m.home_goals END), 0) AS GA,
+               (COALESCE(SUM(CASE WHEN m.home_team = t.name_ar THEN m.home_goals ELSE m.away_goals END), 0) -
+                COALESCE(SUM(CASE WHEN m.home_team = t.name_ar THEN m.away_goals ELSE m.home_goals END), 0)) AS GD,
+               SUM(CASE WHEN (m.home_team = t.name_ar AND m.home_goals > m.away_goals) OR 
+                            (m.away_team = t.name_ar AND m.away_goals > m.home_goals) THEN 3
                     WHEN m.home_goals = m.away_goals AND m.home_goals IS NOT NULL THEN 1 ELSE 0 END) AS Pts
-        FROM teams t LEFT JOIN matches m ON m.home_team = t.name OR m.away_team = t.name
-        GROUP BY t.name
+        FROM teams t LEFT JOIN matches m ON m.home_team = t.name_ar OR m.away_team = t.name_ar
+        GROUP BY t.name_ar
         ORDER BY Pts DESC, GD DESC, GF DESC
         """
         df = pd.read_sql_query(query, conn)
         return df
     except Exception as e:
         print(f"Error in get_standings: {e}")
-        # استعلام بديل في حالة وجود خطأ
-        query_fallback = """
-        SELECT t.name, t.country, t.group_char,
-               COUNT(m.id) AS P,
-               SUM(CASE WHEN (m.home_team = t.name AND m.home_goals > m.away_goals) OR 
-                             (m.away_team = t.name AND m.away_goals > m.home_goals) THEN 1 ELSE 0 END) AS W,
-               SUM(CASE WHEN m.home_goals = m.away_goals AND m.home_goals IS NOT NULL THEN 1 ELSE 0 END) AS D,
-               SUM(CASE WHEN (m.home_team = t.name AND m.home_goals < m.away_goals) OR 
-                             (m.away_team = t.name AND m.away_goals < m.home_goals) THEN 1 ELSE 0 END) AS L,
-               COALESCE(SUM(CASE WHEN m.home_team = t.name THEN m.home_goals ELSE m.away_goals END), 0) AS GF,
-               COALESCE(SUM(CASE WHEN m.home_team = t.name THEN m.away_goals ELSE m.home_goals END), 0) AS GA,
-               (COALESCE(SUM(CASE WHEN m.home_team = t.name THEN m.home_goals ELSE m.away_goals END), 0) -
-                COALESCE(SUM(CASE WHEN m.home_team = t.name THEN m.away_goals ELSE m.home_goals END), 0)) AS GD,
-               SUM(CASE WHEN (m.home_team = t.name AND m.home_goals > m.away_goals) OR 
-                            (m.away_team = t.name AND m.away_goals > m.home_goals) THEN 3
-                    WHEN m.home_goals = m.away_goals AND m.home_goals IS NOT NULL THEN 1 ELSE 0 END) AS Pts
-        FROM teams t LEFT JOIN matches m ON m.home_team = t.name OR m.away_team = t.name
-        GROUP BY t.name
-        ORDER BY Pts DESC, GD DESC, GF DESC
-        """
-        df = pd.read_sql_query(query_fallback, conn)
-        df['eliminated'] = 0  # إضافة عمود افتراضي
-        return df
+        return pd.DataFrame()
     finally:
         conn.close()
 
@@ -243,10 +248,50 @@ def eliminate_teams(team_names):
         c.execute("UPDATE teams SET eliminated = 0")
         # ثم إقصاء الفرق المحددة
         for team in team_names:
-            c.execute("UPDATE teams SET eliminated = 1 WHERE name = ?", (team,))
+            c.execute("UPDATE teams SET eliminated = 1 WHERE name_ar = ? OR name_en = ?", (team, team))
         conn.commit()
     except Exception as e:
         print(f"Error in eliminate_teams: {e}")
+    finally:
+        conn.close()
+
+def ban_team(team_name, ban_status):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    try:
+        c.execute("UPDATE teams SET banned = ? WHERE name_ar = ? OR name_en = ?", (ban_status, team_name, team_name))
+        conn.commit()
+    except Exception as e:
+        print(f"Error in ban_team: {e}")
+    finally:
+        conn.close()
+
+def delete_team(team_name):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    try:
+        # حذف المباريات المرتبطة أولاً
+        c.execute("DELETE FROM matches WHERE home_team = ? OR away_team = ?", (team_name, team_name))
+        # ثم حذف الفريق
+        c.execute("DELETE FROM teams WHERE name_ar = ? OR name_en = ?", (team_name, team_name))
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"Error in delete_team: {e}")
+        return False
+    finally:
+        conn.close()
+
+def delete_match(match_id):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    try:
+        c.execute("DELETE FROM matches WHERE id = ?", (match_id,))
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"Error in delete_match: {e}")
+        return False
     finally:
         conn.close()
 
@@ -255,7 +300,7 @@ def reset_tournament():
     c = conn.cursor()
     try:
         c.execute("DELETE FROM matches")
-        c.execute("UPDATE teams SET eliminated = 0")
+        c.execute("UPDATE teams SET eliminated = 0, banned = 0")
         conn.commit()
     except Exception as e:
         print(f"Error in reset_tournament: {e}")
@@ -278,13 +323,18 @@ def get_knockout_pairs(stage):
     finally:
         conn.close()
 
+def get_qualified_teams():
+    """الحصول على الفرق المتأهلة للإقصائيات (أفضل 16 فريق)"""
+    standings = get_standings()
+    return standings.head(16)
+
 # ---------- واجهة المستخدم ----------
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.lang = "ar"
         self.setWindowTitle("نظام دوري أبطال أوروبا 2025")
-        self.resize(1400, 850)
+        self.resize(1400, 900)
 
         # أيقونة البرنامج
         icon_path = Path("fifa.ico")
@@ -451,19 +501,24 @@ class MainWindow(QMainWindow):
         
         g = QGroupBox("إضافة فريق جديد" if self.lang=="ar" else "Add New Team")
         f = QFormLayout(g)
-        self.t_name = QLineEdit()
-        self.t_country = QLineEdit()
+        self.t_name_ar = QLineEdit()
+        self.t_name_en = QLineEdit()
+        self.t_country_ar = QLineEdit()
+        self.t_country_en = QLineEdit()
         self.t_group = QComboBox()
         self.t_group.addItems(["A","B","C","D","E","F","G","H"])
         btn = QPushButton("إضافة الفريق" if self.lang=="ar" else "Add Team")
         btn.clicked.connect(self.add_team_act)
-        f.addRow("اسم الفريق:" if self.lang=="ar" else "Team:", self.t_name)
-        f.addRow("الدولة:" if self.lang=="ar" else "Country:", self.t_country)
+        
+        f.addRow("اسم الفريق (عربي):" if self.lang=="ar" else "Team Name (Arabic):", self.t_name_ar)
+        f.addRow("اسم الفريق (إنجليزي):" if self.lang=="ar" else "Team Name (English):", self.t_name_en)
+        f.addRow("الدولة (عربي):" if self.lang=="ar" else "Country (Arabic):", self.t_country_ar)
+        f.addRow("الدولة (إنجليزي):" if self.lang=="ar" else "Country (English):", self.t_country_en)
         f.addRow("المجموعة:" if self.lang=="ar" else "Group:", self.t_group)
         f.addRow("", btn)
         l.addWidget(g)
 
-        # عرض جدول الفرق
+        # عرض جدول الفرق مع إجراءات
         grp2 = QGroupBox("قائمة الفرق" if self.lang=="ar" else "Teams List")
         v2 = QVBoxLayout(grp2)
         self.teams_table = QTableWidget()
@@ -488,27 +543,43 @@ class MainWindow(QMainWindow):
             
             # إعادة إضافة الفرق الافتراضية
             default_teams = [
-                ("بايرن ميونخ", "ألمانيا", "A"), ("مانشستر يونايتد", "إنجلترا", "A"),
-                ("كوبنهاغن", "الدنمارك", "A"), ("غلطة سراي", "تركيا", "A"),
-                ("أرسنال", "إنجلترا", "B"), ("بوروسيا دورتموند", "ألمانيا", "B"),
-                ("آيندهوفن", "هولندا", "B"), ("نابولي", "إيطاليا", "B"),
-                ("ريال مدريد", "إسبانيا", "C"), ("إنتر ميلان", "إيطاليا", "C"),
-                ("بنفيكا", "البرتغال", "C"), ("ريد بل زالتسبورغ", "النمسا", "C"),
-                ("أتلتيكو مدريد", "إسبانيا", "D"), ("آينتراخت فرانكفورت", "ألمانيا", "D"),
-                ("سبورتنج لشبونة", "البرتغال", "D"), ("سلتا فيغو", "إسبانيا", "D"),
-                ("مانشستر سيتي", "إنجلترا", "E"), ("برشلونة", "إسبانيا", "E"),
-                ("باير ليفركوزن", "ألمانيا", "E"), ("شاختار دونيتسك", "أوكرانيا", "E"),
-                ("باريس سان جيرمان", "فرنسا", "F"), ("يوفنتوس", "إيطاليا", "F"),
-                ("سي إف آر كلوج", "رومانيا", "F"), ("سلافيا براغ", "التشيك", "F"),
-                ("تشيلسي", "إنجلترا", "G"), ("إيه سي ميلان", "إيطاليا", "G"),
-                ("أياكس", "هولندا", "G"), ("فينورد", "هولندا", "G"),
-                ("ليفربول", "إنجلترا", "H"), ("أتلتيك بيلباو", "إسبانيا", "H"),
-                ("أولمبيك مارسيليا", "فرنسا", "H"), ("سلوفان براتيسلافا", "سلوفاكيا", "H")
+                ("بايرن ميونخ", "Bayern Munich", "ألمانيا", "Germany", "A"),
+                ("مانشستر يونايتد", "Manchester United", "إنجلترا", "England", "A"),
+                ("كوبنهاغن", "Copenhagen", "الدنمارك", "Denmark", "A"),
+                ("غلطة سراي", "Galatasaray", "تركيا", "Turkey", "A"),
+                ("أرسنال", "Arsenal", "إنجلترا", "England", "B"),
+                ("بوروسيا دورتموند", "Borussia Dortmund", "ألمانيا", "Germany", "B"),
+                ("آيندهوفن", "PSV Eindhoven", "هولندا", "Netherlands", "B"),
+                ("نابولي", "Napoli", "إيطاليا", "Italy", "B"),
+                ("ريال مدريد", "Real Madrid", "إسبانيا", "Spain", "C"),
+                ("إنتر ميلان", "Inter Milan", "إيطاليا", "Italy", "C"),
+                ("بنفيكا", "Benfica", "البرتغال", "Portugal", "C"),
+                ("ريد بل زالتسبورغ", "Red Bull Salzburg", "النمسا", "Austria", "C"),
+                ("أتلتيكو مدريد", "Atletico Madrid", "إسبانيا", "Spain", "D"),
+                ("آينتراخت فرانكفورت", "Eintracht Frankfurt", "ألمانيا", "Germany", "D"),
+                ("سبورتنج لشبونة", "Sporting Lisbon", "البرتغال", "Portugal", "D"),
+                ("سلتا فيغو", "Celta Vigo", "إسبانيا", "Spain", "D"),
+                ("مانشستر سيتي", "Manchester City", "إنجلترا", "England", "E"),
+                ("برشلونة", "Barcelona", "إسبانيا", "Spain", "E"),
+                ("باير ليفركوزن", "Bayer Leverkusen", "ألمانيا", "Germany", "E"),
+                ("شاختار دونيتسك", "Shakhtar Donetsk", "أوكرانيا", "Ukraine", "E"),
+                ("باريس سان جيرمان", "Paris Saint-Germain", "فرنسا", "France", "F"),
+                ("يوفنتوس", "Juventus", "إيطاليا", "Italy", "F"),
+                ("سي إف آر كلوج", "CFR Cluj", "رومانيا", "Romania", "F"),
+                ("سلافيا براغ", "Slavia Prague", "التشيك", "Czech Republic", "F"),
+                ("تشيلسي", "Chelsea", "إنجلترا", "England", "G"),
+                ("إيه سي ميلان", "AC Milan", "إيطاليا", "Italy", "G"),
+                ("أياكس", "Ajax", "هولندا", "Netherlands", "G"),
+                ("فينورد", "Feyenoord", "هولندا", "Netherlands", "G"),
+                ("ليفربول", "Liverpool", "إنجلترا", "England", "H"),
+                ("أتلتيك بيلباو", "Athletic Bilbao", "إسبانيا", "Spain", "H"),
+                ("أولمبيك مارسيليا", "Olympique Marseille", "فرنسا", "France", "H"),
+                ("سلوفان براتيسلافا", "Slovan Bratislava", "سلوفاكيا", "Slovakia", "H")
             ]
             
             for team in default_teams:
                 try:
-                    c.execute("INSERT INTO teams (name, country, group_char) VALUES (?, ?, ?)", team)
+                    c.execute("INSERT INTO teams (name_ar, name_en, country_ar, country_en, group_char) VALUES (?, ?, ?, ?, ?)", team)
                 except sqlite3.IntegrityError:
                     pass
             
@@ -520,16 +591,18 @@ class MainWindow(QMainWindow):
 
     def populate_teams_table(self):
         df = get_all_teams()
-        self.teams_table.setColumnCount(4)
-        headers = ["الاسم","الدولة","المجموعة","الحالة"] if self.lang=="ar" else ["Name","Country","Group","Status"]
+        self.teams_table.setColumnCount(8)
+        headers = ["الاسم العربي", "الاسم الإنجليزي", "الدولة عربي", "الدولة إنجليزي", "المجموعة", "الحالة", "محظور", "إجراءات"] if self.lang=="ar" else ["Arabic Name", "English Name", "Country (Ar)", "Country (En)", "Group", "Status", "Banned", "Actions"]
         self.teams_table.setHorizontalHeaderLabels(headers)
         self.teams_table.setRowCount(len(df))
         
         for i, row in df.iterrows():
             # بيانات الفريق
-            self.teams_table.setItem(i, 0, QTableWidgetItem(str(row["name"])))
-            self.teams_table.setItem(i, 1, QTableWidgetItem(str(row["country"])))
-            self.teams_table.setItem(i, 2, QTableWidgetItem(str(row["group_char"])))
+            self.teams_table.setItem(i, 0, QTableWidgetItem(str(row["name_ar"])))
+            self.teams_table.setItem(i, 1, QTableWidgetItem(str(row["name_en"])))
+            self.teams_table.setItem(i, 2, QTableWidgetItem(str(row["country_ar"])))
+            self.teams_table.setItem(i, 3, QTableWidgetItem(str(row["country_en"])))
+            self.teams_table.setItem(i, 4, QTableWidgetItem(str(row["group_char"])))
             
             # حالة الفريق
             status = "مقصي" if row.get("eliminated", 0) else "نشط"
@@ -538,19 +611,85 @@ class MainWindow(QMainWindow):
                 status_item.setBackground(QColor(255, 100, 100, 150))  # أحمر للفرق المقصية
             else:
                 status_item.setBackground(QColor(100, 255, 100, 150))  # أخضر للفرق النشطة
-            self.teams_table.setItem(i, 3, status_item)
+            self.teams_table.setItem(i, 5, status_item)
+            
+            # حالة الحظر
+            banned_status = "نعم" if row.get("banned", 0) else "لا"
+            banned_item = QTableWidgetItem(banned_status)
+            if row.get("banned", 0):
+                banned_item.setBackground(QColor(255, 0, 0, 150))  # أحمر للفرق المحظورة
+            self.teams_table.setItem(i, 6, banned_item)
+            
+            # أزرار الإجراءات
+            actions_widget = QWidget()
+            actions_layout = QHBoxLayout(actions_widget)
+            actions_layout.setContentsMargins(4, 4, 4, 4)
+            
+            # زر حذف الفريق
+            delete_btn = QPushButton("حذف" if self.lang=="ar" else "Delete")
+            delete_btn.setStyleSheet("background: #FF6B6B; color: white; padding: 5px; font-size: 12px;")
+            delete_btn.clicked.connect(lambda checked, team=row["name_ar"]: self.delete_team_confirm(team))
+            
+            # زر حظر/فك الحظر
+            ban_btn = QPushButton("حظر" if self.lang=="ar" else "Ban")
+            if row.get("banned", 0):
+                ban_btn.setText("فك الحظر" if self.lang=="ar" else "Unban")
+                ban_btn.setStyleSheet("background: #FFA500; color: white; padding: 5px; font-size: 12px;")
+            else:
+                ban_btn.setStyleSheet("background: #FF6B6B; color: white; padding: 5px; font-size: 12px;")
+            ban_btn.clicked.connect(lambda checked, team=row["name_ar"], current=row.get("banned", 0): self.toggle_ban_team(team, current))
+            
+            actions_layout.addWidget(delete_btn)
+            actions_layout.addWidget(ban_btn)
+            self.teams_table.setCellWidget(i, 7, actions_widget)
         
         self.teams_table.resizeColumnsToContents()
 
+    def delete_team_confirm(self, team_name):
+        reply = QMessageBox.question(self, 
+            "تأكيد الحذف" if self.lang=="ar" else "Confirm Delete",
+            f"هل تريد حذف الفريق {team_name}؟ سيتم حذف جميع مبارياته أيضاً." if self.lang=="ar" else f"Delete team {team_name}? All its matches will also be deleted.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        
+        if reply == QMessageBox.StandardButton.Yes:
+            if delete_team(team_name):
+                QMessageBox.information(self, "تم" if self.lang=="ar" else "Done", 
+                    "تم حذف الفريق بنجاح" if self.lang=="ar" else "Team deleted successfully")
+                self.populate_teams_table()
+            else:
+                QMessageBox.warning(self, "خطأ" if self.lang=="ar" else "Error", 
+                    "فشل في حذف الفريق" if self.lang=="ar" else "Failed to delete team")
+
+    def toggle_ban_team(self, team_name, current_status):
+        new_status = 0 if current_status else 1
+        action = "فك الحظر" if new_status == 0 else "حظر"
+        
+        reply = QMessageBox.question(self, 
+            "تأكيد" if self.lang=="ar" else "Confirm",
+            f"هل تريد {action} الفريق {team_name}؟" if self.lang=="ar" else f"{action} team {team_name}?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        
+        if reply == QMessageBox.StandardButton.Yes:
+            ban_team(team_name, new_status)
+            status_text = "محظور" if new_status == 1 else "نشط"
+            QMessageBox.information(self, "تم" if self.lang=="ar" else "Done", 
+                f"تم {action} الفريق بنجاح" if self.lang=="ar" else f"Team {action.lower()}ed successfully")
+            self.populate_teams_table()
+
     def add_team_act(self):
-        n = self.t_name.text().strip()
-        c = self.t_country.text().strip()
-        g = self.t_group.currentText()
-        if n and c:
-            if add_team(n, c, g):
+        name_ar = self.t_name_ar.text().strip()
+        name_en = self.t_name_en.text().strip()
+        country_ar = self.t_country_ar.text().strip()
+        country_en = self.t_country_en.text().strip()
+        group = self.t_group.currentText()
+        
+        if name_ar and name_en and country_ar and country_en:
+            if add_team(name_ar, name_en, country_ar, country_en, group):
                 QMessageBox.information(self, "تم" if self.lang=="ar" else "Done", "تم إضافة الفريق بنجاح" if self.lang=="ar" else "Team added")
-                self.t_name.clear()
-                self.t_country.clear()
+                self.t_name_ar.clear()
+                self.t_name_en.clear()
+                self.t_country_ar.clear()
+                self.t_country_en.clear()
                 self.populate_teams_table()
                 self.refresh_ui()
             else:
@@ -571,28 +710,39 @@ class MainWindow(QMainWindow):
         
         g = QGroupBox("إضافة مباراة" if self.lang=="ar" else "Add Match")
         f = QFormLayout(g)
-        teams = get_teams()
-        self.h = QComboBox(); self.h.addItems(teams)
-        self.a = QComboBox(); self.a.addItems(teams)
+        
+        teams_df = get_teams()
+        team_names = teams_df["name_ar"].tolist() if self.lang == "ar" else teams_df["name_en"].tolist()
+        
+        self.h = QComboBox(); self.h.addItems(team_names)
+        self.a = QComboBox(); self.a.addItems(team_names)
         self.hg = QSpinBox(); self.hg.setRange(0,20)
         self.ag = QSpinBox(); self.ag.setRange(0,20)
+        
+        self.match_date = QDateEdit()
+        self.match_date.setDate(QDate.currentDate())
+        self.match_date.setCalendarPopup(True)
+        
         self.stage_combo = QComboBox()
         self.stage_combo.addItems([
             "Group Stage", "Round of 16", "Quarter Final", "Semi Final", "Final"
         ])
+        
         btn = QPushButton("إضافة" if self.lang=="ar" else "Add")
         btn.clicked.connect(self.add_match_act)
+        
         f.addRow("المضيف:" if self.lang=="ar" else "Home:", self.h)
         f.addRow("أهدافه:" if self.lang=="ar" else "Home Goals:", self.hg)
         f.addRow("الضيف:" if self.lang=="ar" else "Away:", self.a)
         f.addRow("أهدافه:" if self.lang=="ar" else "Away Goals:", self.ag)
+        f.addRow("التاريخ:" if self.lang=="ar" else "Date:", self.match_date)
         f.addRow("الجولة:" if self.lang=="ar" else "Stage:", self.stage_combo)
         f.addRow("", btn)
         l.addWidget(g)
 
         h2 = QHBoxLayout()
         refresh_btn = QPushButton("تحديث الفرق" if self.lang=="ar" else "Refresh Teams")
-        refresh_btn.clicked.connect(lambda: (self.h.clear(), self.h.addItems(get_teams()), self.a.clear(), self.a.addItems(get_teams())))
+        refresh_btn.clicked.connect(self.refresh_teams_combo)
         h2.addWidget(refresh_btn)
 
         show_stage_label = QLabel("عرض:" if self.lang=="ar" else "Show:")
@@ -608,6 +758,15 @@ class MainWindow(QMainWindow):
         l.addWidget(self.matches_table)
         self.populate_matches_table()
         return w
+
+    def refresh_teams_combo(self):
+        teams_df = get_teams()
+        team_names = teams_df["name_ar"].tolist() if self.lang == "ar" else teams_df["name_en"].tolist()
+        
+        self.h.clear()
+        self.h.addItems(team_names)
+        self.a.clear()
+        self.a.addItems(team_names)
 
     def reset_matches(self):
         reply = QMessageBox.question(self, 
@@ -629,8 +788,10 @@ class MainWindow(QMainWindow):
         h = self.h.currentText()
         a = self.a.currentText()
         stage = self.stage_combo.currentText()
+        date = self.match_date.date().toString("yyyy-MM-dd")
+        
         if h and a and h != a:
-            add_match(h, a, self.hg.value(), self.ag.value(), QDate.currentDate().toString("yyyy-MM-dd"), stage)
+            add_match(h, a, self.hg.value(), self.ag.value(), date, stage)
             QMessageBox.information(self, "تم" if self.lang=="ar" else "Done", "تمت الإضافة" if self.lang=="ar" else "Added")
             self.populate_matches_table()
         else:
@@ -643,8 +804,8 @@ class MainWindow(QMainWindow):
         else:
             df = get_matches(sel)
         
-        self.matches_table.setColumnCount(7)
-        headers = ["المضيف", "الضيف", "أهداف المضيف", "أهداف الضيف", "التاريخ", "الجولة", "النوع"] if self.lang=="ar" else ["Home", "Away", "Home Goals", "Away Goals", "Date", "Stage", "Leg"]
+        self.matches_table.setColumnCount(9)
+        headers = ["المضيف", "الضيف", "أهداف المضيف", "أهداف الضيف", "التاريخ", "الجولة", "النوع", "الحالة", "إجراءات"] if self.lang=="ar" else ["Home", "Away", "Home Goals", "Away Goals", "Date", "Stage", "Leg", "Status", "Actions"]
         self.matches_table.setHorizontalHeaderLabels(headers)
         self.matches_table.setRowCount(len(df))
         
@@ -657,8 +818,48 @@ class MainWindow(QMainWindow):
             if self.lang == "en":
                 leg_type = "1st Leg" if row.get("leg") == "first" else "2nd Leg" if row.get("leg") == "second" else "Single"
             self.matches_table.setItem(i, 6, QTableWidgetItem(leg_type))
+            
+            # حالة المباراة
+            status = row.get("status", "scheduled")
+            status_text = "مجدولة" if status == "scheduled" else "مكتملة" if status == "completed" else "ملغاة"
+            if self.lang == "en":
+                status_text = "Scheduled" if status == "scheduled" else "Completed" if status == "completed" else "Cancelled"
+            status_item = QTableWidgetItem(status_text)
+            
+            if status == "completed":
+                status_item.setBackground(QColor(100, 255, 100, 150))  # أخضر للمباريات المكتملة
+            elif status == "cancelled":
+                status_item.setBackground(QColor(255, 100, 100, 150))  # أحمر للمباريات الملغاة
+            
+            self.matches_table.setItem(i, 7, status_item)
+            
+            # زر حذف المباراة
+            delete_btn = QPushButton("حذف" if self.lang=="ar" else "Delete")
+            delete_btn.setStyleSheet("background: #FF6B6B; color: white; padding: 5px; font-size: 12px;")
+            delete_btn.clicked.connect(lambda checked, mid=row["id"]: self.delete_match_confirm(mid))
+            
+            cell_widget = QWidget()
+            cell_layout = QHBoxLayout(cell_widget)
+            cell_layout.addWidget(delete_btn)
+            cell_layout.setContentsMargins(4, 4, 4, 4)
+            self.matches_table.setCellWidget(i, 8, cell_widget)
         
         self.matches_table.resizeColumnsToContents()
+
+    def delete_match_confirm(self, match_id):
+        reply = QMessageBox.question(self, 
+            "تأكيد الحذف" if self.lang=="ar" else "Confirm Delete",
+            "هل تريد حذف هذه المباراة؟" if self.lang=="ar" else "Delete this match?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        
+        if reply == QMessageBox.StandardButton.Yes:
+            if delete_match(match_id):
+                QMessageBox.information(self, "تم" if self.lang=="ar" else "Done", 
+                    "تم حذف المباراة بنجاح" if self.lang=="ar" else "Match deleted successfully")
+                self.populate_matches_table()
+            else:
+                QMessageBox.warning(self, "خطأ" if self.lang=="ar" else "Error", 
+                    "فشل في حذف المباراة" if self.lang=="ar" else "Failed to delete match")
 
     # ---------- تاب الترتيب ----------
     def tab_standings(self):
@@ -748,22 +949,42 @@ class MainWindow(QMainWindow):
             self.table.setRowCount(len(df))
 
             for i, row in df.iterrows():
+                team_name = row["name_ar"] if self.lang == "ar" else row["name_en"]
+                country = row["country_ar"] if self.lang == "ar" else row["country_en"]
+                
                 data = [
                     i + 1,  # المركز
-                    row["name"], 
-                    row["country"], 
+                    team_name, 
+                    country, 
                     row["group_char"],
                     row["P"], row["W"], row["D"], row["L"],
                     row["GF"], row["GA"], row["GD"], row["Pts"],
-                    "مقصي" if row.get("eliminated", 0) else "نشط"
                 ]
+                
+                # حالة الفريق
+                if row.get("banned", 0):
+                    status = "محظور"
+                    if self.lang == "en":
+                        status = "Banned"
+                elif row.get("eliminated", 0):
+                    status = "مقصي"
+                    if self.lang == "en":
+                        status = "Eliminated"
+                else:
+                    status = "نشط"
+                    if self.lang == "en":
+                        status = "Active"
+                
+                data.append(status)
 
                 for col, value in enumerate(data):
                     item = QTableWidgetItem(str(value))
                     item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
 
                     # تلوين الصفوف حسب المركز والحالة
-                    if row.get("eliminated", 0):
+                    if row.get("banned", 0):
+                        item.setBackground(QColor(255, 0, 0, 180))  # أحمر غامق للفرق المحظورة
+                    elif row.get("eliminated", 0):
                         item.setBackground(QColor(255, 100, 100, 180))  # أحمر للفرق المقصية
                     elif i == 0:
                         item.setBackground(QColor(255, 215, 0, 200))  # ذهبي للمركز الأول
@@ -810,23 +1031,23 @@ class MainWindow(QMainWindow):
             self.canvas.figure.clear()
             ax = self.canvas.figure.add_subplot(111)
 
-            teams_raw = df["name"].tolist()
+            teams_raw = df["name_ar"].tolist() if self.lang == "ar" else df["name_en"].tolist()
             points = df["Pts"].tolist()
             eliminated = df.get("eliminated", [0] * len(df)).tolist()
+            banned = df.get("banned", [0] * len(df)).tolist()
 
             teams = []
             colors = []
             for i, team in enumerate(teams_raw):
-                if any(ord(c) >= 0x0600 for c in team):
-                    teams.append(team[::-1])
-                else:
-                    teams.append(team)
+                teams.append(team)
                 
-                # لون مختلف للفرق المقصية
-                if eliminated[i]:
-                    colors.append("#FF6B6B")  # أحمر
+                # لون مختلف للفرق المحظورة والمقصية
+                if banned[i]:
+                    colors.append("#8B0000")  # أحمر غامق للفرق المحظورة
+                elif eliminated[i]:
+                    colors.append("#FF6B6B")  # أحمر للفرق المقصية
                 else:
-                    colors.append("#1E90FF")  # أزرق
+                    colors.append("#1E90FF")  # أزرق للفرق النشطة
 
             bars = ax.barh(range(len(teams)), points, color=colors, height=0.7)
             ax.set_facecolor("#001f3f")
@@ -874,6 +1095,14 @@ class MainWindow(QMainWindow):
         self.advance_btn.clicked.connect(self.advance_stage)
         f.addRow("", self.advance_btn)
 
+        # عرض الفرق المتأهلة
+        qualified_group = QGroupBox("الفرق المتأهلة للإقصائيات" if self.lang=="ar" else "Qualified Teams for Knockouts")
+        qualified_layout = QVBoxLayout(qualified_group)
+        self.qualified_list = QListWidget()
+        qualified_layout.addWidget(self.qualified_list)
+        l.addWidget(qualified_group)
+        self.update_qualified_teams()
+
         self.k_table = QTableWidget()
         l.addWidget(self.k_table)
 
@@ -900,6 +1129,17 @@ class MainWindow(QMainWindow):
         self.populate_knockout_table()
         return w
 
+    def update_qualified_teams(self):
+        """تحديث قائمة الفرق المتأهلة للإقصائيات"""
+        self.qualified_list.clear()
+        qualified_teams = get_qualified_teams()
+        
+        for _, team in qualified_teams.iterrows():
+            team_name = team["name_ar"] if self.lang == "ar" else team["name_en"]
+            points = team["Pts"]
+            item_text = f"{team_name} - {points} نقاط" if self.lang == "ar" else f"{team_name} - {points} points"
+            self.qualified_list.addItem(item_text)
+
     def reset_knockouts(self):
         reply = QMessageBox.question(self, 
             "تأكيد" if self.lang=="ar" else "Confirm",
@@ -914,6 +1154,7 @@ class MainWindow(QMainWindow):
             conn.commit()
             conn.close()
             self.populate_knockout_table()
+            self.update_qualified_teams()
             QMessageBox.information(self, "تم" if self.lang=="ar" else "Done", 
                 "تم إعادة تعيين الإقصائيات" if self.lang=="ar" else "Knockouts reset successfully")
 
@@ -921,8 +1162,8 @@ class MainWindow(QMainWindow):
         try:
             stage = self.k_stage_combo.currentText()
             df = get_matches(stage)
-            self.k_table.setColumnCount(8)
-            headers = ["المضيف", "الضيف", "أهداف المضيف", "أهداف الضيف", "التاريخ", "الجولة", "النوع", "إجراءات"] if self.lang=="ar" else ["Home","Away","Home Goals","Away Goals","Date","Stage","Leg","Actions"]
+            self.k_table.setColumnCount(9)
+            headers = ["المضيف", "الضيف", "أهداف المضيف", "أهداف الضيف", "التاريخ", "الجولة", "النوع", "الحالة", "إجراءات"] if self.lang=="ar" else ["Home","Away","Home Goals","Away Goals","Date","Stage","Leg","Status","Actions"]
             self.k_table.setHorizontalHeaderLabels(headers)
             self.k_table.setRowCount(len(df))
             
@@ -936,43 +1177,45 @@ class MainWindow(QMainWindow):
                     leg_type = "1st Leg" if row.get("leg") == "first" else "2nd Leg" if row.get("leg") == "second" else "Single"
                 self.k_table.setItem(i, 6, QTableWidgetItem(leg_type))
                 
+                # حالة المباراة
+                status = row.get("status", "scheduled")
+                status_text = "مجدولة" if status == "scheduled" else "مكتملة" if status == "completed" else "ملغاة"
+                if self.lang == "en":
+                    status_text = "Scheduled" if status == "scheduled" else "Completed" if status == "completed" else "Cancelled"
+                status_item = QTableWidgetItem(status_text)
+                
+                if status == "completed":
+                    status_item.setBackground(QColor(100, 255, 100, 150))
+                elif status == "cancelled":
+                    status_item.setBackground(QColor(255, 100, 100, 150))
+                
+                self.k_table.setItem(i, 7, status_item)
+                
                 # زر حذف المباراة
                 delete_btn = QPushButton("حذف" if self.lang=="ar" else "Delete")
                 delete_btn.setStyleSheet("background: #FF6B6B; color: white; padding: 5px; font-size: 12px;")
-                delete_btn.clicked.connect(lambda checked, mid=row["id"]: self.delete_match(mid))
+                delete_btn.clicked.connect(lambda checked, mid=row["id"]: self.delete_match_confirm(mid))
                 
                 cell_widget = QWidget()
                 cell_layout = QHBoxLayout(cell_widget)
                 cell_layout.addWidget(delete_btn)
                 cell_layout.setContentsMargins(4, 4, 4, 4)
-                self.k_table.setCellWidget(i, 7, cell_widget)
+                self.k_table.setCellWidget(i, 8, cell_widget)
             
             self.k_table.resizeColumnsToContents()
         except Exception as e:
             print(f"Error in populate_knockout_table: {e}")
 
-    def delete_match(self, match_id):
-        reply = QMessageBox.question(self, 
-            "تأكيد الحذف" if self.lang=="ar" else "Confirm Delete",
-            "هل تريد حذف هذه المباراة؟" if self.lang=="ar" else "Delete this match?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-        
-        if reply == QMessageBox.StandardButton.Yes:
-            conn = sqlite3.connect(DB_PATH)
-            c = conn.cursor()
-            c.execute("DELETE FROM matches WHERE id = ?", (match_id,))
-            conn.commit()
-            conn.close()
-            self.populate_knockout_table()
-
     def add_two_leg_match(self):
         dlg = QDialog(self)
         dlg.setWindowTitle("إضافة مباراتي الذهاب والإياب" if self.lang=="ar" else "Add Two-Leg Match")
         form = QFormLayout(dlg)
-        teams = get_teams()
         
-        home_cb = QComboBox(); home_cb.addItems(teams)
-        away_cb = QComboBox(); away_cb.addItems(teams)
+        teams_df = get_teams()
+        team_names = teams_df["name_ar"].tolist() if self.lang == "ar" else teams_df["name_en"].tolist()
+        
+        home_cb = QComboBox(); home_cb.addItems(team_names)
+        away_cb = QComboBox(); away_cb.addItems(team_names)
         
         form.addRow("فريق الذهاب (مضيف):" if self.lang=="ar" else "Home Team (1st Leg):", home_cb)
         form.addRow("فريق الإياب (مضيف):" if self.lang=="ar" else "Away Team (1st Leg):", away_cb)
@@ -1028,29 +1271,40 @@ class MainWindow(QMainWindow):
         
         # الحصول على الفرق المتأهلة (الفرق التي لديها نقاط أكثر)
         standings = get_standings()
-        qualified_teams = standings.head(teams_to_keep)["name"].tolist()
+        qualified_teams = standings.head(teams_to_keep)["name_ar"].tolist()
         
         # إقصاء الفرق الأخرى
-        all_teams = get_all_teams()["name"].tolist()
+        all_teams = get_all_teams()["name_ar"].tolist()
         eliminated_teams = [team for team in all_teams if team not in qualified_teams]
         eliminate_teams(eliminated_teams)
         
+        qualified_names = [standings.iloc[i]["name_ar"] if self.lang == "ar" else standings.iloc[i]["name_en"] for i in range(teams_to_keep)]
+        
         QMessageBox.information(self, "تم" if self.lang=="ar" else "Done", 
-            f"تم التقدم ل{next_stage}. الفرق المتأهلة: {', '.join(qualified_teams)}" if self.lang=="ar" 
-            else f"Advanced to {next_stage}. Qualified teams: {', '.join(qualified_teams)}")
+            f"تم التقدم ل{next_stage}. الفرق المتأهلة: {', '.join(qualified_names)}" if self.lang=="ar" 
+            else f"Advanced to {next_stage}. Qualified teams: {', '.join(qualified_names)}")
         
         self.k_stage_combo.setCurrentText(next_stage)
+        self.update_qualified_teams()
         self.refresh_ui()
 
     def add_knockout_match_dialog(self):
         dlg = QDialog(self)
         dlg.setWindowTitle("إضافة مباراة إقصائية" if self.lang=="ar" else "Add Knockout Match")
         form = QFormLayout(dlg)
-        teams = get_teams()
-        home_cb = QComboBox(); home_cb.addItems(teams)
-        away_cb = QComboBox(); away_cb.addItems(teams)
+        
+        teams_df = get_teams()
+        team_names = teams_df["name_ar"].tolist() if self.lang == "ar" else teams_df["name_en"].tolist()
+        
+        home_cb = QComboBox(); home_cb.addItems(team_names)
+        away_cb = QComboBox(); away_cb.addItems(team_names)
         hg = QSpinBox(); hg.setRange(0,20)
         ag = QSpinBox(); ag.setRange(0,20)
+        
+        match_date = QDateEdit()
+        match_date.setDate(QDate.currentDate())
+        match_date.setCalendarPopup(True)
+        
         stage_cb = QComboBox(); stage_cb.addItems(["Round of 16", "Quarter Final", "Semi Final", "Final"])
         leg_cb = QComboBox()
         leg_cb.addItems(["مفردة", "ذهاب", "إياب"] if self.lang=="ar" else ["Single", "1st Leg", "2nd Leg"])
@@ -1059,6 +1313,7 @@ class MainWindow(QMainWindow):
         form.addRow("أهدافه:" if self.lang=="ar" else "Home Goals:", hg)
         form.addRow("الضيف:" if self.lang=="ar" else "Away:", away_cb)
         form.addRow("أهدافه:" if self.lang=="ar" else "Away Goals:", ag)
+        form.addRow("التاريخ:" if self.lang=="ar" else "Date:", match_date)
         form.addRow("الجولة:" if self.lang=="ar" else "Stage:", stage_cb)
         form.addRow("النوع:" if self.lang=="ar" else "Leg Type:", leg_cb)
         
@@ -1069,7 +1324,8 @@ class MainWindow(QMainWindow):
             leg_map = {"مفردة": "single", "ذهاب": "first", "إياب": "second", 
                       "Single": "single", "1st Leg": "first", "2nd Leg": "second"}
             leg = leg_map[leg_cb.currentText()]
-            self._add_knockout_and_close(dlg, home_cb.currentText(), away_cb.currentText(), hg.value(), ag.value(), stage_cb.currentText(), leg)
+            date_str = match_date.date().toString("yyyy-MM-dd")
+            self._add_knockout_and_close(dlg, home_cb.currentText(), away_cb.currentText(), hg.value(), ag.value(), date_str, stage_cb.currentText(), leg)
         
         ok.clicked.connect(add_and_close)
         btns.addWidget(ok)
@@ -1079,9 +1335,9 @@ class MainWindow(QMainWindow):
         form.addRow(btns)
         dlg.exec()
 
-    def _add_knockout_and_close(self, dlg, home, away, hg, ag, stage, leg='single'):
+    def _add_knockout_and_close(self, dlg, home, away, hg, ag, date, stage, leg='single'):
         if home and away and home != away:
-            add_match(home, away, hg, ag, QDate.currentDate().toString("yyyy-MM-dd"), stage, leg)
+            add_match(home, away, hg, ag, date, stage, leg)
             dlg.accept()
             self.populate_knockout_table()
             QMessageBox.information(self, "تم" if self.lang=="ar" else "Done", "تمت الإضافة" if self.lang=="ar" else "Added")
@@ -1090,8 +1346,10 @@ class MainWindow(QMainWindow):
 
     def generate_demo_knockout_matches(self):
         try:
-            teams = get_teams()
-            if len(teams) < 2:
+            teams_df = get_teams()
+            team_names = teams_df["name_ar"].tolist() if self.lang == "ar" else teams_df["name_en"].tolist()
+            
+            if len(team_names) < 2:
                 QMessageBox.warning(self, "خطأ" if self.lang=="ar" else "Error", "لا يوجد فرق كافية" if self.lang=="ar" else "Not enough teams")
                 return
             
@@ -1099,7 +1357,7 @@ class MainWindow(QMainWindow):
             import random
             
             # نسخ القائمة وتحديد عدد المباريات الآمن
-            available_teams = teams.copy()
+            available_teams = team_names.copy()
             random.shuffle(available_teams)
             
             # تحديد العدد الآمن من المباريات (لا يزيد عن 4 مباريات = 8 فرق)
@@ -1175,14 +1433,11 @@ class MainWindow(QMainWindow):
             fig = plt.figure(figsize=(11,6))
             ax = fig.add_subplot(111)
             if not df.empty:
-                teams_raw = df["name"].tolist()
+                teams_raw = df["name_ar"].tolist() if self.lang == "ar" else df["name_en"].tolist()
                 points = df["Pts"].tolist()
                 teams = []
                 for team in teams_raw:
-                    if any(ord(c) >= 0x0600 for c in team):
-                        teams.append(team[::-1])
-                    else:
-                        teams.append(team)
+                    teams.append(team)
                 ax.barh(range(len(teams)), points, color="#1E90FF", height=0.7)
                 ax.set_yticks(range(len(teams)))
                 ax.set_yticklabels(teams, fontsize=10)
@@ -1214,8 +1469,14 @@ class MainWindow(QMainWindow):
                 story.append(Paragraph("Standings / الترتيب", styles['Heading2']))
                 table_data = [[c for c in ["Team","P","W","D","L","GF","GA","GD","Pts","Status"]]]
                 for _, r in st_df.iterrows():
-                    status = "Eliminated" if r.get("eliminated", 0) else "Active"
-                    table_data.append([r["name"], int(r["P"]), int(r["W"]), int(r["D"]), int(r["L"]), int(r["GF"]), int(r["GA"]), int(r["GD"]), int(r["Pts"]), status])
+                    team_name = r["name_ar"] if self.lang == "ar" else r["name_en"]
+                    if r.get("banned", 0):
+                        status = "محظور" if self.lang == "ar" else "Banned"
+                    elif r.get("eliminated", 0):
+                        status = "مقصي" if self.lang == "ar" else "Eliminated"
+                    else:
+                        status = "نشط" if self.lang == "ar" else "Active"
+                    table_data.append([team_name, int(r["P"]), int(r["W"]), int(r["D"]), int(r["L"]), int(r["GF"]), int(r["GA"]), int(r["GD"]), int(r["Pts"]), status])
                 tbl = RLTable(table_data, repeatRows=1)
                 tbl.setStyle(TableStyle([
                     ('BACKGROUND', (0,0), (-1,0), rlcolors.HexColor("#1E90FF")),
@@ -1285,8 +1546,14 @@ class MainWindow(QMainWindow):
                     hdr_cells[i].text = h
                 for _, r in st_df.iterrows():
                     row_cells = table.add_row().cells
-                    status = "Eliminated" if r.get("eliminated", 0) else "Active"
-                    row_cells[0].text = str(r["name"])
+                    team_name = r["name_ar"] if self.lang == "ar" else r["name_en"]
+                    if r.get("banned", 0):
+                        status = "محظور" if self.lang == "ar" else "Banned"
+                    elif r.get("eliminated", 0):
+                        status = "مقصي" if self.lang == "ar" else "Eliminated"
+                    else:
+                        status = "نشط" if self.lang == "ar" else "Active"
+                    row_cells[0].text = team_name
                     row_cells[1].text = str(int(r["P"]))
                     row_cells[2].text = str(int(r["W"]))
                     row_cells[3].text = str(int(r["D"]))
@@ -1325,14 +1592,11 @@ class MainWindow(QMainWindow):
                 fig = plt.figure(figsize=(11,6))
                 ax = fig.add_subplot(111)
                 if not df.empty:
-                    teams_raw = df["name"].tolist()
+                    teams_raw = df["name_ar"].tolist() if self.lang == "ar" else df["name_en"].tolist()
                     points = df["Pts"].tolist()
                     teams = []
                     for team in teams_raw:
-                        if any(ord(c) >= 0x0600 for c in team):
-                            teams.append(team[::-1])
-                        else:
-                            teams.append(team)
+                        teams.append(team)
                     ax.barh(range(len(teams)), points, color="#1E90FF", height=0.7)
                     ax.set_yticks(range(len(teams)))
                     ax.set_yticklabels(teams, fontsize=10)
