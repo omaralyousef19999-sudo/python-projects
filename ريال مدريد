@@ -601,10 +601,6 @@ def generate_all_group_matches():
                     
                     # زيادة الأيام بعد كل زوج من المباريات
                     match_days += 6
-                    
-                    # تحديث الواجهة كل 4 مباريات لمنع التوقف
-                    if match_count % 4 == 0:
-                        QApplication.processEvents()
         
         conn.commit()
         print(f"تم توليد {match_count} مباراة في دور المجموعات")
@@ -719,9 +715,9 @@ def generate_knockout_stage_matches(stage):
     try:
         # الحصول على الفرق المتأهلة لهذه المرحلة
         if stage == "Round of 16":
-            qualified_teams = get_qualified_for_next_stage("Group Stage")
+            qualified_teams = get_qualified_for_next_stage_correct("Group Stage")
         else:
-            qualified_teams = get_qualified_for_next_stage(stage)
+            qualified_teams = get_qualified_for_next_stage_correct(stage)
         
         print(f"الفرق المتأهلة لمرحلة {stage}: {qualified_teams}")
         
@@ -797,9 +793,6 @@ def generate_knockout_stage_matches(stage):
                        home_pen, away_pen, winner, win_method):
                 match_count += 1
                 print(f"تمت إضافة مباراة إقصائية: {home_team} vs {away_team} - الفائز: {winner}")
-            
-            # تحديث الواجهة بعد كل مباراة
-            QApplication.processEvents()
         
         print(f"تم توليد {match_count} مباراة في مرحلة {stage}")
         return match_count
@@ -808,6 +801,33 @@ def generate_knockout_stage_matches(stage):
         print(f"خطأ في توليد مباريات مرحلة {stage}: {e}")
         traceback.print_exc()
         return 0
+
+def simple_auto_generate_all():
+    """توليد مبسط لجميع المراحل"""
+    try:
+        # 1. توليد دور المجموعات
+        group_matches = generate_all_group_matches()
+        
+        # 2. توليد دور الـ16
+        round_of_16_matches = generate_round_of_16_correct()
+        
+        # 3. توليد ربع النهائي
+        quarter_matches = generate_knockout_stage_matches("Quarter Final")
+        
+        # 4. توليد نصف النهائي
+        semi_matches = generate_knockout_stage_matches("Semi Final")
+        
+        # 5. توليد النهائي
+        final_matches = generate_knockout_stage_matches("Final")
+        
+        total = group_matches + round_of_16_matches + quarter_matches + semi_matches + final_matches
+        
+        QMessageBox.information(None, "تم", f"تم توليد {total} مباراة بنجاح!")
+        return True
+        
+    except Exception as e:
+        QMessageBox.critical(None, "خطأ", f"فشل في التوليد: {str(e)}")
+        return False
 
 # ---------- واجهة المستخدم مع دعم الإدخال بالإنتر ----------
 class EnterLineEdit(QLineEdit):
