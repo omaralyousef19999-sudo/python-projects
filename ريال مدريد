@@ -1,4 +1,4 @@
-# ucl_manager_fixed_sequential.py
+# ucl_manager_final_fixed.py
 import sys
 import sqlite3
 from pathlib import Path
@@ -46,7 +46,7 @@ def get_db_connection():
         conn.execute("PRAGMA busy_timeout=30000")
         return conn
     except sqlite3.Error as e:
-        print(f"خطأ في الاتصال بقاعدة البيانات: {e}")
+        print(f"❌ خطأ في الاتصال بقاعدة البيانات: {e}")
         return None
 
 def init_db():
@@ -171,9 +171,9 @@ def init_db():
                 pass
         
         conn.commit()
-        print("تم تهيئة قاعدة البيانات بنجاح")
+        print("✅ تم تهيئة قاعدة البيانات بنجاح")
     except Exception as e:
-        print(f"خطأ في تهيئة قاعدة البيانات: {e}")
+        print(f"❌ خطأ في تهيئة قاعدة البيانات: {e}")
         conn.rollback()
     finally:
         conn.close()
@@ -237,7 +237,7 @@ def add_match(home, away, hg, ag, date, stage, leg='single', pair_id=0,
         conn.commit()
         return True
     except Exception as e:
-        print(f"خطأ في إضافة المباراة: {e}")
+        print(f"❌ خطأ في إضافة المباراة: {e}")
         conn.rollback()
         return False
     finally:
@@ -261,7 +261,7 @@ def get_teams(include_eliminated=False, include_banned=False):
         df = pd.read_sql_query(query, conn, params=params)
         return df
     except Exception as e:
-        print(f"Error in get_teams: {e}")
+        print(f"❌ Error in get_teams: {e}")
         return pd.DataFrame()
     finally:
         conn.close()
@@ -288,7 +288,7 @@ def get_all_teams():
         """, conn)
         return df
     except Exception as e:
-        print(f"Error in get_all_teams: {e}")
+        print(f"❌ Error in get_all_teams: {e}")
         return pd.DataFrame()
     finally:
         conn.close()
@@ -320,7 +320,7 @@ def get_standings():
         df = pd.read_sql_query(query, conn)
         return df
     except Exception as e:
-        print(f"Error in get_standings: {e}")
+        print(f"❌ Error in get_standings: {e}")
         return pd.DataFrame()
     finally:
         conn.close()
@@ -376,7 +376,7 @@ def get_group_standings():
         df = pd.read_sql_query(query, conn)
         return df
     except Exception as e:
-        print(f"Error in get_group_standings: {e}")
+        print(f"❌ Error in get_group_standings: {e}")
         return pd.DataFrame()
     finally:
         conn.close()
@@ -392,7 +392,7 @@ def get_matches(stage=None):
             df = pd.read_sql_query("SELECT * FROM matches ORDER BY date, home_team", conn)
         return df
     except Exception as e:
-        print(f"Error in get_matches: {e}")
+        print(f"❌ Error in get_matches: {e}")
         return pd.DataFrame()
     finally:
         conn.close()
@@ -417,7 +417,7 @@ def get_knockout_matches():
         """, conn)
         return df
     except Exception as e:
-        print(f"Error in get_knockout_matches: {e}")
+        print(f"❌ Error in get_knockout_matches: {e}")
         return pd.DataFrame()
     finally:
         conn.close()
@@ -441,7 +441,7 @@ def get_knockout_results():
         """, conn)
         return df
     except Exception as e:
-        print(f"Error in get_knockout_results: {e}")
+        print(f"❌ Error in get_knockout_results: {e}")
         return pd.DataFrame()
     finally:
         conn.close()
@@ -457,7 +457,7 @@ def eliminate_teams(team_names):
             c.execute("UPDATE teams SET eliminated = 1 WHERE name_ar = ? OR name_en = ?", (team, team))
         conn.commit()
     except Exception as e:
-        print(f"Error in eliminate_teams: {e}")
+        print(f"❌ Error in eliminate_teams: {e}")
     finally:
         conn.close()
 
@@ -470,7 +470,7 @@ def ban_team(team_name, ban_status):
         c.execute("UPDATE teams SET banned = ? WHERE name_ar = ? OR name_en = ?", (ban_status, team_name, team_name))
         conn.commit()
     except Exception as e:
-        print(f"Error in ban_team: {e}")
+        print(f"❌ Error in ban_team: {e}")
     finally:
         conn.close()
 
@@ -485,7 +485,7 @@ def delete_team(team_name):
         conn.commit()
         return True
     except Exception as e:
-        print(f"Error in delete_team: {e}")
+        print(f"❌ Error in delete_team: {e}")
         return False
     finally:
         conn.close()
@@ -501,7 +501,7 @@ def delete_match(match_id):
         conn.commit()
         return True
     except Exception as e:
-        print(f"Error in delete_match: {e}")
+        print(f"❌ Error in delete_match: {e}")
         return False
     finally:
         conn.close()
@@ -517,18 +517,29 @@ def reset_tournament():
         c.execute("UPDATE teams SET eliminated = 0, banned = 0")
         conn.commit()
     except Exception as e:
-        print(f"Error in reset_tournament: {e}")
+        print(f"❌ Error in reset_tournament: {e}")
     finally:
         conn.close()
 
 def check_stage_completion(stage):
-    """التحقق من اكتمال مرحلة معينة"""
-    matches = get_matches(stage)
-    if matches.empty:
+    """التحقق من اكتمال مرحلة معينة بشكل أكثر دقة"""
+    try:
+        matches = get_matches(stage)
+        if matches.empty:
+            print(f"⚠️ لا توجد مباريات في مرحلة {stage}")
+            return False
+        
+        # التحقق من أن جميع المباريات لها فائز
+        completed_matches = matches[matches['winner'].notna() & (matches['winner'] != '')]
+        completion_ratio = len(completed_matches) / len(matches)
+        
+        print(f"📊 مرحلة {stage}: {len(completed_matches)}/{len(matches)} مباراة مكتملة ({completion_ratio:.1%})")
+        
+        return len(completed_matches) == len(matches)
+        
+    except Exception as e:
+        print(f"❌ خطأ في check_stage_completion: {e}")
         return False
-    
-    completed_matches = matches[matches['winner'].notna() & (matches['winner'] != '')]
-    return len(completed_matches) == len(matches)
 
 def get_qualified_teams_correct():
     """الحصول على الفرق المتأهلة حسب قواعد دوري الأبطال الحقيقية - المتصدرين والمركز الثاني"""
@@ -536,14 +547,18 @@ def get_qualified_teams_correct():
         df = get_group_standings()
         
         if df.empty:
-            print("لا توجد بيانات للترتيب")
+            print("❌ لا توجد بيانات للترتيب")
             return []
         
         group_winners = []
         runners_up = []
         
+        print("📊 ترتيب المجموعات:")
         for group in ['A','B','C','D','E','F','G','H']:
             group_teams = df[df['group_char'] == group]
+            print(f"   المجموعة {group}:")
+            for i, team in group_teams.iterrows():
+                print(f"     {i+1}. {team['name_ar']} - {team['Pts']} نقطة")
             
             if len(group_teams) >= 1:
                 group_winners.append({
@@ -560,22 +575,22 @@ def get_qualified_teams_correct():
                     'goal_difference': group_teams.iloc[1]['GD']
                 })
         
-        print(f"المتصدرون: {[w['name'] for w in group_winners]}")
-        print(f"المركز الثاني: {[r['name'] for r in runners_up]}")
+        print(f"✅ المتصدرون: {[w['name'] for w in group_winners]}")
+        print(f"✅ المركز الثاني: {[r['name'] for r in runners_up]}")
         
         qualified_teams = group_winners + runners_up
         
-        print(f"المجموع المتأهل: {len(qualified_teams)} فريق")
+        print(f"🎯 المجموع المتأهل: {len(qualified_teams)} فريق")
         
         return qualified_teams
         
     except Exception as e:
-        print(f"Error in get_qualified_teams_correct: {e}")
+        print(f"❌ Error in get_qualified_teams_correct: {e}")
         traceback.print_exc()
         return []
 
 def get_winners_from_stage(stage):
-    """الحصول على الفائزين من مرحلة معينة"""
+    """الحصول على الفائزين من مرحلة معينة بشكل موثوق"""
     conn = get_db_connection()
     if conn is None:
         return []
@@ -585,23 +600,37 @@ def get_winners_from_stage(stage):
             WHERE stage = ? AND winner IS NOT NULL AND winner != ''
             GROUP BY winner
         """, conn, params=(stage,))
-        return df["winner"].tolist()
+        
+        winners = df["winner"].tolist()
+        print(f"🏆 الفائزون من {stage}: {winners}")
+        return winners
+        
     except Exception as e:
-        print(f"Error in get_winners_from_stage: {e}")
+        print(f"❌ خطأ في get_winners_from_stage: {e}")
         return []
     finally:
         conn.close()
 
 def get_qualified_for_next_stage_correct(current_stage):
     """الحصول على الفرق المتأهلة للمرحلة التالية بناءً على نتائج المرحلة الحالية - الإصدار المصحح"""
-    if current_stage == "Group Stage":
-        qualified = get_qualified_teams_correct()
-        return [team['name'] for team in qualified]
-    else:
-        if not check_stage_completion(current_stage):
-            print(f"مرحلة {current_stage} لم تكتمل بعد")
-            return []
-        return get_winners_from_stage(current_stage)
+    try:
+        if current_stage == "Group Stage":
+            qualified = get_qualified_teams_correct()
+            return [team['name'] for team in qualified]
+        else:
+            # التحقق من اكتمال المرحلة الحالية أولاً
+            if not check_stage_completion(current_stage):
+                print(f"⚠️ مرحلة {current_stage} لم تكتمل بعد - لا توجد فرق متأهلة")
+                return []
+            
+            # الحصول على الفائزين من المرحلة الحالية
+            winners = get_winners_from_stage(current_stage)
+            print(f"✅ الفائزون من مرحلة {current_stage}: {winners}")
+            return winners
+            
+    except Exception as e:
+        print(f"❌ خطأ في get_qualified_for_next_stage_correct: {e}")
+        return []
 
 def generate_all_group_matches():
     """توليد جميع مباريات دور المجموعات تلقائياً"""
@@ -615,7 +644,7 @@ def generate_all_group_matches():
         
         teams_df = get_all_teams()
         if teams_df.empty:
-            print("لا توجد فرق في قاعدة البيانات")
+            print("❌ لا توجد فرق في قاعدة البيانات")
             return 0
         
         match_count = 0
@@ -628,14 +657,14 @@ def generate_all_group_matches():
                 groups[group] = []
             groups[group].append(team["name_ar"])
         
-        print(f"تم تجميع {len(groups)} مجموعة")
+        print(f"✅ تم تجميع {len(groups)} مجموعة")
         
         for group, group_teams in groups.items():
             if len(group_teams) < 4:
-                print(f"المجموعة {group} تحتوي على أقل من 4 فرق")
+                print(f"⚠️ المجموعة {group} تحتوي على أقل من 4 فرق")
                 continue
             
-            print(f"جاري توليد مباريات المجموعة {group}...")
+            print(f"🎯 جاري توليد مباريات المجموعة {group}...")
             
             match_days = 0
             
@@ -650,7 +679,7 @@ def generate_all_group_matches():
                     
                     if add_match(home_team, away_team, home_goals, away_goals, match_date, "Group Stage"):
                         match_count += 1
-                        print(f"تمت إضافة مباراة: {home_team} vs {away_team} - {home_goals}-{away_goals}")
+                        print(f"⚽ تمت إضافة مباراة: {home_team} vs {away_team} - {home_goals}-{away_goals}")
                     
                     match_date_return = base_date.addDays(match_days + 3).toString("yyyy-MM-dd")
                     home_goals_return = random.randint(0, 3)
@@ -658,15 +687,15 @@ def generate_all_group_matches():
                     
                     if add_match(away_team, home_team, home_goals_return, away_goals_return, match_date_return, "Group Stage"):
                         match_count += 1
-                        print(f"تمت إضافة مباراة: {away_team} vs {home_team} - {home_goals_return}-{away_goals_return}")
+                        print(f"⚽ تمت إضافة مباراة: {away_team} vs {home_team} - {home_goals_return}-{away_goals_return}")
                     
                     match_days += 6
         
-        print(f"تم توليد {match_count} مباراة في دور المجموعات")
+        print(f"✅ تم توليد {match_count} مباراة في دور المجموعات")
         return match_count
         
     except Exception as e:
-        print(f"خطأ في توليد مباريات المجموعات: {e}")
+        print(f"❌ خطأ في توليد مباريات المجموعات: {e}")
         traceback.print_exc()
         conn.rollback()
         return 0
@@ -679,15 +708,15 @@ def generate_round_of_16_correct():
         qualified_teams = get_qualified_teams_correct()
         
         if len(qualified_teams) < 16:
-            print(f"عدد الفرق المتأهلة غير كافي: {len(qualified_teams)} من 16")
-            print("يجب إكمال جميع مباريات دور المجموعات أولاً")
+            print(f"❌ عدد الفرق المتأهلة غير كافي: {len(qualified_teams)} من 16")
+            print("⚠️ يجب إكمال جميع مباريات دور المجموعات أولاً")
             return 0
         
         group_winners = [team for team in qualified_teams[:8]]
         runners_up = [team for team in qualified_teams[8:]]
         
-        print(f"المتصدرون: {[w['name'] for w in group_winners]}")
-        print(f"المركز الثاني: {[r['name'] for r in runners_up]}")
+        print(f"✅ المتصدرون: {[w['name'] for w in group_winners]}")
+        print(f"✅ المركز الثاني: {[r['name'] for r in runners_up]}")
         
         match_count = 0
         base_date = QDate.currentDate()
@@ -752,17 +781,17 @@ def generate_round_of_16_correct():
                            home_pen, away_pen, winner_team, win_method):
                     match_count += 1
                     matches_created.append(f"{home_team} vs {away_team} - الفائز: {winner_team}")
-                    print(f"مباراة دور الـ16: {home_team} ({winner['group']}) vs {away_team} ({suitable_runner['group']}) - الفائز: {winner_team}")
+                    print(f"🎯 مباراة دور الـ16: {home_team} ({winner['group']}) vs {away_team} ({suitable_runner['group']}) - الفائز: {winner_team}")
         
-        print(f"تم توليد {match_count} مباراة في دور الـ16")
-        print("المباريات المُنشأة:")
+        print(f"✅ تم توليد {match_count} مباراة في دور الـ16")
+        print("📋 المباريات المُنشأة:")
         for match in matches_created:
             print(f"  - {match}")
         
         return match_count
         
     except Exception as e:
-        print(f"خطأ في توليد دور الـ16: {e}")
+        print(f"❌ خطأ في توليد دور الـ16: {e}")
         traceback.print_exc()
         return 0
 
@@ -774,10 +803,10 @@ def generate_knockout_stage_matches(stage):
         else:
             qualified_teams = get_qualified_for_next_stage_correct(stage)
         
-        print(f"الفرق المتأهلة لمرحلة {stage}: {qualified_teams}")
+        print(f"🎯 الفرق المتأهلة لمرحلة {stage}: {qualified_teams}")
         
         if not qualified_teams:
-            print(f"لا توجد فرق متأهلة لمرحلة {stage}")
+            print(f"❌ لا توجد فرق متأهلة لمرحلة {stage}")
             return 0
         
         if stage == "Round of 16":
@@ -796,8 +825,8 @@ def generate_knockout_stage_matches(stage):
             return 0
         
         if len(qualified_teams) < required_teams:
-            print(f"عدد الفرق المتأهلة ({len(qualified_teams)}) أقل من المطلوب ({required_teams})")
-            print("يجب إكمال المرحلة السابقة أولاً")
+            print(f"❌ عدد الفرق المتأهلة ({len(qualified_teams)}) أقل من المطلوب ({required_teams})")
+            print("⚠️ يجب إكمال المرحلة السابقة أولاً")
             return 0
         
         available_teams = qualified_teams[:required_teams]
@@ -805,7 +834,7 @@ def generate_knockout_stage_matches(stage):
         match_count = 0
         base_date = QDate.currentDate()
         
-        print(f"جاري توليد {matches_needed} مباراة لمرحلة {stage}...")
+        print(f"🎯 جاري توليد {matches_needed} مباراة لمرحلة {stage}...")
         
         for i in range(matches_needed):
             home_team = available_teams[i * 2]
@@ -842,13 +871,13 @@ def generate_knockout_stage_matches(stage):
                        stage, 'single', 0, home_extra, away_extra, 
                        home_pen, away_pen, winner, win_method):
                 match_count += 1
-                print(f"تمت إضافة مباراة إقصائية: {home_team} vs {away_team} - الفائز: {winner}")
+                print(f"⚽ تمت إضافة مباراة إقصائية: {home_team} vs {away_team} - الفائز: {winner}")
         
-        print(f"تم توليد {match_count} مباراة في مرحلة {stage}")
+        print(f"✅ تم توليد {match_count} مباراة في مرحلة {stage}")
         return match_count
         
     except Exception as e:
-        print(f"خطأ في توليد مباريات مرحلة {stage}: {e}")
+        print(f"❌ خطأ في توليد مباريات مرحلة {stage}: {e}")
         traceback.print_exc()
         return 0
 
@@ -867,131 +896,109 @@ class GenerationThread(QThread):
             total_matches = 0
             
             # 1. توليد دور المجموعات
-            if self.cancelled: 
-                return
-            self.stage_updated.emit("جاري توليد دور المجموعات...")
+            if self.cancelled: return
+            self.stage_updated.emit("🎯 جاري توليد دور المجموعات...")
             self.progress_updated.emit(10)
             
             group_matches = generate_all_group_matches()
             if group_matches == 0:
-                self.finished_signal.emit(False, "فشل في توليد دور المجموعات")
+                self.finished_signal.emit(False, "❌ فشل في توليد دور المجموعات")
                 return
             total_matches += group_matches
+            
+            # الانتظار والتأكد من حفظ البيانات
+            time.sleep(2)
+            
+            # التحقق من اكتمال دور المجموعات
+            qualified_group = get_qualified_for_next_stage_correct("Group Stage")
+            if len(qualified_group) < 16:
+                self.finished_signal.emit(False, f"❌ عدد الفرق المتأهلة غير كافي: {len(qualified_group)} من 16")
+                return
+            
             self.progress_updated.emit(30)
             
-            time.sleep(1)
-            
-            # 2. التحقق من اكتمال دور المجموعات قبل الانتقال
-            if self.cancelled: 
-                return
-            self.stage_updated.emit("جاري التحقق من اكتمال دور المجموعات...")
-            
-            # الانتظار قليلاً للتأكد من حفظ البيانات
-            time.sleep(1)
-            
-            qualified_teams = get_qualified_teams_correct()
-            if len(qualified_teams) < 16:
-                self.finished_signal.emit(False, f"عدد الفرق المتأهلة غير كافي: {len(qualified_teams)} من 16")
-                return
-            
-            # 3. توليد دور الـ16
-            if self.cancelled: 
-                return
-            self.stage_updated.emit("جاري توليد دور الـ16...")
-            self.progress_updated.emit(40)
+            # 2. توليد دور الـ16
+            if self.cancelled: return
+            self.stage_updated.emit("🎯 جاري توليد دور الـ16...")
             
             round_of_16_matches = generate_round_of_16_correct()
             if round_of_16_matches == 0:
-                self.finished_signal.emit(False, "فشل في توليد دور الـ16")
+                self.finished_signal.emit(False, "❌ فشل في توليد دور الـ16")
                 return
             total_matches += round_of_16_matches
+            
+            # الانتظار والتأكد من حفظ البيانات
+            time.sleep(2)
+            
+            # التحقق من اكتمال دور الـ16
+            qualified_quarter = get_qualified_for_next_stage_correct("Round of 16")
+            if len(qualified_quarter) < 8:
+                self.finished_signal.emit(False, f"❌ عدد الفرق المتأهلة لربع النهائي غير كافي: {len(qualified_quarter)} من 8")
+                return
+            
             self.progress_updated.emit(50)
             
-            time.sleep(1)
-            
-            # 4. التحقق من اكتمال دور الـ16 قبل الانتقال
-            if self.cancelled: 
-                return
-            self.stage_updated.emit("جاري التحقق من اكتمال دور الـ16...")
-            
-            time.sleep(1)
-            quarter_qualified = get_qualified_for_next_stage_correct("Round of 16")
-            if len(quarter_qualified) < 8:
-                self.finished_signal.emit(False, f"عدد الفرق المتأهلة لربع النهائي غير كافي: {len(quarter_qualified)} من 8")
-                return
-            
-            # 5. توليد ربع النهائي
-            if self.cancelled: 
-                return
-            self.stage_updated.emit("جاري توليد ربع النهائي...")
-            self.progress_updated.emit(60)
+            # 3. توليد ربع النهائي
+            if self.cancelled: return
+            self.stage_updated.emit("🎯 جاري توليد ربع النهائي...")
             
             quarter_matches = generate_knockout_stage_matches("Quarter Final")
             if quarter_matches == 0:
-                self.finished_signal.emit(False, "فشل في توليد ربع النهائي")
+                self.finished_signal.emit(False, "❌ فشل في توليد ربع النهائي")
                 return
             total_matches += quarter_matches
+            
+            # الانتظار والتأكد من حفظ البيانات
+            time.sleep(2)
+            
+            # التحقق من اكتمال ربع النهائي
+            qualified_semi = get_qualified_for_next_stage_correct("Quarter Final")
+            if len(qualified_semi) < 4:
+                self.finished_signal.emit(False, f"❌ عدد الفرق المتأهلة لنصف النهائي غير كافي: {len(qualified_semi)} من 4")
+                return
+            
             self.progress_updated.emit(70)
             
-            time.sleep(1)
-            
-            # 6. التحقق من اكتمال ربع النهائي قبل الانتقال
-            if self.cancelled: 
-                return
-            self.stage_updated.emit("جاري التحقق من اكتمال ربع النهائي...")
-            
-            time.sleep(1)
-            semi_qualified = get_qualified_for_next_stage_correct("Quarter Final")
-            if len(semi_qualified) < 4:
-                self.finished_signal.emit(False, f"عدد الفرق المتأهلة لنصف النهائي غير كافي: {len(semi_qualified)} من 4")
-                return
-            
-            # 7. توليد نصف النهائي
-            if self.cancelled: 
-                return
-            self.stage_updated.emit("جاري توليد نصف النهائي...")
-            self.progress_updated.emit(80)
+            # 4. توليد نصف النهائي
+            if self.cancelled: return
+            self.stage_updated.emit("🎯 جاري توليد نصف النهائي...")
             
             semi_matches = generate_knockout_stage_matches("Semi Final")
             if semi_matches == 0:
-                self.finished_signal.emit(False, "فشل في توليد نصف النهائي")
+                self.finished_signal.emit(False, "❌ فشل في توليد نصف النهائي")
                 return
             total_matches += semi_matches
+            
+            # الانتظار والتأكد من حفظ البيانات
+            time.sleep(2)
+            
+            # التحقق من اكتمال نصف النهائي
+            qualified_final = get_qualified_for_next_stage_correct("Semi Final")
+            if len(qualified_final) < 2:
+                self.finished_signal.emit(False, f"❌ عدد الفرق المتأهلة للنهائي غير كافي: {len(qualified_final)} من 2")
+                return
+            
             self.progress_updated.emit(90)
             
-            time.sleep(1)
-            
-            # 8. التحقق من اكتمال نصف النهائي قبل الانتقال
-            if self.cancelled: 
-                return
-            self.stage_updated.emit("جاري التحقق من اكتمال نصف النهائي...")
-            
-            time.sleep(1)
-            final_qualified = get_qualified_for_next_stage_correct("Semi Final")
-            if len(final_qualified) < 2:
-                self.finished_signal.emit(False, f"عدد الفرق المتأهلة للنهائي غير كافي: {len(final_qualified)} من 2")
-                return
-            
-            # 9. توليد النهائي
-            if self.cancelled: 
-                return
-            self.stage_updated.emit("جاري توليد النهائي...")
-            self.progress_updated.emit(95)
+            # 5. توليد النهائي
+            if self.cancelled: return
+            self.stage_updated.emit("🎯 جاري توليد النهائي...")
             
             final_matches = generate_knockout_stage_matches("Final")
             if final_matches == 0:
-                self.finished_signal.emit(False, "فشل في توليد النهائي")
+                self.finished_signal.emit(False, "❌ فشل في توليد النهائي")
                 return
             total_matches += final_matches
+            
             self.progress_updated.emit(100)
             
             if self.cancelled:
-                self.finished_signal.emit(False, "تم إلغاء العملية")
+                self.finished_signal.emit(False, "⏹️ تم إلغاء العملية")
             else:
-                self.finished_signal.emit(True, f"تم توليد {total_matches} مباراة بنجاح! البطولة اكتملت!")
+                self.finished_signal.emit(True, f"✅ تم توليد {total_matches} مباراة بنجاح! البطولة اكتملت! 🏆")
                 
         except Exception as e:
-            self.finished_signal.emit(False, f"حدث خطأ: {str(e)}")
+            self.finished_signal.emit(False, f"❌ حدث خطأ: {str(e)}")
 
     def cancel(self):
         self.cancelled = True
@@ -1775,7 +1782,7 @@ class MainWindow(QMainWindow):
 
             self.table.resizeColumnsToContents()
         except Exception as e:
-            print(f"Error in update_table: {e}")
+            print(f"❌ Error in update_table: {e}")
 
     def tab_knockouts(self):
         w = QWidget()
@@ -1961,7 +1968,7 @@ class MainWindow(QMainWindow):
             
             self.k_table.resizeColumnsToContents()
         except Exception as e:
-            print(f"Error in populate_knockout_table: {e}")
+            print(f"❌ Error in populate_knockout_table: {e}")
 
     def add_knockout_match_dialog(self):
         dlg = QDialog(self)
@@ -2557,7 +2564,7 @@ def main():
     try:
         # تهيئة قاعدة البيانات
         if not DB_PATH.exists():
-            print("جاري إنشاء قاعدة البيانات للمرة الأولى...")
+            print("🎯 جاري إنشاء قاعدة البيانات للمرة الأولى...")
             init_db()
         
         # التحقق من المكتبات المطلوبة
@@ -2568,8 +2575,8 @@ def main():
             missing_libs.append("python-docx")
         
         if missing_libs:
-            print(f"تحذير: المكتبات التالية غير مثبتة: {', '.join(missing_libs)}")
-            print("بعض ميزات التصدير قد لا تعمل بشكل صحيح.")
+            print(f"⚠️ تحذير: المكتبات التالية غير مثبتة: {', '.join(missing_libs)}")
+            print("⚠️ بعض ميزات التصدير قد لا تعمل بشكل صحيح.")
         
         # إنشاء وتشغيل التطبيق
         app = QApplication(sys.argv)
@@ -2581,8 +2588,8 @@ def main():
         window = MainWindow()
         window.show()
         
-        print("تم تشغيل نظام إدارة دوري أبطال أوروبا بنجاح!")
-        print("الميزات المتاحة:")
+        print("✅ تم تشغيل نظام إدارة دوري أبطال أوروبا بنجاح!")
+        print("🎯 الميزات المتاحة:")
         print("- إدارة الفرق والمجموعات")
         print("- إدارة المباريات والنتائج") 
         print("- التوليد التلقائي للبطولة")
@@ -2592,7 +2599,7 @@ def main():
         sys.exit(app.exec())
         
     except Exception as e:
-        print(f"خطأ في تشغيل التطبيق: {e}")
+        print(f"❌ خطأ في تشغيل التطبيق: {e}")
         traceback.print_exc()
         QMessageBox.critical(None, "خطأ", f"فشل في تشغيل التطبيق: {str(e)}")
 
