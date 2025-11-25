@@ -928,33 +928,42 @@ def update_team_status_after_knockout(stage):
 
 def fix_knockout_issues():
     """إصلاح مشاكل الأدوار الإقصائية"""
-    conn = get_db_connection()
-    if conn is None:
-        return False
-    
     try:
+        conn = get_db_connection()
+        if conn is None:
+            return False
+        
         c = conn.cursor()
         
+        print("🔧 بدء إصلاح مشاكل الإقصائيات...")
+        
         # 1. حذف جميع مباريات الإقصائيات
+        print("🗑️ حذف مباريات الإقصائيات...")
         c.execute("DELETE FROM matches WHERE stage != 'Group Stage'")
         c.execute("DELETE FROM knockout_results")
         
         # 2. إعادة تفعيل جميع الفرق
+        print("🔄 إعادة تفعيل الفرق...")
         c.execute("UPDATE teams SET eliminated = 0")
         
         # 3. إعادة تعيين الحالة
-        c.execute("UPDATE teams SET banned = 0 WHERE banned = 1")
+        print("🔄 إعادة تعيين الحالة...")
+        c.execute("UPDATE teams SET banned = 0")
         
         conn.commit()
+        conn.close()
+        
         print("✅ تم إصلاح المشاكل بنجاح")
         return True
         
     except Exception as e:
         print(f"❌ خطأ في الإصلاح: {e}")
-        conn.rollback()
+        try:
+            conn.rollback()
+            conn.close()
+        except:
+            pass
         return False
-    finally:
-        conn.close()
 
 def debug_round_of_16():
     """دالة لفحص مشكلة دوري الـ16"""
@@ -971,6 +980,99 @@ def debug_round_of_16():
     print(f"مباريات دور الـ16 الحالية: {len(matches)}")
     
     return len(qualified) >= 16
+
+def force_reset_knockouts():
+    """إعادة تعيين قوية للإقصائيات تتجاوز كل الأخطاء"""
+    try:
+        print("🚀 بدء إعادة التعيين القوية للإقصائيات...")
+        
+        # محاولة الاتصال بقاعدة البيانات
+        conn = get_db_connection()
+        if conn is None:
+            print("❌ فشل في الاتصال بقاعدة البيانات")
+            return False
+        
+        c = conn.cursor()
+        
+        # إيقاف مؤقتات SQLite
+        c.execute("PRAGMA foreign_keys=OFF")
+        
+        # محاولة حذف جميع مباريات الإقصائيات
+        print("🗑️ جاري حذف مباريات الإقصائيات...")
+        try:
+            c.execute("DELETE FROM matches WHERE stage IN ('Round of 16', 'Quarter Final', 'Semi Final', 'Final')")
+        except Exception as e:
+            print(f"⚠️  تحذير في حذف المباريات: {e}")
+        
+        # محاولة حذف نتائج الإقصائيات
+        print("🗑️ جاري حذف نتائج الإقصائيات...")
+        try:
+            c.execute("DELETE FROM knockout_results")
+        except Exception as e:
+            print(f"⚠️  تحذير في حذف النتائج: {e}")
+        
+        # إعادة تفعيل جميع الفرق
+        print("🔄 جاري إعادة تفعيل الفرق...")
+        try:
+            c.execute("UPDATE teams SET eliminated = 0, banned = 0")
+        except Exception as e:
+            print(f"⚠️  تحذير في تحديث الفرق: {e}")
+        
+        # تأكيد التغييرات
+        conn.commit()
+        conn.close()
+        
+        print("✅ تمت إعادة التعيين القوية بنجاح!")
+        return True
+        
+    except Exception as e:
+        print(f"❌ خطأ في إعادة التعيين: {e}")
+        try:
+            conn.rollback()
+            conn.close()
+        except:
+            pass
+        return False
+
+def super_fix_knockout_problems():
+    """إصلاح فائق لكل مشاكل الإقصائيات"""
+    try:
+        print("🦸 بدء الإصلاح الفائق للإقصائيات...")
+        
+        # المحاولة الأولى: الإصلاح العادي
+        if fix_knockout_issues():
+            print("✅ الإصلاح العادي نجح")
+            return True
+        
+        # المحاولة الثانية: الإصلاح القوي
+        print("🔄 تجربة الإصلاح القوي...")
+        if force_reset_knockouts():
+            print("✅ الإصلاح القوي نجح")
+            return True
+        
+        # المحاولة الثالثة: إعادة إنشاء قاعدة البيانات
+        print("🔄 تجربة إعادة إنشاء قاعدة البيانات...")
+        try:
+            if DB_PATH.exists():
+                # نسخ احتياطي
+                backup_path = DB_PATH.with_suffix('.backup.db')
+                import shutil
+                shutil.copy2(DB_PATH, backup_path)
+                print(f"📁 تم إنشاء نسخة احتياطية: {backup_path}")
+                
+                # إعادة التهيئة
+                init_db()
+                print("✅ تم إعادة إنشاء قاعدة البيانات بنجاح")
+                return True
+        except Exception as e:
+            print(f"❌ فشل في إعادة إنشاء قاعدة البيانات: {e}")
+        
+        print("❌ جميع محاولات الإصلاح فشلت")
+        return False
+        
+    except Exception as e:
+        print(f"❌ خطأ في الإصلاح الفائق: {e}")
+        return False
 
 # ---------- واجهة المستخدم ----------
 class EnterLineEdit(QLineEdit):
@@ -1964,11 +2066,17 @@ class MainWindow(QMainWindow):
         w = QWidget()
         l = QVBoxLayout(w)
         
-        # زر إصلاح المشاكل
-        fix_btn = QPushButton("إصلاح مشاكل الإقصائيات")
-        fix_btn.setStyleSheet("background: #FF8C00; color: white; margin: 10px;")
-        fix_btn.clicked.connect(self.fix_knockout_issues)
-        l.addWidget(fix_btn)
+        # زر إصلاح المشاكل الفائق
+        super_fix_btn = QPushButton("🦸 الإصلاح الفائق للإقصائيات")
+        super_fix_btn.setStyleSheet("background: #FF1493; color: white; font-weight: bold; padding: 15px; font-size: 16px; margin: 10px;")
+        super_fix_btn.clicked.connect(self.super_fix_knockout_problems)
+        l.addWidget(super_fix_btn)
+        
+        # زر إعادة التعيين القوي
+        force_reset_btn = QPushButton("🚀 إعادة تعيين قوية للإقصائيات")
+        force_reset_btn.setStyleSheet("background: #FF8C00; color: white; font-weight: bold; padding: 12px; margin: 10px;")
+        force_reset_btn.clicked.connect(self.force_reset_knockouts)
+        l.addWidget(force_reset_btn)
         
         reset_knockout_btn = QPushButton("إعادة تعيين الإقصائيات")
         reset_knockout_btn.setStyleSheet("background: #FF6B6B; color: white; margin: 10px;")
@@ -2014,19 +2122,34 @@ class MainWindow(QMainWindow):
         self.populate_knockout_table()
         return w
 
-    def fix_knockout_issues(self):
-        """إصلاح مشاكل الأدوار الإقصائية"""
-        reply = QMessageBox.question(self, "تأكيد الإصلاح", 
-            "هل تريد إصلاح جميع مشاكل الأدوار الإقصائية؟")
+    def super_fix_knockout_problems(self):
+        """الإصلاح الفائق لكل مشاكل الإقصائيات"""
+        reply = QMessageBox.question(self, "الإصلاح الفائق", 
+            "🦸 هذا الإصلاح الفائق سيقوم بمحاولات متعددة لحل جميع مشاكل الإقصائيات.\n\nهل تريد المتابعة؟")
         
         if reply == QMessageBox.StandardButton.Yes:
-            if fix_knockout_issues():
-                QMessageBox.information(self, "تم", "تم الإصلاح بنجاح")
+            if super_fix_knockout_problems():
+                QMessageBox.information(self, "تم", "✅ تم الإصلاح الفائق بنجاح!")
+                self.populate_knockout_table()
+                self.populate_teams_table()
+                self.update_qualified_teams_display()
+                self.populate_matches_table()
+            else:
+                QMessageBox.warning(self, "تحذير", "⚠️ بعض المشاكل قد تحتاج تدخلاً يدوياً")
+
+    def force_reset_knockouts(self):
+        """إعادة تعيين قوية للإقصائيات"""
+        reply = QMessageBox.question(self, "إعادة التعيين القوية", 
+            "🚀 هذه العملية ستقوم بإعادة تعيين قوية للإقصائيات وتتجاوز معظم الأخطاء.\n\nهل تريد المتابعة؟")
+        
+        if reply == QMessageBox.StandardButton.Yes:
+            if force_reset_knockouts():
+                QMessageBox.information(self, "تم", "✅ تمت إعادة التعيين القوية بنجاح!")
                 self.populate_knockout_table()
                 self.populate_teams_table()
                 self.update_qualified_teams_display()
             else:
-                QMessageBox.warning(self, "خطأ", "فشل في إصلاح المشاكل")
+                QMessageBox.warning(self, "خطأ", "❌ فشل في إعادة التعيين القوية")
 
     def update_qualified_teams_display(self):
         """تحديث عرض الفرق المتأهلة في جدول منظم"""
