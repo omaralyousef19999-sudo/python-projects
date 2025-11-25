@@ -1,4 +1,4 @@
-# ucl_manager_complete.py
+# ucl_manager_fixed_sequential.py
 import sys
 import sqlite3
 from pathlib import Path
@@ -20,152 +20,168 @@ from PyQt6.QtGui import QColor, QIcon, QFont, QKeyEvent
 try:
     from docx import Document
     from docx.shared import Inches
+    DOCX_AVAILABLE = True
 except ImportError:
     Document = None
+    DOCX_AVAILABLE = False
 
 try:
     from reportlab.platypus import SimpleDocTemplate, Paragraph, Image as RLImage, Spacer, Table as RLTable, TableStyle
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
     from reportlab.lib.pagesizes import A4
     from reportlab.lib import colors as rlcolors
-    from reportlab.pdfbase import pdfmetrics
-    from reportlab.pdfbase.ttfonts import TTFont
+    REPORTLAB_AVAILABLE = True
 except ImportError:
     SimpleDocTemplate = None
+    REPORTLAB_AVAILABLE = False
 
 DB_PATH = Path("ucl_database.db")
 
 # ---------- قاعدة البيانات وتهيئتها ----------
 def get_db_connection():
     """الحصول على اتصال بقاعدة البيانات مع معالجة الأقفال"""
-    conn = sqlite3.connect(DB_PATH, timeout=30)
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA busy_timeout=30000")
-    return conn
+    try:
+        conn = sqlite3.connect(DB_PATH, timeout=30)
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA busy_timeout=30000")
+        return conn
+    except sqlite3.Error as e:
+        print(f"خطأ في الاتصال بقاعدة البيانات: {e}")
+        return None
 
 def init_db():
     conn = get_db_connection()
+    if conn is None:
+        return
     c = conn.cursor()
     
-    # حذف الجداول القديمة إذا كانت موجودة
-    c.execute("DROP TABLE IF EXISTS teams")
-    c.execute("DROP TABLE IF EXISTS matches")
-    c.execute("DROP TABLE IF EXISTS knockout_results")
-    
-    # إنشاء جدول الفرق
-    c.execute('''CREATE TABLE IF NOT EXISTS teams (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name_ar TEXT NOT NULL,
-        name_en TEXT NOT NULL,
-        country_ar TEXT,
-        country_en TEXT,
-        group_char TEXT,
-        eliminated BOOLEAN DEFAULT 0,
-        banned BOOLEAN DEFAULT 0,
-        UNIQUE(name_ar, name_en)
-    )''')
-    
-    # إنشاء جدول المباريات
-    c.execute('''CREATE TABLE IF NOT EXISTS matches (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        home_team TEXT,
-        away_team TEXT,
-        home_goals INTEGER,
-        away_goals INTEGER,
-        home_extra_time_goals INTEGER DEFAULT 0,
-        away_extra_time_goals INTEGER DEFAULT 0,
-        home_penalties INTEGER DEFAULT 0,
-        away_penalties INTEGER DEFAULT 0,
-        date TEXT,
-        stage TEXT,
-        leg TEXT DEFAULT 'single',
-        knockout_pair_id INTEGER DEFAULT 0,
-        status TEXT DEFAULT 'scheduled',
-        winner TEXT,
-        win_method TEXT DEFAULT 'normal'
-    )''')
-    
-    # جدول لتخزين نتائج الإقصائيات
-    c.execute('''CREATE TABLE IF NOT EXISTS knockout_results (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        stage TEXT,
-        match_id INTEGER,
-        home_team TEXT,
-        away_team TEXT,
-        home_goals INTEGER,
-        away_goals INTEGER,
-        home_extra_time_goals INTEGER DEFAULT 0,
-        away_extra_time_goals INTEGER DEFAULT 0,
-        home_penalties INTEGER DEFAULT 0,
-        away_penalties INTEGER DEFAULT 0,
-        winner TEXT,
-        win_method TEXT,
-        match_date TEXT,
-        FOREIGN KEY(match_id) REFERENCES matches(id)
-    )''')
-    
-    # إضافة فرق دوري الأبطال الافتراضية
-    default_teams = [
-        # المجموعة A
-        ("بايرن ميونخ", "Bayern Munich", "ألمانيا", "Germany", "A"),
-        ("مانشستر يونايتد", "Manchester United", "إنجلترا", "England", "A"),
-        ("كوبنهاغن", "Copenhagen", "الدنمارك", "Denmark", "A"),
-        ("غلطة سراي", "Galatasaray", "تركيا", "Turkey", "A"),
+    try:
+        # حذف الجداول القديمة إذا كانت موجودة
+        c.execute("DROP TABLE IF EXISTS teams")
+        c.execute("DROP TABLE IF EXISTS matches")
+        c.execute("DROP TABLE IF EXISTS knockout_results")
         
-        # المجموعة B
-        ("أرسنال", "Arsenal", "إنجلترا", "England", "B"),
-        ("بوروسيا دورتموند", "Borussia Dortmund", "ألمانيا", "Germany", "B"),
-        ("آيندهوفن", "PSV Eindhoven", "هولندا", "Netherlands", "B"),
-        ("نابولي", "Napoli", "إيطاليا", "Italy", "B"),
+        # إنشاء جدول الفرق
+        c.execute('''CREATE TABLE IF NOT EXISTS teams (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name_ar TEXT NOT NULL,
+            name_en TEXT NOT NULL,
+            country_ar TEXT,
+            country_en TEXT,
+            group_char TEXT,
+            eliminated BOOLEAN DEFAULT 0,
+            banned BOOLEAN DEFAULT 0,
+            UNIQUE(name_ar, name_en)
+        )''')
         
-        # المجموعة C
-        ("ريال مدريد", "Real Madrid", "إسبانيا", "Spain", "C"),
-        ("إنتر ميلان", "Inter Milan", "إيطاليا", "Italy", "C"),
-        ("بنفيكا", "Benfica", "البرتغال", "Portugal", "C"),
-        ("ريد بل زالتسبورغ", "Red Bull Salzburg", "النمسا", "Austria", "C"),
+        # إنشاء جدول المباريات
+        c.execute('''CREATE TABLE IF NOT EXISTS matches (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            home_team TEXT,
+            away_team TEXT,
+            home_goals INTEGER,
+            away_goals INTEGER,
+            home_extra_time_goals INTEGER DEFAULT 0,
+            away_extra_time_goals INTEGER DEFAULT 0,
+            home_penalties INTEGER DEFAULT 0,
+            away_penalties INTEGER DEFAULT 0,
+            date TEXT,
+            stage TEXT,
+            leg TEXT DEFAULT 'single',
+            knockout_pair_id INTEGER DEFAULT 0,
+            status TEXT DEFAULT 'scheduled',
+            winner TEXT,
+            win_method TEXT DEFAULT 'normal'
+        )''')
         
-        # المجموعة D
-        ("أتلتيكو مدريد", "Atletico Madrid", "إسبانيا", "Spain", "D"),
-        ("آينتراخت فرانكفورت", "Eintracht Frankfurt", "ألمانيا", "Germany", "D"),
-        ("سبورتنج لشبونة", "Sporting Lisbon", "البرتغال", "Portugal", "D"),
-        ("سلتا فيغو", "Celta Vigo", "إسبانيا", "Spain", "D"),
+        # جدول لتخزين نتائج الإقصائيات
+        c.execute('''CREATE TABLE IF NOT EXISTS knockout_results (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            stage TEXT,
+            match_id INTEGER,
+            home_team TEXT,
+            away_team TEXT,
+            home_goals INTEGER,
+            away_goals INTEGER,
+            home_extra_time_goals INTEGER DEFAULT 0,
+            away_extra_time_goals INTEGER DEFAULT 0,
+            home_penalties INTEGER DEFAULT 0,
+            away_penalties INTEGER DEFAULT 0,
+            winner TEXT,
+            win_method TEXT,
+            match_date TEXT,
+            FOREIGN KEY(match_id) REFERENCES matches(id)
+        )''')
         
-        # المجموعة E
-        ("مانشستر سيتي", "Manchester City", "إنجلترا", "England", "E"),
-        ("برشلونة", "Barcelona", "إسبانيا", "Spain", "E"),
-        ("باير ليفركوزن", "Bayer Leverkusen", "ألمانيا", "Germany", "E"),
-        ("شاختار دونيتسك", "Shakhtar Donetsk", "أوكرانيا", "Ukraine", "E"),
+        # إضافة فرق دوري الأبطال الافتراضية
+        default_teams = [
+            # المجموعة A
+            ("بايرن ميونخ", "Bayern Munich", "ألمانيا", "Germany", "A"),
+            ("مانشستر يونايتد", "Manchester United", "إنجلترا", "England", "A"),
+            ("كوبنهاغن", "Copenhagen", "الدنمارك", "Denmark", "A"),
+            ("غلطة سراي", "Galatasaray", "تركيا", "Turkey", "A"),
+            
+            # المجموعة B
+            ("أرسنال", "Arsenal", "إنجلترا", "England", "B"),
+            ("بوروسيا دورتموند", "Borussia Dortmund", "ألمانيا", "Germany", "B"),
+            ("آيندهوفن", "PSV Eindhoven", "هولندا", "Netherlands", "B"),
+            ("نابولي", "Napoli", "إيطاليا", "Italy", "B"),
+            
+            # المجموعة C
+            ("ريال مدريد", "Real Madrid", "إسبانيا", "Spain", "C"),
+            ("إنتر ميلان", "Inter Milan", "إيطاليا", "Italy", "C"),
+            ("بنفيكا", "Benfica", "البرتغال", "Portugal", "C"),
+            ("ريد بل زالتسبورغ", "Red Bull Salzburg", "النمسا", "Austria", "C"),
+            
+            # المجموعة D
+            ("أتلتيكو مدريد", "Atletico Madrid", "إسبانيا", "Spain", "D"),
+            ("آينتراخت فرانكفورت", "Eintracht Frankfurt", "ألمانيا", "Germany", "D"),
+            ("سبورتنج لشبونة", "Sporting Lisbon", "البرتغال", "Portugal", "D"),
+            ("سلتا فيغو", "Celta Vigo", "إسبانيا", "Spain", "D"),
+            
+            # المجموعة E
+            ("مانشستر سيتي", "Manchester City", "إنجلترا", "England", "E"),
+            ("برشلونة", "Barcelona", "إسبانيا", "Spain", "E"),
+            ("باير ليفركوزن", "Bayer Leverkusen", "ألمانيا", "Germany", "E"),
+            ("شاختار دونيتسك", "Shakhtar Donetsk", "أوكرانيا", "Ukraine", "E"),
+            
+            # المجموعة F
+            ("باريس سان جيرمان", "Paris Saint-Germain", "فرنسا", "France", "F"),
+            ("يوفنتوس", "Juventus", "إيطاليا", "Italy", "F"),
+            ("سي إف آر كلوج", "CFR Cluj", "رومانيا", "Romania", "F"),
+            ("سلافيا براغ", "Slavia Prague", "التشيك", "Czech Republic", "F"),
+            
+            # المجموعة G
+            ("تشيلسي", "Chelsea", "إنجلترا", "England", "G"),
+            ("إيه سي ميلان", "AC Milan", "إيطاليا", "Italy", "G"),
+            ("أياكس", "Ajax", "هولندا", "Netherlands", "G"),
+            ("فينورد", "Feyenoord", "هولندا", "Netherlands", "G"),
+            
+            # المجموعة H
+            ("ليفربول", "Liverpool", "إنجلترا", "England", "H"),
+            ("أتلتيك بيلباو", "Athletic Bilbao", "إسبانيا", "Spain", "H"),
+            ("أولمبيك مارسيليا", "Olympique Marseille", "فرنسا", "France", "H"),
+            ("سلوفان براتيسلافا", "Slovan Bratislava", "سلوفاكيا", "Slovakia", "H")
+        ]
         
-        # المجموعة F
-        ("باريس سان جيرمان", "Paris Saint-Germain", "فرنسا", "France", "F"),
-        ("يوفنتوس", "Juventus", "إيطاليا", "Italy", "F"),
-        ("سي إف آر كلوج", "CFR Cluj", "رومانيا", "Romania", "F"),
-        ("سلافيا براغ", "Slavia Prague", "التشيك", "Czech Republic", "F"),
+        for team in default_teams:
+            try:
+                c.execute("INSERT INTO teams (name_ar, name_en, country_ar, country_en, group_char) VALUES (?, ?, ?, ?, ?)", team)
+            except sqlite3.IntegrityError:
+                pass
         
-        # المجموعة G
-        ("تشيلسي", "Chelsea", "إنجلترا", "England", "G"),
-        ("إيه سي ميلان", "AC Milan", "إيطاليا", "Italy", "G"),
-        ("أياكس", "Ajax", "هولندا", "Netherlands", "G"),
-        ("فينورد", "Feyenoord", "هولندا", "Netherlands", "G"),
-        
-        # المجموعة H
-        ("ليفربول", "Liverpool", "إنجلترا", "England", "H"),
-        ("أتلتيك بيلباو", "Athletic Bilbao", "إسبانيا", "Spain", "H"),
-        ("أولمبيك مارسيليا", "Olympique Marseille", "فرنسا", "France", "H"),
-        ("سلوفان براتيسلافا", "Slovan Bratislava", "سلوفاكيا", "Slovakia", "H")
-    ]
-    
-    for team in default_teams:
-        try:
-            c.execute("INSERT INTO teams (name_ar, name_en, country_ar, country_en, group_char) VALUES (?, ?, ?, ?, ?)", team)
-        except sqlite3.IntegrityError:
-            pass
-    
-    conn.commit()
-    conn.close()
+        conn.commit()
+        print("تم تهيئة قاعدة البيانات بنجاح")
+    except Exception as e:
+        print(f"خطأ في تهيئة قاعدة البيانات: {e}")
+        conn.rollback()
+    finally:
+        conn.close()
 
 def add_team(name_ar, name_en, country_ar, country_en, group):
     conn = get_db_connection()
+    if conn is None:
+        return False
     c = conn.cursor()
     try:
         c.execute("INSERT INTO teams (name_ar, name_en, country_ar, country_en, group_char) VALUES (?, ?, ?, ?, ?)", 
@@ -181,6 +197,8 @@ def add_match(home, away, hg, ag, date, stage, leg='single', pair_id=0,
               home_extra=0, away_extra=0, home_pen=0, away_pen=0, winner=None, win_method='normal'):
     """إضافة مباراة جديدة إلى قاعدة البيانات"""
     conn = get_db_connection()
+    if conn is None:
+        return False
     c = conn.cursor()
     try:
         home = str(home) if home else ""
@@ -227,6 +245,8 @@ def add_match(home, away, hg, ag, date, stage, leg='single', pair_id=0,
 
 def get_teams(include_eliminated=False, include_banned=False):
     conn = get_db_connection()
+    if conn is None:
+        return pd.DataFrame()
     try:
         query = "SELECT name_ar, name_en FROM teams WHERE 1=1"
         params = []
@@ -258,6 +278,8 @@ def get_team_names(lang="ar", include_eliminated=False, include_banned=False):
 
 def get_all_teams():
     conn = get_db_connection()
+    if conn is None:
+        return pd.DataFrame()
     try:
         df = pd.read_sql_query("""
             SELECT name_ar, name_en, country_ar, country_en, group_char, eliminated, banned, id 
@@ -273,6 +295,8 @@ def get_all_teams():
 
 def get_standings():
     conn = get_db_connection()
+    if conn is None:
+        return pd.DataFrame()
     try:
         query = """
         SELECT t.name_ar, t.name_en, t.country_ar, t.country_en, t.group_char, t.eliminated, t.banned,
@@ -304,6 +328,8 @@ def get_standings():
 def get_group_standings():
     """الحصول على ترتيب الفرق داخل كل مجموعة (للتأهل الصحيح)"""
     conn = get_db_connection()
+    if conn is None:
+        return pd.DataFrame()
     try:
         query = """
         SELECT 
@@ -357,6 +383,8 @@ def get_group_standings():
 
 def get_matches(stage=None):
     conn = get_db_connection()
+    if conn is None:
+        return pd.DataFrame()
     try:
         if stage:
             df = pd.read_sql_query("SELECT * FROM matches WHERE stage = ? ORDER BY date, home_team", conn, params=(stage,))
@@ -372,6 +400,8 @@ def get_matches(stage=None):
 def get_knockout_matches():
     """الحصول على جميع مباريات الإقصائيات مع التفاصيل الكاملة"""
     conn = get_db_connection()
+    if conn is None:
+        return pd.DataFrame()
     try:
         df = pd.read_sql_query("""
             SELECT * FROM matches 
@@ -395,6 +425,8 @@ def get_knockout_matches():
 def get_knockout_results():
     """الحصول على نتائج الإقصائيات بشكل منظم"""
     conn = get_db_connection()
+    if conn is None:
+        return pd.DataFrame()
     try:
         df = pd.read_sql_query("""
             SELECT * FROM knockout_results 
@@ -416,6 +448,8 @@ def get_knockout_results():
 
 def eliminate_teams(team_names):
     conn = get_db_connection()
+    if conn is None:
+        return
     c = conn.cursor()
     try:
         c.execute("UPDATE teams SET eliminated = 0")
@@ -429,6 +463,8 @@ def eliminate_teams(team_names):
 
 def ban_team(team_name, ban_status):
     conn = get_db_connection()
+    if conn is None:
+        return
     c = conn.cursor()
     try:
         c.execute("UPDATE teams SET banned = ? WHERE name_ar = ? OR name_en = ?", (ban_status, team_name, team_name))
@@ -440,6 +476,8 @@ def ban_team(team_name, ban_status):
 
 def delete_team(team_name):
     conn = get_db_connection()
+    if conn is None:
+        return False
     c = conn.cursor()
     try:
         c.execute("DELETE FROM matches WHERE home_team = ? OR away_team = ?", (team_name, team_name))
@@ -454,6 +492,8 @@ def delete_team(team_name):
 
 def delete_match(match_id):
     conn = get_db_connection()
+    if conn is None:
+        return False
     c = conn.cursor()
     try:
         c.execute("DELETE FROM knockout_results WHERE match_id = ?", (match_id,))
@@ -468,6 +508,8 @@ def delete_match(match_id):
 
 def reset_tournament():
     conn = get_db_connection()
+    if conn is None:
+        return
     c = conn.cursor()
     try:
         c.execute("DELETE FROM matches")
@@ -535,6 +577,8 @@ def get_qualified_teams_correct():
 def get_winners_from_stage(stage):
     """الحصول على الفائزين من مرحلة معينة"""
     conn = get_db_connection()
+    if conn is None:
+        return []
     try:
         df = pd.read_sql_query("""
             SELECT winner FROM matches 
@@ -562,6 +606,8 @@ def get_qualified_for_next_stage_correct(current_stage):
 def generate_all_group_matches():
     """توليد جميع مباريات دور المجموعات تلقائياً"""
     conn = get_db_connection()
+    if conn is None:
+        return 0
     c = conn.cursor()
     try:
         c.execute("DELETE FROM matches WHERE stage = 'Group Stage'")
@@ -806,7 +852,7 @@ def generate_knockout_stage_matches(stage):
         traceback.print_exc()
         return 0
 
-# ---------- Thread للتوليد التلقائي ----------
+# ---------- Thread للتوليد التلقائي المصحح ----------
 class GenerationThread(QThread):
     progress_updated = pyqtSignal(int)
     stage_updated = pyqtSignal(str)
@@ -824,61 +870,117 @@ class GenerationThread(QThread):
             if self.cancelled: 
                 return
             self.stage_updated.emit("جاري توليد دور المجموعات...")
+            self.progress_updated.emit(10)
+            
             group_matches = generate_all_group_matches()
             if group_matches == 0:
                 self.finished_signal.emit(False, "فشل في توليد دور المجموعات")
                 return
             total_matches += group_matches
-            self.progress_updated.emit(20)
+            self.progress_updated.emit(30)
             
             time.sleep(1)
             
-            # 2. توليد دور الـ16
+            # 2. التحقق من اكتمال دور المجموعات قبل الانتقال
+            if self.cancelled: 
+                return
+            self.stage_updated.emit("جاري التحقق من اكتمال دور المجموعات...")
+            
+            # الانتظار قليلاً للتأكد من حفظ البيانات
+            time.sleep(1)
+            
+            qualified_teams = get_qualified_teams_correct()
+            if len(qualified_teams) < 16:
+                self.finished_signal.emit(False, f"عدد الفرق المتأهلة غير كافي: {len(qualified_teams)} من 16")
+                return
+            
+            # 3. توليد دور الـ16
             if self.cancelled: 
                 return
             self.stage_updated.emit("جاري توليد دور الـ16...")
+            self.progress_updated.emit(40)
+            
             round_of_16_matches = generate_round_of_16_correct()
             if round_of_16_matches == 0:
-                self.finished_signal.emit(False, "فشل في توليد دور الـ16 - تأكد من اكتمال دور المجموعات")
+                self.finished_signal.emit(False, "فشل في توليد دور الـ16")
                 return
             total_matches += round_of_16_matches
-            self.progress_updated.emit(40)
+            self.progress_updated.emit(50)
             
             time.sleep(1)
             
-            # 3. توليد ربع النهائي
+            # 4. التحقق من اكتمال دور الـ16 قبل الانتقال
+            if self.cancelled: 
+                return
+            self.stage_updated.emit("جاري التحقق من اكتمال دور الـ16...")
+            
+            time.sleep(1)
+            quarter_qualified = get_qualified_for_next_stage_correct("Round of 16")
+            if len(quarter_qualified) < 8:
+                self.finished_signal.emit(False, f"عدد الفرق المتأهلة لربع النهائي غير كافي: {len(quarter_qualified)} من 8")
+                return
+            
+            # 5. توليد ربع النهائي
             if self.cancelled: 
                 return
             self.stage_updated.emit("جاري توليد ربع النهائي...")
+            self.progress_updated.emit(60)
+            
             quarter_matches = generate_knockout_stage_matches("Quarter Final")
             if quarter_matches == 0:
-                self.finished_signal.emit(False, "فشل في توليد ربع النهائي - تأكد من اكتمال دور الـ16")
+                self.finished_signal.emit(False, "فشل في توليد ربع النهائي")
                 return
             total_matches += quarter_matches
-            self.progress_updated.emit(60)
+            self.progress_updated.emit(70)
             
             time.sleep(1)
             
-            # 4. توليد نصف النهائي
+            # 6. التحقق من اكتمال ربع النهائي قبل الانتقال
+            if self.cancelled: 
+                return
+            self.stage_updated.emit("جاري التحقق من اكتمال ربع النهائي...")
+            
+            time.sleep(1)
+            semi_qualified = get_qualified_for_next_stage_correct("Quarter Final")
+            if len(semi_qualified) < 4:
+                self.finished_signal.emit(False, f"عدد الفرق المتأهلة لنصف النهائي غير كافي: {len(semi_qualified)} من 4")
+                return
+            
+            # 7. توليد نصف النهائي
             if self.cancelled: 
                 return
             self.stage_updated.emit("جاري توليد نصف النهائي...")
+            self.progress_updated.emit(80)
+            
             semi_matches = generate_knockout_stage_matches("Semi Final")
             if semi_matches == 0:
-                self.finished_signal.emit(False, "فشل في توليد نصف النهائي - تأكد من اكتمال ربع النهائي")
+                self.finished_signal.emit(False, "فشل في توليد نصف النهائي")
                 return
             total_matches += semi_matches
-            self.progress_updated.emit(80)
+            self.progress_updated.emit(90)
             
             time.sleep(1)
             
-            # 5. توليد النهائي
+            # 8. التحقق من اكتمال نصف النهائي قبل الانتقال
+            if self.cancelled: 
+                return
+            self.stage_updated.emit("جاري التحقق من اكتمال نصف النهائي...")
+            
+            time.sleep(1)
+            final_qualified = get_qualified_for_next_stage_correct("Semi Final")
+            if len(final_qualified) < 2:
+                self.finished_signal.emit(False, f"عدد الفرق المتأهلة للنهائي غير كافي: {len(final_qualified)} من 2")
+                return
+            
+            # 9. توليد النهائي
             if self.cancelled: 
                 return
             self.stage_updated.emit("جاري توليد النهائي...")
+            self.progress_updated.emit(95)
+            
             final_matches = generate_knockout_stage_matches("Final")
             if final_matches == 0:
-                self.finished_signal.emit(False, "فشل في توليد النهائي - تأكد من اكتمال نصف النهائي")
+                self.finished_signal.emit(False, "فشل في توليد النهائي")
                 return
             total_matches += final_matches
             self.progress_updated.emit(100)
@@ -886,7 +988,7 @@ class GenerationThread(QThread):
             if self.cancelled:
                 self.finished_signal.emit(False, "تم إلغاء العملية")
             else:
-                self.finished_signal.emit(True, f"تم توليد {total_matches} مباراة بنجاح!")
+                self.finished_signal.emit(True, f"تم توليد {total_matches} مباراة بنجاح! البطولة اكتملت!")
                 
         except Exception as e:
             self.finished_signal.emit(False, f"حدث خطأ: {str(e)}")
@@ -917,9 +1019,13 @@ class MainWindow(QMainWindow):
         self.stages = ["Group Stage", "Round of 16", "Quarter Final", "Semi Final", "Final"]
         self.generation_thread = None
 
-        icon_path = Path("fifa.ico")
-        if icon_path.exists():
-            self.setWindowIcon(QIcon(str(icon_path)))
+        # محاولة تحميل الأيقونة
+        try:
+            icon_path = Path("fifa.ico")
+            if icon_path.exists():
+                self.setWindowIcon(QIcon(str(icon_path)))
+        except:
+            pass
 
         self.setStyleSheet("""
             QMainWindow {
@@ -1127,6 +1233,8 @@ class MainWindow(QMainWindow):
         
         if reply == QMessageBox.StandardButton.Yes:
             conn = get_db_connection()
+            if conn is None:
+                return
             c = conn.cursor()
             c.execute("DELETE FROM teams")
             
@@ -1434,6 +1542,8 @@ class MainWindow(QMainWindow):
         
         if reply == QMessageBox.StandardButton.Yes:
             conn = get_db_connection()
+            if conn is None:
+                return
             c = conn.cursor()
             c.execute("DELETE FROM matches")
             c.execute("DELETE FROM knockout_results")
@@ -1789,6 +1899,8 @@ class MainWindow(QMainWindow):
         
         if reply == QMessageBox.StandardButton.Yes:
             conn = get_db_connection()
+            if conn is None:
+                return
             c = conn.cursor()
             c.execute("DELETE FROM matches WHERE stage != 'Group Stage'")
             c.execute("DELETE FROM knockout_results")
@@ -2035,7 +2147,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "خطأ" if self.lang=="ar" else "Error", "حدث خطأ أثناء التصدير" if self.lang=="ar" else "Export error occurred")
 
     def export_knockout_results(self):
-        if SimpleDocTemplate is None:
+        if not REPORTLAB_AVAILABLE:
             QMessageBox.warning(self, "خطأ" if self.lang=="ar" else "Error", "مكتبة reportlab غير مثبتة" if self.lang=="ar" else "reportlab not installed")
             return False
 
@@ -2112,7 +2224,7 @@ class MainWindow(QMainWindow):
 
     def export_pdf(self, save_dialog=True):
         """تصدير التقرير الشامل إلى PDF"""
-        if SimpleDocTemplate is None:
+        if not REPORTLAB_AVAILABLE:
             QMessageBox.warning(self, "خطأ" if self.lang=="ar" else "Error", 
                                "مكتبة reportlab غير مثبتة" if self.lang=="ar" else "reportlab not installed")
             return False
@@ -2321,7 +2433,7 @@ class MainWindow(QMainWindow):
 
     def export_docx(self, save_dialog=True):
         """تصدير التقرير إلى مستند Word"""
-        if Document is None:
+        if not DOCX_AVAILABLE:
             QMessageBox.warning(self, "خطأ" if self.lang=="ar" else "Error", 
                                "مكتبة python-docx غير مثبتة" if self.lang=="ar" else "python-docx not installed")
             return False
@@ -2439,7 +2551,7 @@ class MainWindow(QMainWindow):
                 else f"Export error: {str(e)}")
             return False
 
-# الدوال الرئيسية لتشغيل البرنامج
+# الدالة الرئيسية لتشغيل البرنامج
 def main():
     """الدالة الرئيسية لتشغيل التطبيق"""
     try:
@@ -2450,9 +2562,9 @@ def main():
         
         # التحقق من المكتبات المطلوبة
         missing_libs = []
-        if SimpleDocTemplate is None:
+        if not REPORTLAB_AVAILABLE:
             missing_libs.append("reportlab")
-        if Document is None:
+        if not DOCX_AVAILABLE:
             missing_libs.append("python-docx")
         
         if missing_libs:
