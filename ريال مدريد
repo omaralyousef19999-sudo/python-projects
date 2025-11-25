@@ -926,6 +926,52 @@ def update_team_status_after_knockout(stage):
         print(f"خطأ في تحديث حالة الفرق: {e}")
         traceback.print_exc()
 
+def fix_knockout_issues():
+    """إصلاح مشاكل الأدوار الإقصائية"""
+    conn = get_db_connection()
+    if conn is None:
+        return False
+    
+    try:
+        c = conn.cursor()
+        
+        # 1. حذف جميع مباريات الإقصائيات
+        c.execute("DELETE FROM matches WHERE stage != 'Group Stage'")
+        c.execute("DELETE FROM knockout_results")
+        
+        # 2. إعادة تفعيل جميع الفرق
+        c.execute("UPDATE teams SET eliminated = 0")
+        
+        # 3. إعادة تعيين الحالة
+        c.execute("UPDATE teams SET banned = 0 WHERE banned = 1")
+        
+        conn.commit()
+        print("✅ تم إصلاح المشاكل بنجاح")
+        return True
+        
+    except Exception as e:
+        print(f"❌ خطأ في الإصلاح: {e}")
+        conn.rollback()
+        return False
+    finally:
+        conn.close()
+
+def debug_round_of_16():
+    """دالة لفحص مشكلة دوري الـ16"""
+    print("=== فحص دوري الـ16 ===")
+    
+    # التحقق من الفرق المتأهلة
+    qualified = get_qualified_teams_correct()
+    print(f"الفرق المتأهلة: {len(qualified)}")
+    for team in qualified:
+        print(f"  - {team['name']} (المجموعة {team['group']})")
+    
+    # التحقق من المباريات الحالية
+    matches = get_matches("Round of 16")
+    print(f"مباريات دور الـ16 الحالية: {len(matches)}")
+    
+    return len(qualified) >= 16
+
 # ---------- واجهة المستخدم ----------
 class EnterLineEdit(QLineEdit):
     def __init__(self, parent=None):
@@ -1918,99 +1964,11 @@ class MainWindow(QMainWindow):
         w = QWidget()
         l = QVBoxLayout(w)
         
-        # ازرار التوليد التلقائي للادوار الاقصائية - مربعة وجنب بعض
-        knockout_buttons_group = QGroupBox("التوليد التلقائي للأدوار الإقصائية" if self.lang=="ar" else "Knockout Stages Auto-Generation")
-        knockout_buttons_layout = QHBoxLayout(knockout_buttons_group)
-        
-        # ازرار مربعة وجنب بعض
-        self.round_16_btn_knockout = QPushButton("توليد\nدور الـ16" if self.lang=="ar" else "Generate\nRound of 16")
-        self.round_16_btn_knockout.setFixedSize(120, 80)
-        self.round_16_btn_knockout.setStyleSheet("""
-            QPushButton {
-                background: #32CD32; 
-                color: white; 
-                font-weight: bold; 
-                font-size: 14px;
-                border-radius: 8px;
-            }
-            QPushButton:hover {
-                background: #28a428;
-            }
-            QPushButton:disabled {
-                background: #cccccc;
-                color: #666666;
-            }
-        """)
-        self.round_16_btn_knockout.clicked.connect(self.generate_round_of_16)
-        
-        self.quarter_btn_knockout = QPushButton("توليد\nربع النهائي" if self.lang=="ar" else "Generate\nQuarter Final")
-        self.quarter_btn_knockout.setFixedSize(120, 80)
-        self.quarter_btn_knockout.setStyleSheet("""
-            QPushButton {
-                background: #1E90FF; 
-                color: white; 
-                font-weight: bold; 
-                font-size: 14px;
-                border-radius: 8px;
-            }
-            QPushButton:hover {
-                background: #1873cc;
-            }
-            QPushButton:disabled {
-                background: #cccccc;
-                color: #666666;
-            }
-        """)
-        self.quarter_btn_knockout.clicked.connect(self.generate_quarter_final)
-        
-        self.semi_btn_knockout = QPushButton("توليد\nنصف النهائي" if self.lang=="ar" else "Generate\nSemi Final")
-        self.semi_btn_knockout.setFixedSize(120, 80)
-        self.semi_btn_knockout.setStyleSheet("""
-            QPushButton {
-                background: #FF8C00; 
-                color: white; 
-                font-weight: bold; 
-                font-size: 14px;
-                border-radius: 8px;
-            }
-            QPushButton:hover {
-                background: #d97800;
-            }
-            QPushButton:disabled {
-                background: #cccccc;
-                color: #666666;
-            }
-        """)
-        self.semi_btn_knockout.clicked.connect(self.generate_semi_final)
-        
-        self.final_btn_knockout = QPushButton("توليد\nالنهائي" if self.lang=="ar" else "Generate\nFinal")
-        self.final_btn_knockout.setFixedSize(120, 80)
-        self.final_btn_knockout.setStyleSheet("""
-            QPushButton {
-                background: #FF1493; 
-                color: white; 
-                font-weight: bold; 
-                font-size: 14px;
-                border-radius: 8px;
-            }
-            QPushButton:hover {
-                background: #d4117a;
-            }
-            QPushButton:disabled {
-                background: #cccccc;
-                color: #666666;
-            }
-        """)
-        self.final_btn_knockout.clicked.connect(self.generate_final)
-        
-        # اضافة الازرار جنب بعض
-        knockout_buttons_layout.addWidget(self.round_16_btn_knockout)
-        knockout_buttons_layout.addWidget(self.quarter_btn_knockout)
-        knockout_buttons_layout.addWidget(self.semi_btn_knockout)
-        knockout_buttons_layout.addWidget(self.final_btn_knockout)
-        knockout_buttons_layout.addStretch()
-        
-        l.addWidget(knockout_buttons_group)
+        # زر إصلاح المشاكل
+        fix_btn = QPushButton("إصلاح مشاكل الإقصائيات")
+        fix_btn.setStyleSheet("background: #FF8C00; color: white; margin: 10px;")
+        fix_btn.clicked.connect(self.fix_knockout_issues)
+        l.addWidget(fix_btn)
         
         reset_knockout_btn = QPushButton("إعادة تعيين الإقصائيات")
         reset_knockout_btn.setStyleSheet("background: #FF6B6B; color: white; margin: 10px;")
@@ -2055,6 +2013,20 @@ class MainWindow(QMainWindow):
         self.k_stage_combo.currentTextChanged.connect(self.populate_knockout_table)
         self.populate_knockout_table()
         return w
+
+    def fix_knockout_issues(self):
+        """إصلاح مشاكل الأدوار الإقصائية"""
+        reply = QMessageBox.question(self, "تأكيد الإصلاح", 
+            "هل تريد إصلاح جميع مشاكل الأدوار الإقصائية؟")
+        
+        if reply == QMessageBox.StandardButton.Yes:
+            if fix_knockout_issues():
+                QMessageBox.information(self, "تم", "تم الإصلاح بنجاح")
+                self.populate_knockout_table()
+                self.populate_teams_table()
+                self.update_qualified_teams_display()
+            else:
+                QMessageBox.warning(self, "خطأ", "فشل في إصلاح المشاكل")
 
     def update_qualified_teams_display(self):
         """تحديث عرض الفرق المتأهلة في جدول منظم"""
