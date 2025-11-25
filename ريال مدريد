@@ -293,6 +293,37 @@ def get_standings():
     finally:
         conn.close()
 
+def get_group_standings():
+    """الحصول على ترتيب الفرق داخل كل مجموعة (للتأهل الصحيح)"""
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        query = """
+        SELECT t.name_ar, t.name_en, t.group_char,
+               COUNT(m.id) AS P,
+               SUM(CASE WHEN (m.home_team = t.name_ar AND m.home_goals > m.away_goals) OR 
+                             (m.away_team = t.name_ar AND m.away_goals > m.home_goals) THEN 1 ELSE 0 END) AS W,
+               SUM(CASE WHEN m.home_goals = m.away_goals AND m.home_goals IS NOT NULL THEN 1 ELSE 0 END) AS D,
+               SUM(CASE WHEN (m.home_team = t.name_ar AND m.home_goals < m.away_goals) OR 
+                             (m.away_team = t.name_ar AND m.away_goals < m.home_goals) THEN 1 ELSE 0 END) AS L,
+               COALESCE(SUM(CASE WHEN m.home_team = t.name_ar THEN m.home_goals ELSE m.away_goals END), 0) AS GF,
+               COALESCE(SUM(CASE WHEN m.home_team = t.name_ar THEN m.away_goals ELSE m.home_goals END), 0) AS GA,
+               (COALESCE(SUM(CASE WHEN m.home_team = t.name_ar THEN m.home_goals ELSE m.away_goals END), 0) -
+                COALESCE(SUM(CASE WHEN m.home_team = t.name_ar THEN m.away_goals ELSE m.home_goals END), 0)) AS GD,
+               SUM(CASE WHEN (m.home_team = t.name_ar AND m.home_goals > m.away_goals) OR 
+                            (m.away_team = t.name_ar AND m.away_goals > m.home_goals) THEN 3
+                    WHEN m.home_goals = m.away_goals AND m.home_goals IS NOT NULL THEN 1 ELSE 0 END) AS Pts
+        FROM teams t LEFT JOIN matches m ON (m.home_team = t.name_ar OR m.away_team = t.name_ar) AND m.stage = 'Group Stage'
+        GROUP BY t.name_ar, t.group_char
+        ORDER BY t.group_char, Pts DESC, GD DESC, GF DESC
+        """
+        df = pd.read_sql_query(query, conn)
+        return df
+    except Exception as e:
+        print(f"Error in get_group_standings: {e}")
+        return pd.DataFrame()
+    finally:
+        conn.close()
+
 def get_matches(stage=None):
     conn = sqlite3.connect(DB_PATH)
     try:
@@ -423,10 +454,42 @@ def reset_tournament():
     finally:
         conn.close()
 
-def get_qualified_teams():
-    """الحصول على الفرق المتأهلة للإقصائيات (أفضل 16 فريق)"""
-    standings = get_standings()
-    return standings.head(16)
+def get_qualified_teams_correct():
+    """الحصول على الفرق المتأهلة حسب قواعد دوري الأبطال الحقيقية - المتصدرين والمركز الثاني"""
+    try:
+        df = get_group_standings()
+        
+        if df.empty:
+            print("لا توجد بيانات للترتيب")
+            return []
+        
+        # تجميع المتصدرين والمركز الثاني من كل مجموعة
+        group_winners = []  # المتصدرين
+        runners_up = []     # المركز الثاني
+        
+        for group in ['A','B','C','D','E','F','G','H']:
+            group_teams = df[df['group_char'] == group].head(2)  # أول فريقين في المجموعة
+            
+            if len(group_teams) >= 1:
+                group_winners.append(group_teams.iloc[0]['name_ar'])
+                print(f"المجموعة {group}: المتصدر {group_teams.iloc[0]['name_ar']}")
+            if len(group_teams) >= 2:
+                runners_up.append(group_teams.iloc[1]['name_ar'])
+                print(f"المجموعة {group}: المركز الثاني {group_teams.iloc[1]['name_ar']}")
+        
+        # في دوري الأبطال: جميع المتصدرين والمركز الثاني يتأهلون مباشرة لدور الـ16
+        qualified_teams = group_winners + runners_up
+        
+        print(f"المتصدرون: {group_winners}")
+        print(f"المركز الثاني: {runners_up}")
+        print(f"المجموع المتأهل: {len(qualified_teams)} فريق")
+        
+        return qualified_teams
+        
+    except Exception as e:
+        print(f"Error in get_qualified_teams_correct: {e}")
+        traceback.print_exc()
+        return []
 
 def get_winners_from_stage(stage):
     """الحصول على الفائزين من مرحلة معينة"""
@@ -447,12 +510,12 @@ def get_winners_from_stage(stage):
 def get_qualified_for_next_stage(current_stage):
     """الحصول على الفرق المتأهلة للمرحلة التالية بناءً على نتائج المرحلة الحالية"""
     if current_stage == "Group Stage":
-        return get_qualified_teams()["name_ar"].tolist()
+        return get_qualified_teams_correct()  # استخدام الدالة المصححة
     else:
         return get_winners_from_stage(current_stage)
 
 def generate_all_group_matches():
-    """توليد جميع مباريات دور المجموعات تلقائياً - الإصدار المعدل والمحسَن"""
+    """توليد جميع مباريات دور المجموعات تلقائياً"""
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     try:
@@ -532,13 +595,125 @@ def generate_all_group_matches():
     finally:
         conn.close()
 
+def generate_round_of_16_correct():
+    """توليد مباريات دور الـ16 بشكل صحيح حسب القواعد الرسمية"""
+    try:
+        # الحصول على المتصدرين والمركز الثاني من كل مجموعة
+        df = get_group_standings()
+        
+        if df.empty:
+            print("لا توجد بيانات للترتيب")
+            return 0
+        
+        group_winners = []  # المتصدرين
+        runners_up = []     # المركز الثاني
+        
+        for group in ['A','B','C','D','E','F','G','H']:
+            group_teams = df[df['group_char'] == group].head(2)  # أول فريقين في المجموعة
+            
+            if len(group_teams) >= 1:
+                group_winners.append({
+                    'name': group_teams.iloc[0]['name_ar'],
+                    'group': group
+                })
+            if len(group_teams) >= 2:
+                runners_up.append({
+                    'name': group_teams.iloc[1]['name_ar'],
+                    'group': group
+                })
+        
+        print(f"المتصدرون: {[w['name'] for w in group_winners]}")
+        print(f"المركز الثاني: {[r['name'] for r in runners_up]}")
+        
+        if len(group_winners) < 8 or len(runners_up) < 8:
+            print(f"عدد الفرق غير كافي: {len(group_winners)} متصدر و {len(runners_up)} مركز ثاني")
+            return 0
+        
+        # توليد المباريات: متصدر ضد مركز ثاني من مجموعة مختلفة
+        match_count = 0
+        base_date = QDate.currentDate()
+        
+        # خلط القوائم لتوليد مباريات عشوائية
+        random.shuffle(group_winners)
+        random.shuffle(runners_up)
+        
+        used_runners = set()
+        
+        for i, winner in enumerate(group_winners):
+            # إيجاد مركز ثاني من مجموعة مختلفة
+            suitable_runner = None
+            for runner in runners_up:
+                if runner['name'] not in used_runners and runner['group'] != winner['group']:
+                    suitable_runner = runner
+                    break
+            
+            if suitable_runner is None:
+                # إذا لم نجد مركز ثاني من مجموعة مختلفة، نأخذ أي مركز ثاني متبقي
+                for runner in runners_up:
+                    if runner['name'] not in used_runners:
+                        suitable_runner = runner
+                        break
+            
+            if suitable_runner:
+                home_team = winner['name']
+                away_team = suitable_runner['name']
+                used_runners.add(suitable_runner['name'])
+                
+                match_date = base_date.addDays(i * 3).toString("yyyy-MM-dd")
+                
+                # نتائج واقعية
+                home_goals = random.randint(0, 3)
+                away_goals = random.randint(0, 2)
+                
+                # تحديد الفائز
+                winner_team = ""
+                win_method = "normal"
+                home_extra = 0
+                away_extra = 0
+                home_pen = 0
+                away_pen = 0
+                
+                if home_goals > away_goals:
+                    winner_team = home_team
+                elif away_goals > home_goals:
+                    winner_team = away_team
+                else:
+                    # وقت إضافي
+                    home_extra = random.randint(0, 1)
+                    away_extra = random.randint(0, 1)
+                    if home_goals + home_extra > away_goals + away_extra:
+                        winner_team = home_team
+                        win_method = "extra_time"
+                    elif away_goals + away_extra > home_goals + home_extra:
+                        winner_team = away_team
+                        win_method = "extra_time"
+                    else:
+                        # ركلات ترجيح
+                        home_pen = random.randint(3, 5)
+                        away_pen = random.randint(2, 4)
+                        winner_team = home_team if home_pen > away_pen else away_team
+                        win_method = "penalties"
+                
+                if add_match(home_team, away_team, home_goals, away_goals, match_date, 
+                           "Round of 16", 'single', 0, home_extra, away_extra, 
+                           home_pen, away_pen, winner_team, win_method):
+                    match_count += 1
+                    print(f"مباراة دور الـ16: {home_team} ({winner['group']}) vs {away_team} ({suitable_runner['group']}) - الفائز: {winner_team}")
+        
+        print(f"تم توليد {match_count} مباراة في دور الـ16")
+        return match_count
+        
+    except Exception as e:
+        print(f"خطأ في توليد دور الـ16: {e}")
+        traceback.print_exc()
+        return 0
+
 def generate_knockout_stage_matches(stage):
-    """توليد مباريات مرحلة إقصائية تلقائياً - الإصدار المعدل"""
-    conn = sqlite3.connect(DB_PATH)
+    """توليد مباريات مرحلة إقصائية تلقائياً"""
     try:
         # الحصول على الفرق المتأهلة لهذه المرحلة
         if stage == "Round of 16":
-            qualified_teams = get_qualified_for_next_stage("Group Stage")
+            return generate_round_of_16_correct()  # استخدام الدالة المصححة
         else:
             qualified_teams = get_qualified_for_next_stage(stage)
         
@@ -549,10 +724,7 @@ def generate_knockout_stage_matches(stage):
             return 0
         
         # تحديد عدد المباريات المطلوبة
-        if stage == "Round of 16":
-            required_teams = 16
-            matches_needed = 8
-        elif stage == "Quarter Final":
+        if stage == "Quarter Final":
             required_teams = 8
             matches_needed = 4
         elif stage == "Semi Final":
@@ -1033,6 +1205,12 @@ class MainWindow(QMainWindow):
         w = QWidget()
         l = QVBoxLayout(w)
         
+        # زر التوليد الصحيح لدور الـ16
+        correct_round16_btn = QPushButton("توليد دور الـ16 (حسب القواعد الرسمية)" if self.lang=="ar" else "Generate Round of 16 (Official Rules)")
+        correct_round16_btn.setStyleSheet("background: #32CD32; color: white; font-weight: bold; padding: 12px;")
+        correct_round16_btn.clicked.connect(self.generate_correct_round_of_16)
+        l.addWidget(correct_round16_btn)
+        
         # زر واحد فقط للتوليد التدريجي للإقصائيات
         knockout_group = QGroupBox("توليد مباريات الإقصائيات تدريجياً" if self.lang=="ar" else "Gradual Knockout Matches Generation")
         knockout_layout = QVBoxLayout(knockout_group)
@@ -1054,6 +1232,12 @@ class MainWindow(QMainWindow):
         knockout_layout.addWidget(self.current_knockout_stage_label)
         
         l.addWidget(knockout_group)
+        
+        # زر توليد مباريات المجموعات
+        group_matches_btn = QPushButton("توليد جميع مباريات دور المجموعات" if self.lang=="ar" else "Generate All Group Stage Matches")
+        group_matches_btn.setStyleSheet("background: #1E90FF; color: white; font-weight: bold; padding: 12px;")
+        group_matches_btn.clicked.connect(self.generate_group_matches)
+        l.addWidget(group_matches_btn)
         
         # زر Reset خاص بالمباريات
         reset_matches_btn = QPushButton("حذف جميع المباريات" if self.lang=="ar" else "Delete All Matches")
@@ -1122,6 +1306,54 @@ class MainWindow(QMainWindow):
         l.addWidget(self.matches_table)
         self.populate_matches_table()
         return w
+
+    def generate_correct_round_of_16(self):
+        """توليد دور الـ16 حسب القواعد الرسمية"""
+        try:
+            # التحقق من اكتمال مباريات المجموعات أولاً
+            group_matches = get_matches("Group Stage")
+            if group_matches.empty:
+                QMessageBox.warning(self, "تحذير" if self.lang=="ar" else "Warning",
+                    "يجب توليد مباريات دور المجموعات أولاً" if self.lang=="ar"
+                    else "Please generate group stage matches first")
+                return
+            
+            match_count = generate_round_of_16_correct()
+            
+            if match_count > 0:
+                QMessageBox.information(self, "تم" if self.lang=="ar" else "Success", 
+                    f"تم توليد {match_count} مباراة في دور الـ16 حسب القواعد الرسمية" if self.lang=="ar"
+                    else f"Generated {match_count} Round of 16 matches using official rules")
+                self.populate_matches_table()
+                self.current_stage_index = 1  # تحديث الفهرس ليكون جاهزاً للمرحلة التالية
+                self.update_knockout_button()
+            else:
+                QMessageBox.warning(self, "تحذير" if self.lang=="ar" else "Warning",
+                    "لم يتم توليد أي مباراة. تأكد من اكتمال مباريات المجموعات." if self.lang=="ar"
+                    else "No matches generated. Make sure group stage matches are completed.")
+                
+        except Exception as e:
+            QMessageBox.critical(self, "خطأ" if self.lang=="ar" else "Error", 
+                f"حدث خطأ: {str(e)}")
+
+    def generate_group_matches(self):
+        """توليد مباريات دور المجموعات"""
+        try:
+            match_count = generate_all_group_matches()
+            
+            if match_count > 0:
+                QMessageBox.information(self, "تم" if self.lang=="ar" else "Success", 
+                    f"تم توليد {match_count} مباراة في دور المجموعات" if self.lang=="ar"
+                    else f"Generated {match_count} group stage matches")
+                self.populate_matches_table()
+            else:
+                QMessageBox.warning(self, "تحذير" if self.lang=="ar" else "Warning",
+                    "لم يتم توليد أي مباراة." if self.lang=="ar"
+                    else "No matches generated.")
+                
+        except Exception as e:
+            QMessageBox.critical(self, "خطأ" if self.lang=="ar" else "Error", 
+                f"حدث خطأ: {str(e)}")
 
     def generate_knockout_step_by_step(self):
         """التوليد التدريجي لمباريات الإقصائيات فقط"""
@@ -1468,6 +1700,12 @@ class MainWindow(QMainWindow):
     def tab_knockouts(self):
         w = QWidget()
         l = QVBoxLayout(w)
+        
+        # زر التوليد الصحيح لدور الـ16
+        correct_round16_btn = QPushButton("توليد دور الـ16 (حسب القواعد الرسمية)" if self.lang=="ar" else "Generate Round of 16 (Official Rules)")
+        correct_round16_btn.setStyleSheet("background: #32CD32; color: white; font-weight: bold; padding: 12px;")
+        correct_round16_btn.clicked.connect(self.generate_correct_round_of_16)
+        l.addWidget(correct_round16_btn)
         
         # زر Reset خاص بالإقصائيات
         reset_knockout_btn = QPushButton("إعادة تعيين الإقصائيات" if self.lang=="ar" else "Reset Knockouts")
