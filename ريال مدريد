@@ -33,8 +33,14 @@ except Exception as e:
 DB_PATH = Path("ucl_database.db")
 
 # ---------- قاعدة البيانات وتهيئتها ----------
+def get_db_connection():
+    """الحصول على اتصال بقاعدة البيانات مع معالجة الأقفال"""
+    conn = sqlite3.connect(DB_PATH, timeout=30)
+    conn.execute("PRAGMA journal_mode=WAL")  # تحسين الأداء مع العمليات المتزامنة
+    return conn
+
 def init_db():
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     c = conn.cursor()
     
     # حذف الجداول القديمة إذا كانت موجودة
@@ -155,7 +161,7 @@ def init_db():
     conn.close()
 
 def add_team(name_ar, name_en, country_ar, country_en, group):
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     c = conn.cursor()
     try:
         c.execute("INSERT INTO teams (name_ar, name_en, country_ar, country_en, group_char) VALUES (?, ?, ?, ?, ?)", 
@@ -170,7 +176,7 @@ def add_team(name_ar, name_en, country_ar, country_en, group):
 def add_match(home, away, hg, ag, date, stage, leg='single', pair_id=0, 
               home_extra=0, away_extra=0, home_pen=0, away_pen=0, winner=None, win_method='normal'):
     """إضافة مباراة جديدة إلى قاعدة البيانات"""
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     c = conn.cursor()
     try:
         # التأكد من صحة البيانات
@@ -218,7 +224,7 @@ def add_match(home, away, hg, ag, date, stage, leg='single', pair_id=0,
         conn.close()
 
 def get_teams(include_eliminated=False, include_banned=False):
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     try:
         query = "SELECT name_ar, name_en FROM teams WHERE 1=1"
         params = []
@@ -249,7 +255,7 @@ def get_team_names(lang="ar", include_eliminated=False, include_banned=False):
         return df["name_en"].tolist()
 
 def get_all_teams():
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     try:
         df = pd.read_sql_query("""
             SELECT name_ar, name_en, country_ar, country_en, group_char, eliminated, banned, id 
@@ -264,7 +270,7 @@ def get_all_teams():
         conn.close()
 
 def get_standings():
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     try:
         query = """
         SELECT t.name_ar, t.name_en, t.country_ar, t.country_en, t.group_char, t.eliminated, t.banned,
@@ -295,7 +301,7 @@ def get_standings():
 
 def get_group_standings():
     """الحصول على ترتيب الفرق داخل كل مجموعة (للتأهل الصحيح)"""
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     try:
         query = """
         SELECT t.name_ar, t.name_en, t.group_char,
@@ -325,7 +331,7 @@ def get_group_standings():
         conn.close()
 
 def get_matches(stage=None):
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     try:
         if stage:
             df = pd.read_sql_query("SELECT * FROM matches WHERE stage = ? ORDER BY date, home_team", conn, params=(stage,))
@@ -340,7 +346,7 @@ def get_matches(stage=None):
 
 def get_knockout_matches():
     """الحصول على جميع مباريات الإقصائيات مع التفاصيل الكاملة"""
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     try:
         df = pd.read_sql_query("""
             SELECT * FROM matches 
@@ -363,7 +369,7 @@ def get_knockout_matches():
 
 def get_knockout_results():
     """الحصول على نتائج الإقصائيات بشكل منظم"""
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     try:
         df = pd.read_sql_query("""
             SELECT * FROM knockout_results 
@@ -384,7 +390,7 @@ def get_knockout_results():
         conn.close()
 
 def eliminate_teams(team_names):
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     c = conn.cursor()
     try:
         # إعادة تعيين جميع الفرق أولاً
@@ -399,7 +405,7 @@ def eliminate_teams(team_names):
         conn.close()
 
 def ban_team(team_name, ban_status):
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     c = conn.cursor()
     try:
         c.execute("UPDATE teams SET banned = ? WHERE name_ar = ? OR name_en = ?", (ban_status, team_name, team_name))
@@ -410,7 +416,7 @@ def ban_team(team_name, ban_status):
         conn.close()
 
 def delete_team(team_name):
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     c = conn.cursor()
     try:
         # حذف المباريات المرتبطة أولاً
@@ -426,7 +432,7 @@ def delete_team(team_name):
         conn.close()
 
 def delete_match(match_id):
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     c = conn.cursor()
     try:
         # حذف من جدول النتائج أولاً
@@ -442,7 +448,7 @@ def delete_match(match_id):
         conn.close()
 
 def reset_tournament():
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     c = conn.cursor()
     try:
         c.execute("DELETE FROM matches")
@@ -502,7 +508,7 @@ def get_qualified_teams_correct():
 
 def get_winners_from_stage(stage):
     """الحصول على الفائزين من مرحلة معينة"""
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     try:
         df = pd.read_sql_query("""
             SELECT winner FROM matches 
@@ -533,7 +539,7 @@ def get_qualified_for_next_stage_correct(current_stage):
 
 def generate_all_group_matches():
     """توليد جميع مباريات دور المجموعات تلقائياً - الإصدار المعدل والمحسَن"""
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     c = conn.cursor()
     try:
         # حذف مباريات المجموعات الحالية أولاً
@@ -710,7 +716,6 @@ def generate_round_of_16_correct():
 
 def generate_knockout_stage_matches(stage):
     """توليد مباريات مرحلة إقصائية تلقائياً - الإصدار المعدل"""
-    conn = sqlite3.connect(DB_PATH)
     try:
         # الحصول على الفرق المتأهلة لهذه المرحلة
         if stage == "Round of 16":
@@ -825,6 +830,7 @@ class MainWindow(QMainWindow):
         self.resize(1400, 900)
         self.current_stage_index = 0  # لتتبع المرحلة الحالية في التوليد التدريجي
         self.stages = ["Group Stage", "Round of 16", "Quarter Final", "Semi Final", "Final"]
+        self.cancel_generation = False  # إضافة متغير للإلغاء
 
         # أيقونة البرنامج
         icon_path = Path("fifa.ico")
@@ -1044,7 +1050,7 @@ class MainWindow(QMainWindow):
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         
         if reply == QMessageBox.StandardButton.Yes:
-            conn = sqlite3.connect(DB_PATH)
+            conn = get_db_connection()
             c = conn.cursor()
             c.execute("DELETE FROM teams")
             
@@ -1652,7 +1658,7 @@ class MainWindow(QMainWindow):
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         
         if reply == QMessageBox.StandardButton.Yes:
-            conn = sqlite3.connect(DB_PATH)
+            conn = get_db_connection()
             c = conn.cursor()
             c.execute("DELETE FROM matches")
             c.execute("DELETE FROM knockout_results")
@@ -2024,7 +2030,7 @@ class MainWindow(QMainWindow):
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         
         if reply == QMessageBox.StandardButton.Yes:
-            conn = sqlite3.connect(DB_PATH)
+            conn = get_db_connection()
             c = conn.cursor()
             c.execute("DELETE FROM matches WHERE stage != 'Group Stage'")
             c.execute("DELETE FROM knockout_results")
