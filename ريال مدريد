@@ -1,5 +1,6 @@
 # ucl_manager_final_fixed.py
 import sys
+import io
 import sqlite3
 from pathlib import Path
 import pandas as pd
@@ -10,6 +11,11 @@ import datetime
 import random
 import traceback
 import time
+
+# حل مشكلة الترميز في Windows
+if sys.platform == "win32":
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from PyQt6.QtWidgets import *
@@ -46,7 +52,7 @@ def get_db_connection():
         conn.execute("PRAGMA busy_timeout=30000")
         return conn
     except sqlite3.Error as e:
-        print(f"❌ خطأ في الاتصال بقاعدة البيانات: {e}")
+        print(f"خطأ في الاتصال بقاعدة البيانات: {e}")
         return None
 
 def init_db():
@@ -171,9 +177,9 @@ def init_db():
                 pass
         
         conn.commit()
-        print("✅ تم تهيئة قاعدة البيانات بنجاح")
+        print("تم تهيئة قاعدة البيانات بنجاح")
     except Exception as e:
-        print(f"❌ خطأ في تهيئة قاعدة البيانات: {e}")
+        print(f"خطأ في تهيئة قاعدة البيانات: {e}")
         conn.rollback()
     finally:
         conn.close()
@@ -237,7 +243,7 @@ def add_match(home, away, hg, ag, date, stage, leg='single', pair_id=0,
         conn.commit()
         return True
     except Exception as e:
-        print(f"❌ خطأ في إضافة المباراة: {e}")
+        print(f"خطأ في إضافة المباراة: {e}")
         conn.rollback()
         return False
     finally:
@@ -261,7 +267,7 @@ def get_teams(include_eliminated=False, include_banned=False):
         df = pd.read_sql_query(query, conn, params=params)
         return df
     except Exception as e:
-        print(f"❌ Error in get_teams: {e}")
+        print(f"Error in get_teams: {e}")
         return pd.DataFrame()
     finally:
         conn.close()
@@ -288,7 +294,7 @@ def get_all_teams():
         """, conn)
         return df
     except Exception as e:
-        print(f"❌ Error in get_all_teams: {e}")
+        print(f"Error in get_all_teams: {e}")
         return pd.DataFrame()
     finally:
         conn.close()
@@ -320,7 +326,7 @@ def get_standings():
         df = pd.read_sql_query(query, conn)
         return df
     except Exception as e:
-        print(f"❌ Error in get_standings: {e}")
+        print(f"Error in get_standings: {e}")
         return pd.DataFrame()
     finally:
         conn.close()
@@ -376,7 +382,7 @@ def get_group_standings():
         df = pd.read_sql_query(query, conn)
         return df
     except Exception as e:
-        print(f"❌ Error in get_group_standings: {e}")
+        print(f"Error in get_group_standings: {e}")
         return pd.DataFrame()
     finally:
         conn.close()
@@ -392,7 +398,7 @@ def get_matches(stage=None):
             df = pd.read_sql_query("SELECT * FROM matches ORDER BY date, home_team", conn)
         return df
     except Exception as e:
-        print(f"❌ Error in get_matches: {e}")
+        print(f"Error in get_matches: {e}")
         return pd.DataFrame()
     finally:
         conn.close()
@@ -417,7 +423,7 @@ def get_knockout_matches():
         """, conn)
         return df
     except Exception as e:
-        print(f"❌ Error in get_knockout_matches: {e}")
+        print(f"Error in get_knockout_matches: {e}")
         return pd.DataFrame()
     finally:
         conn.close()
@@ -441,7 +447,7 @@ def get_knockout_results():
         """, conn)
         return df
     except Exception as e:
-        print(f"❌ Error in get_knockout_results: {e}")
+        print(f"Error in get_knockout_results: {e}")
         return pd.DataFrame()
     finally:
         conn.close()
@@ -457,7 +463,7 @@ def eliminate_teams(team_names):
             c.execute("UPDATE teams SET eliminated = 1 WHERE name_ar = ? OR name_en = ?", (team, team))
         conn.commit()
     except Exception as e:
-        print(f"❌ Error in eliminate_teams: {e}")
+        print(f"Error in eliminate_teams: {e}")
     finally:
         conn.close()
 
@@ -470,7 +476,7 @@ def ban_team(team_name, ban_status):
         c.execute("UPDATE teams SET banned = ? WHERE name_ar = ? OR name_en = ?", (ban_status, team_name, team_name))
         conn.commit()
     except Exception as e:
-        print(f"❌ Error in ban_team: {e}")
+        print(f"Error in ban_team: {e}")
     finally:
         conn.close()
 
@@ -485,7 +491,7 @@ def delete_team(team_name):
         conn.commit()
         return True
     except Exception as e:
-        print(f"❌ Error in delete_team: {e}")
+        print(f"Error in delete_team: {e}")
         return False
     finally:
         conn.close()
@@ -501,7 +507,7 @@ def delete_match(match_id):
         conn.commit()
         return True
     except Exception as e:
-        print(f"❌ Error in delete_match: {e}")
+        print(f"Error in delete_match: {e}")
         return False
     finally:
         conn.close()
@@ -517,7 +523,7 @@ def reset_tournament():
         c.execute("UPDATE teams SET eliminated = 0, banned = 0")
         conn.commit()
     except Exception as e:
-        print(f"❌ Error in reset_tournament: {e}")
+        print(f"Error in reset_tournament: {e}")
     finally:
         conn.close()
 
@@ -526,19 +532,19 @@ def check_stage_completion(stage):
     try:
         matches = get_matches(stage)
         if matches.empty:
-            print(f"⚠️ لا توجد مباريات في مرحلة {stage}")
+            print(f"لا توجد مباريات في مرحلة {stage}")
             return False
         
         # التحقق من أن جميع المباريات لها فائز
         completed_matches = matches[matches['winner'].notna() & (matches['winner'] != '')]
         completion_ratio = len(completed_matches) / len(matches)
         
-        print(f"📊 مرحلة {stage}: {len(completed_matches)}/{len(matches)} مباراة مكتملة ({completion_ratio:.1%})")
+        print(f"مرحلة {stage}: {len(completed_matches)}/{len(matches)} مباراة مكتملة ({completion_ratio:.1%})")
         
         return len(completed_matches) == len(matches)
         
     except Exception as e:
-        print(f"❌ خطأ في check_stage_completion: {e}")
+        print(f"خطأ في check_stage_completion: {e}")
         return False
 
 def get_qualified_teams_correct():
@@ -547,13 +553,13 @@ def get_qualified_teams_correct():
         df = get_group_standings()
         
         if df.empty:
-            print("❌ لا توجد بيانات للترتيب")
+            print("لا توجد بيانات للترتيب")
             return []
         
         group_winners = []
         runners_up = []
         
-        print("📊 ترتيب المجموعات:")
+        print("ترتيب المجموعات:")
         for group in ['A','B','C','D','E','F','G','H']:
             group_teams = df[df['group_char'] == group]
             print(f"   المجموعة {group}:")
@@ -575,17 +581,17 @@ def get_qualified_teams_correct():
                     'goal_difference': group_teams.iloc[1]['GD']
                 })
         
-        print(f"✅ المتصدرون: {[w['name'] for w in group_winners]}")
-        print(f"✅ المركز الثاني: {[r['name'] for r in runners_up]}")
+        print(f"المتصدرون: {[w['name'] for w in group_winners]}")
+        print(f"المركز الثاني: {[r['name'] for r in runners_up]}")
         
         qualified_teams = group_winners + runners_up
         
-        print(f"🎯 المجموع المتأهل: {len(qualified_teams)} فريق")
+        print(f"المجموع المتأهل: {len(qualified_teams)} فريق")
         
         return qualified_teams
         
     except Exception as e:
-        print(f"❌ Error in get_qualified_teams_correct: {e}")
+        print(f"Error in get_qualified_teams_correct: {e}")
         traceback.print_exc()
         return []
 
@@ -602,11 +608,11 @@ def get_winners_from_stage(stage):
         """, conn, params=(stage,))
         
         winners = df["winner"].tolist()
-        print(f"🏆 الفائزون من {stage}: {winners}")
+        print(f"الفائزون من {stage}: {winners}")
         return winners
         
     except Exception as e:
-        print(f"❌ خطأ في get_winners_from_stage: {e}")
+        print(f"خطأ في get_winners_from_stage: {e}")
         return []
     finally:
         conn.close()
@@ -620,16 +626,16 @@ def get_qualified_for_next_stage_correct(current_stage):
         else:
             # التحقق من اكتمال المرحلة الحالية أولاً
             if not check_stage_completion(current_stage):
-                print(f"⚠️ مرحلة {current_stage} لم تكتمل بعد - لا توجد فرق متأهلة")
+                print(f"مرحلة {current_stage} لم تكتمل بعد - لا توجد فرق متأهلة")
                 return []
             
             # الحصول على الفائزين من المرحلة الحالية
             winners = get_winners_from_stage(current_stage)
-            print(f"✅ الفائزون من مرحلة {current_stage}: {winners}")
+            print(f"الفائزون من مرحلة {current_stage}: {winners}")
             return winners
             
     except Exception as e:
-        print(f"❌ خطأ في get_qualified_for_next_stage_correct: {e}")
+        print(f"خطأ في get_qualified_for_next_stage_correct: {e}")
         return []
 
 def generate_all_group_matches():
@@ -644,7 +650,7 @@ def generate_all_group_matches():
         
         teams_df = get_all_teams()
         if teams_df.empty:
-            print("❌ لا توجد فرق في قاعدة البيانات")
+            print("لا توجد فرق في قاعدة البيانات")
             return 0
         
         match_count = 0
@@ -657,14 +663,14 @@ def generate_all_group_matches():
                 groups[group] = []
             groups[group].append(team["name_ar"])
         
-        print(f"✅ تم تجميع {len(groups)} مجموعة")
+        print(f"تم تجميع {len(groups)} مجموعة")
         
         for group, group_teams in groups.items():
             if len(group_teams) < 4:
-                print(f"⚠️ المجموعة {group} تحتوي على أقل من 4 فرق")
+                print(f"المجموعة {group} تحتوي على أقل من 4 فرق")
                 continue
             
-            print(f"🎯 جاري توليد مباريات المجموعة {group}...")
+            print(f"جاري توليد مباريات المجموعة {group}...")
             
             match_days = 0
             
@@ -679,7 +685,7 @@ def generate_all_group_matches():
                     
                     if add_match(home_team, away_team, home_goals, away_goals, match_date, "Group Stage"):
                         match_count += 1
-                        print(f"⚽ تمت إضافة مباراة: {home_team} vs {away_team} - {home_goals}-{away_goals}")
+                        print(f"تمت إضافة مباراة: {home_team} vs {away_team} - {home_goals}-{away_goals}")
                     
                     match_date_return = base_date.addDays(match_days + 3).toString("yyyy-MM-dd")
                     home_goals_return = random.randint(0, 3)
@@ -687,15 +693,15 @@ def generate_all_group_matches():
                     
                     if add_match(away_team, home_team, home_goals_return, away_goals_return, match_date_return, "Group Stage"):
                         match_count += 1
-                        print(f"⚽ تمت إضافة مباراة: {away_team} vs {home_team} - {home_goals_return}-{away_goals_return}")
+                        print(f"تمت إضافة مباراة: {away_team} vs {home_team} - {home_goals_return}-{away_goals_return}")
                     
                     match_days += 6
         
-        print(f"✅ تم توليد {match_count} مباراة في دور المجموعات")
+        print(f"تم توليد {match_count} مباراة في دور المجموعات")
         return match_count
         
     except Exception as e:
-        print(f"❌ خطأ في توليد مباريات المجموعات: {e}")
+        print(f"خطأ في توليد مباريات المجموعات: {e}")
         traceback.print_exc()
         conn.rollback()
         return 0
@@ -708,15 +714,15 @@ def generate_round_of_16_correct():
         qualified_teams = get_qualified_teams_correct()
         
         if len(qualified_teams) < 16:
-            print(f"❌ عدد الفرق المتأهلة غير كافي: {len(qualified_teams)} من 16")
-            print("⚠️ يجب إكمال جميع مباريات دور المجموعات أولاً")
+            print(f"عدد الفرق المتأهلة غير كافي: {len(qualified_teams)} من 16")
+            print("يجب إكمال جميع مباريات دور المجموعات أولاً")
             return 0
         
         group_winners = [team for team in qualified_teams[:8]]
         runners_up = [team for team in qualified_teams[8:]]
         
-        print(f"✅ المتصدرون: {[w['name'] for w in group_winners]}")
-        print(f"✅ المركز الثاني: {[r['name'] for r in runners_up]}")
+        print(f"المتصدرون: {[w['name'] for w in group_winners]}")
+        print(f"المركز الثاني: {[r['name'] for r in runners_up]}")
         
         match_count = 0
         base_date = QDate.currentDate()
@@ -781,17 +787,17 @@ def generate_round_of_16_correct():
                            home_pen, away_pen, winner_team, win_method):
                     match_count += 1
                     matches_created.append(f"{home_team} vs {away_team} - الفائز: {winner_team}")
-                    print(f"🎯 مباراة دور الـ16: {home_team} ({winner['group']}) vs {away_team} ({suitable_runner['group']}) - الفائز: {winner_team}")
+                    print(f"مباراة دور الـ16: {home_team} ({winner['group']}) vs {away_team} ({suitable_runner['group']}) - الفائز: {winner_team}")
         
-        print(f"✅ تم توليد {match_count} مباراة في دور الـ16")
-        print("📋 المباريات المُنشأة:")
+        print(f"تم توليد {match_count} مباراة في دور الـ16")
+        print("المباريات المُنشأة:")
         for match in matches_created:
             print(f"  - {match}")
         
         return match_count
         
     except Exception as e:
-        print(f"❌ خطأ في توليد دور الـ16: {e}")
+        print(f"خطأ في توليد دور الـ16: {e}")
         traceback.print_exc()
         return 0
 
@@ -803,10 +809,10 @@ def generate_knockout_stage_matches(stage):
         else:
             qualified_teams = get_qualified_for_next_stage_correct(stage)
         
-        print(f"🎯 الفرق المتأهلة لمرحلة {stage}: {qualified_teams}")
+        print(f"الفرق المتأهلة لمرحلة {stage}: {qualified_teams}")
         
         if not qualified_teams:
-            print(f"❌ لا توجد فرق متأهلة لمرحلة {stage}")
+            print(f"لا توجد فرق متأهلة لمرحلة {stage}")
             return 0
         
         if stage == "Round of 16":
@@ -825,8 +831,8 @@ def generate_knockout_stage_matches(stage):
             return 0
         
         if len(qualified_teams) < required_teams:
-            print(f"❌ عدد الفرق المتأهلة ({len(qualified_teams)}) أقل من المطلوب ({required_teams})")
-            print("⚠️ يجب إكمال المرحلة السابقة أولاً")
+            print(f"عدد الفرق المتأهلة ({len(qualified_teams)}) أقل من المطلوب ({required_teams})")
+            print("يجب إكمال المرحلة السابقة أولاً")
             return 0
         
         available_teams = qualified_teams[:required_teams]
@@ -834,7 +840,7 @@ def generate_knockout_stage_matches(stage):
         match_count = 0
         base_date = QDate.currentDate()
         
-        print(f"🎯 جاري توليد {matches_needed} مباراة لمرحلة {stage}...")
+        print(f"جاري توليد {matches_needed} مباراة لمرحلة {stage}...")
         
         for i in range(matches_needed):
             home_team = available_teams[i * 2]
@@ -871,13 +877,13 @@ def generate_knockout_stage_matches(stage):
                        stage, 'single', 0, home_extra, away_extra, 
                        home_pen, away_pen, winner, win_method):
                 match_count += 1
-                print(f"⚽ تمت إضافة مباراة إقصائية: {home_team} vs {away_team} - الفائز: {winner}")
+                print(f"تمت إضافة مباراة إقصائية: {home_team} vs {away_team} - الفائز: {winner}")
         
-        print(f"✅ تم توليد {match_count} مباراة في مرحلة {stage}")
+        print(f"تم توليد {match_count} مباراة في مرحلة {stage}")
         return match_count
         
     except Exception as e:
-        print(f"❌ خطأ في توليد مباريات مرحلة {stage}: {e}")
+        print(f"خطأ في توليد مباريات مرحلة {stage}: {e}")
         traceback.print_exc()
         return 0
 
@@ -897,12 +903,12 @@ class GenerationThread(QThread):
             
             # 1. توليد دور المجموعات
             if self.cancelled: return
-            self.stage_updated.emit("🎯 جاري توليد دور المجموعات...")
+            self.stage_updated.emit("جاري توليد دور المجموعات...")
             self.progress_updated.emit(10)
             
             group_matches = generate_all_group_matches()
             if group_matches == 0:
-                self.finished_signal.emit(False, "❌ فشل في توليد دور المجموعات")
+                self.finished_signal.emit(False, "فشل في توليد دور المجموعات")
                 return
             total_matches += group_matches
             
@@ -912,18 +918,18 @@ class GenerationThread(QThread):
             # التحقق من اكتمال دور المجموعات
             qualified_group = get_qualified_for_next_stage_correct("Group Stage")
             if len(qualified_group) < 16:
-                self.finished_signal.emit(False, f"❌ عدد الفرق المتأهلة غير كافي: {len(qualified_group)} من 16")
+                self.finished_signal.emit(False, f"عدد الفرق المتأهلة غير كافي: {len(qualified_group)} من 16")
                 return
             
             self.progress_updated.emit(30)
             
             # 2. توليد دور الـ16
             if self.cancelled: return
-            self.stage_updated.emit("🎯 جاري توليد دور الـ16...")
+            self.stage_updated.emit("جاري توليد دور الـ16...")
             
             round_of_16_matches = generate_round_of_16_correct()
             if round_of_16_matches == 0:
-                self.finished_signal.emit(False, "❌ فشل في توليد دور الـ16")
+                self.finished_signal.emit(False, "فشل في توليد دور الـ16")
                 return
             total_matches += round_of_16_matches
             
@@ -933,18 +939,18 @@ class GenerationThread(QThread):
             # التحقق من اكتمال دور الـ16
             qualified_quarter = get_qualified_for_next_stage_correct("Round of 16")
             if len(qualified_quarter) < 8:
-                self.finished_signal.emit(False, f"❌ عدد الفرق المتأهلة لربع النهائي غير كافي: {len(qualified_quarter)} من 8")
+                self.finished_signal.emit(False, f"عدد الفرق المتأهلة لربع النهائي غير كافي: {len(qualified_quarter)} من 8")
                 return
             
             self.progress_updated.emit(50)
             
             # 3. توليد ربع النهائي
             if self.cancelled: return
-            self.stage_updated.emit("🎯 جاري توليد ربع النهائي...")
+            self.stage_updated.emit("جاري توليد ربع النهائي...")
             
             quarter_matches = generate_knockout_stage_matches("Quarter Final")
             if quarter_matches == 0:
-                self.finished_signal.emit(False, "❌ فشل في توليد ربع النهائي")
+                self.finished_signal.emit(False, "فشل في توليد ربع النهائي")
                 return
             total_matches += quarter_matches
             
@@ -954,18 +960,18 @@ class GenerationThread(QThread):
             # التحقق من اكتمال ربع النهائي
             qualified_semi = get_qualified_for_next_stage_correct("Quarter Final")
             if len(qualified_semi) < 4:
-                self.finished_signal.emit(False, f"❌ عدد الفرق المتأهلة لنصف النهائي غير كافي: {len(qualified_semi)} من 4")
+                self.finished_signal.emit(False, f"عدد الفرق المتأهلة لنصف النهائي غير كافي: {len(qualified_semi)} من 4")
                 return
             
             self.progress_updated.emit(70)
             
             # 4. توليد نصف النهائي
             if self.cancelled: return
-            self.stage_updated.emit("🎯 جاري توليد نصف النهائي...")
+            self.stage_updated.emit("جاري توليد نصف النهائي...")
             
             semi_matches = generate_knockout_stage_matches("Semi Final")
             if semi_matches == 0:
-                self.finished_signal.emit(False, "❌ فشل في توليد نصف النهائي")
+                self.finished_signal.emit(False, "فشل في توليد نصف النهائي")
                 return
             total_matches += semi_matches
             
@@ -975,30 +981,30 @@ class GenerationThread(QThread):
             # التحقق من اكتمال نصف النهائي
             qualified_final = get_qualified_for_next_stage_correct("Semi Final")
             if len(qualified_final) < 2:
-                self.finished_signal.emit(False, f"❌ عدد الفرق المتأهلة للنهائي غير كافي: {len(qualified_final)} من 2")
+                self.finished_signal.emit(False, f"عدد الفرق المتأهلة للنهائي غير كافي: {len(qualified_final)} من 2")
                 return
             
             self.progress_updated.emit(90)
             
             # 5. توليد النهائي
             if self.cancelled: return
-            self.stage_updated.emit("🎯 جاري توليد النهائي...")
+            self.stage_updated.emit("جاري توليد النهائي...")
             
             final_matches = generate_knockout_stage_matches("Final")
             if final_matches == 0:
-                self.finished_signal.emit(False, "❌ فشل في توليد النهائي")
+                self.finished_signal.emit(False, "فشل في توليد النهائي")
                 return
             total_matches += final_matches
             
             self.progress_updated.emit(100)
             
             if self.cancelled:
-                self.finished_signal.emit(False, "⏹️ تم إلغاء العملية")
+                self.finished_signal.emit(False, "تم إلغاء العملية")
             else:
-                self.finished_signal.emit(True, f"✅ تم توليد {total_matches} مباراة بنجاح! البطولة اكتملت! 🏆")
+                self.finished_signal.emit(True, f"تم توليد {total_matches} مباراة بنجاح! البطولة اكتملت!")
                 
         except Exception as e:
-            self.finished_signal.emit(False, f"❌ حدث خطأ: {str(e)}")
+            self.finished_signal.emit(False, f"حدث خطأ: {str(e)}")
 
     def cancel(self):
         self.cancelled = True
@@ -1174,7 +1180,7 @@ class MainWindow(QMainWindow):
         if reply == QMessageBox.StandardButton.Yes:
             reset_tournament()
             self.current_stage_index = 0
-            QMessageBox.information(self, "تم" if self.lang=="ar" else "Done", 
+            QMessageBox.information(self, "تم", 
                 "تم إعادة تعيين البطولة بنجاح" if self.lang=="ar" else "Tournament reset successfully")
             self.refresh_ui()
 
@@ -1234,7 +1240,7 @@ class MainWindow(QMainWindow):
 
     def reset_teams(self):
         reply = QMessageBox.question(self, 
-            "تأكيد" if self.lang=="ar" else "Confirm",
+            "تأكيد",
             "هل تريد إعادة تعيين جميع الفرق؟" if self.lang=="ar" else "Reset all teams?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         
@@ -1289,7 +1295,7 @@ class MainWindow(QMainWindow):
             conn.commit()
             conn.close()
             self.populate_teams_table()
-            QMessageBox.information(self, "تم" if self.lang=="ar" else "Done", 
+            QMessageBox.information(self, "تم", 
                 "تم إعادة تعيين الفرق" if self.lang=="ar" else "Teams reset successfully")
 
     def populate_teams_table(self):
@@ -1324,13 +1330,13 @@ class MainWindow(QMainWindow):
             actions_layout = QHBoxLayout(actions_widget)
             actions_layout.setContentsMargins(4, 4, 4, 4)
             
-            delete_btn = QPushButton("حذف" if self.lang=="ar" else "Delete")
+            delete_btn = QPushButton("حذف")
             delete_btn.setStyleSheet("background: #FF6B6B; color: white; padding: 5px; font-size: 12px;")
             delete_btn.clicked.connect(lambda checked, team=row["name_ar"]: self.delete_team_confirm(team))
             
-            ban_btn = QPushButton("حظر" if self.lang=="ar" else "Ban")
+            ban_btn = QPushButton("حظر")
             if row.get("banned", 0):
-                ban_btn.setText("فك الحظر" if self.lang=="ar" else "Unban")
+                ban_btn.setText("فك الحظر")
                 ban_btn.setStyleSheet("background: #FFA500; color: white; padding: 5px; font-size: 12px;")
             else:
                 ban_btn.setStyleSheet("background: #FF6B6B; color: white; padding: 5px; font-size: 12px;")
@@ -1344,17 +1350,17 @@ class MainWindow(QMainWindow):
 
     def delete_team_confirm(self, team_name):
         reply = QMessageBox.question(self, 
-            "تأكيد الحذف" if self.lang=="ar" else "Confirm Delete",
+            "تأكيد الحذف",
             f"هل تريد حذف الفريق {team_name}؟ سيتم حذف جميع مبارياته أيضاً." if self.lang=="ar" else f"Delete team {team_name}? All its matches will also be deleted.",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         
         if reply == QMessageBox.StandardButton.Yes:
             if delete_team(team_name):
-                QMessageBox.information(self, "تم" if self.lang=="ar" else "Done", 
+                QMessageBox.information(self, "تم", 
                     "تم حذف الفريق بنجاح" if self.lang=="ar" else "Team deleted successfully")
                 self.populate_teams_table()
             else:
-                QMessageBox.warning(self, "خطأ" if self.lang=="ar" else "Error", 
+                QMessageBox.warning(self, "خطأ", 
                     "فشل في حذف الفريق" if self.lang=="ar" else "Failed to delete team")
 
     def toggle_ban_team(self, team_name, current_status):
@@ -1362,13 +1368,13 @@ class MainWindow(QMainWindow):
         action = "فك الحظر" if new_status == 0 else "حظر"
         
         reply = QMessageBox.question(self, 
-            "تأكيد" if self.lang=="ar" else "Confirm",
+            "تأكيد",
             f"هل تريد {action} الفريق {team_name}؟" if self.lang=="ar" else f"{action} team {team_name}?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         
         if reply == QMessageBox.StandardButton.Yes:
             ban_team(team_name, new_status)
-            QMessageBox.information(self, "تم" if self.lang=="ar" else "Done", 
+            QMessageBox.information(self, "تم", 
                 f"تم {action} الفريق بنجاح" if self.lang=="ar" else f"Team {action.lower()}ed successfully")
             self.populate_teams_table()
 
@@ -1381,7 +1387,7 @@ class MainWindow(QMainWindow):
         
         if name_ar and name_en and country_ar and country_en:
             if add_team(name_ar, name_en, country_ar, country_en, group):
-                QMessageBox.information(self, "تم" if self.lang=="ar" else "Done", "تم إضافة الفريق بنجاح" if self.lang=="ar" else "Team added")
+                QMessageBox.information(self, "تم", "تم إضافة الفريق بنجاح" if self.lang=="ar" else "Team added")
                 self.t_name_ar.clear()
                 self.t_name_en.clear()
                 self.t_country_ar.clear()
@@ -1389,9 +1395,9 @@ class MainWindow(QMainWindow):
                 self.populate_teams_table()
                 self.refresh_ui()
             else:
-                QMessageBox.warning(self, "خطأ" if self.lang=="ar" else "Error", "الفريق موجود مسبقًا" if self.lang=="ar" else "Team already exists")
+                QMessageBox.warning(self, "خطأ", "الفريق موجود مسبقًا" if self.lang=="ar" else "Team already exists")
         else:
-            QMessageBox.warning(self, "خطأ" if self.lang=="ar" else "Error", "املأ كل الحقول" if self.lang=="ar" else "Fill all fields")
+            QMessageBox.warning(self, "خطأ", "املأ كل الحقول" if self.lang=="ar" else "Fill all fields")
 
     def tab_matches(self):
         w = QWidget()
@@ -1457,7 +1463,7 @@ class MainWindow(QMainWindow):
             "Group Stage", "Round of 16", "Quarter Final", "Semi Final", "Final"
         ])
         
-        btn = QPushButton("إضافة" if self.lang=="ar" else "Add")
+        btn = QPushButton("إضافة")
         btn.clicked.connect(self.add_match_act)
         
         self.hg.enter_callback = self.add_match_act
@@ -1493,7 +1499,7 @@ class MainWindow(QMainWindow):
 
     def start_full_auto_generation(self):
         reply = QMessageBox.question(self, 
-            "بدء التوليد التلقائي" if self.lang=="ar" else "Start Auto-Generation",
+            "بدء التوليد التلقائي",
             "سيتم توليد جميع مراحل البطولة تلقائياً. هل تريد المتابعة؟" if self.lang=="ar" 
             else "All tournament stages will be generated automatically. Do you want to continue?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
@@ -1524,11 +1530,11 @@ class MainWindow(QMainWindow):
         self.progress_bar.setVisible(False)
         
         if success:
-            self.current_stage_label.setText("اكتمل التوليد بنجاح!" if self.lang=="ar" else "Generation completed successfully!")
-            QMessageBox.information(self, "تم" if self.lang=="ar" else "Success", message)
+            self.current_stage_label.setText("اكتمل التوليد بنجاح!")
+            QMessageBox.information(self, "تم", message)
         else:
-            self.current_stage_label.setText("فشل التوليد" if self.lang=="ar" else "Generation failed")
-            QMessageBox.warning(self, "خطأ" if self.lang=="ar" else "Error", message)
+            self.current_stage_label.setText("فشل التوليد")
+            QMessageBox.warning(self, "خطأ", message)
         
         self.refresh_ui()
 
@@ -1543,7 +1549,7 @@ class MainWindow(QMainWindow):
 
     def reset_matches(self):
         reply = QMessageBox.question(self, 
-            "تأكيد الحذف" if self.lang=="ar" else "Confirm Delete",
+            "تأكيد الحذف",
             "هل تريد حذف جميع المباريات؟" if self.lang=="ar" else "Delete all matches?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         
@@ -1557,7 +1563,7 @@ class MainWindow(QMainWindow):
             conn.commit()
             conn.close()
             self.populate_matches_table()
-            QMessageBox.information(self, "تم" if self.lang=="ar" else "Done", 
+            QMessageBox.information(self, "تم", 
                 "تم حذف جميع المباريات" if self.lang=="ar" else "All matches deleted")
 
     def add_match_act(self):
@@ -1570,20 +1576,20 @@ class MainWindow(QMainWindow):
             hg = int(self.hg.text()) if self.hg.text() else 0
             ag = int(self.ag.text()) if self.ag.text() else 0
         except ValueError:
-            QMessageBox.warning(self, "خطأ" if self.lang=="ar" else "Error", 
+            QMessageBox.warning(self, "خطأ", 
                 "أدخل أرقاماً صحيحة للأهداف" if self.lang=="ar" else "Enter valid numbers for goals")
             return
         
         if h and a and h != a:
             if add_match(h, a, hg, ag, date, stage):
-                QMessageBox.information(self, "تم" if self.lang=="ar" else "Done", "تمت الإضافة" if self.lang=="ar" else "Added")
+                QMessageBox.information(self, "تم", "تمت الإضافة")
                 self.populate_matches_table()
                 self.hg.setText("0")
                 self.ag.setText("0")
             else:
-                QMessageBox.warning(self, "خطأ" if self.lang=="ar" else "Error", "فشل في إضافة المباراة" if self.lang=="ar" else "Failed to add match")
+                QMessageBox.warning(self, "خطأ", "فشل في إضافة المباراة")
         else:
-            QMessageBox.warning(self, "خطأ" if self.lang=="ar" else "Error", "اختر فريقين مختلفين" if self.lang=="ar" else "Choose two different teams")
+            QMessageBox.warning(self, "خطأ", "اختر فريقين مختلفين")
 
     def populate_matches_table(self):
         sel = self.show_stage_combo.currentText()
@@ -1619,7 +1625,7 @@ class MainWindow(QMainWindow):
             
             self.matches_table.setItem(i, 7, status_item)
             
-            delete_btn = QPushButton("حذف" if self.lang=="ar" else "Delete")
+            delete_btn = QPushButton("حذف")
             delete_btn.setStyleSheet("background: #FF6B6B; color: white; padding: 5px; font-size: 12px;")
             delete_btn.clicked.connect(lambda checked, mid=row["id"]: self.delete_match_confirm(mid))
             
@@ -1633,18 +1639,18 @@ class MainWindow(QMainWindow):
 
     def delete_match_confirm(self, match_id):
         reply = QMessageBox.question(self, 
-            "تأكيد الحذف" if self.lang=="ar" else "Confirm Delete",
+            "تأكيد الحذف",
             "هل تريد حذف هذه المباراة؟" if self.lang=="ar" else "Delete this match?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         
         if reply == QMessageBox.StandardButton.Yes:
             if delete_match(match_id):
-                QMessageBox.information(self, "تم" if self.lang=="ar" else "Done", 
-                    "تم حذف المباراة بنجاح" if self.lang=="ar" else "Match deleted successfully")
+                QMessageBox.information(self, "تم", 
+                    "تم حذف المباراة بنجاح")
                 self.populate_matches_table()
             else:
-                QMessageBox.warning(self, "خطأ" if self.lang=="ar" else "Error", 
-                    "فشل في حذف المباراة" if self.lang=="ar" else "Failed to delete match")
+                QMessageBox.warning(self, "خطأ", 
+                    "فشل في حذف المباراة")
 
     def tab_standings(self):
         w = QWidget()
@@ -1652,7 +1658,7 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
-        reset_standings_btn = QPushButton("إعادة حساب الترتيب" if self.lang=="ar" else "Recalculate Standings")
+        reset_standings_btn = QPushButton("إعادة حساب الترتيب")
         reset_standings_btn.setStyleSheet("background: #FF6B6B; color: white; margin: 10px;")
         reset_standings_btn.clicked.connect(self.update_table)
         layout.addWidget(reset_standings_btn)
@@ -1693,7 +1699,7 @@ class MainWindow(QMainWindow):
 
         layout.addWidget(self.table)
 
-        btn = QPushButton("تحديث" if self.lang == "ar" else "Refresh")
+        btn = QPushButton("تحديث")
         btn.setStyleSheet("""
             QPushButton {
                 background: #FFD700;
@@ -1782,32 +1788,31 @@ class MainWindow(QMainWindow):
 
             self.table.resizeColumnsToContents()
         except Exception as e:
-            print(f"❌ Error in update_table: {e}")
+            print(f"Error in update_table: {e}")
 
     def tab_knockouts(self):
         w = QWidget()
         l = QVBoxLayout(w)
         
-        auto_gen_group = QGroupBox("التوليد التلقائي الكامل للبطولة" if self.lang=="ar" else "Full Tournament Auto-Generation")
+        auto_gen_group = QGroupBox("التوليد التلقائي الكامل للبطولة")
         auto_gen_layout = QVBoxLayout(auto_gen_group)
         
-        auto_gen_desc = QLabel("اضغط على الزر لتوليد جميع مراحل البطولة تلقائياً:" if self.lang=="ar" 
-                          else "Press the button to generate all tournament stages automatically:")
+        auto_gen_desc = QLabel("اضغط على الزر لتوليد جميع مراحل البطولة تلقائياً:")
         auto_gen_desc.setWordWrap(True)
         auto_gen_layout.addWidget(auto_gen_desc)
         
-        self.auto_gen_btn_knockout = QPushButton("بدء التوليد التلقائي الكامل" if self.lang=="ar" else "Start Full Auto-Generation")
+        self.auto_gen_btn_knockout = QPushButton("بدء التوليد التلقائي الكامل")
         self.auto_gen_btn_knockout.setStyleSheet("background: #32CD32; color: white; font-weight: bold; padding: 15px; font-size: 18px;")
         self.auto_gen_btn_knockout.clicked.connect(self.start_full_auto_generation)
         auto_gen_layout.addWidget(self.auto_gen_btn_knockout)
         
-        self.cancel_btn_knockout = QPushButton("إلغاء العملية" if self.lang=="ar" else "Cancel Process")
+        self.cancel_btn_knockout = QPushButton("إلغاء العملية")
         self.cancel_btn_knockout.setStyleSheet("background: #FF6B6B; color: white; font-weight: bold; padding: 10px;")
         self.cancel_btn_knockout.clicked.connect(self.cancel_auto_generation)
         self.cancel_btn_knockout.setVisible(False)
         auto_gen_layout.addWidget(self.cancel_btn_knockout)
         
-        self.current_stage_label_knockout = QLabel("جاهز للبدء" if self.lang=="ar" else "Ready to start")
+        self.current_stage_label_knockout = QLabel("جاهز للبدء")
         self.current_stage_label_knockout.setStyleSheet("color: #FFD700; font-weight: bold; font-size: 16px;")
         auto_gen_layout.addWidget(self.current_stage_label_knockout)
         
@@ -1817,12 +1822,12 @@ class MainWindow(QMainWindow):
         
         l.addWidget(auto_gen_group)
         
-        reset_knockout_btn = QPushButton("إعادة تعيين الإقصائيات" if self.lang=="ar" else "Reset Knockouts")
+        reset_knockout_btn = QPushButton("إعادة تعيين الإقصائيات")
         reset_knockout_btn.setStyleSheet("background: #FF6B6B; color: white; margin: 10px;")
         reset_knockout_btn.clicked.connect(self.reset_knockouts)
         l.addWidget(reset_knockout_btn)
         
-        qualified_group = QGroupBox("الفرق المتأهلة تلقائياً من المباريات" if self.lang=="ar" else "Automatically Qualified Teams from Matches")
+        qualified_group = QGroupBox("الفرق المتأهلة تلقائياً من المباريات")
         qualified_layout = QVBoxLayout(qualified_group)
         
         self.qualified_grid = QGridLayout()
@@ -1831,14 +1836,14 @@ class MainWindow(QMainWindow):
         l.addWidget(qualified_group)
         self.update_qualified_teams_display()
 
-        g = QGroupBox("إدارة الجولات الإقصائية" if self.lang=="ar" else "Manage Knockout Rounds")
+        g = QGroupBox("إدارة الجولات الإقصائية")
         f = QFormLayout(g)
         
         self.k_stage_combo = QComboBox()
         self.k_stage_combo.addItems(["Round of 16", "Quarter Final", "Semi Final", "Final"])
-        f.addRow("الجولة:" if self.lang=="ar" else "Stage:", self.k_stage_combo)
+        f.addRow("الجولة:", self.k_stage_combo)
 
-        self.advance_btn = QPushButton("التقدم للمرحلة التالية" if self.lang=="ar" else "Advance to Next Stage")
+        self.advance_btn = QPushButton("التقدم للمرحلة التالية")
         self.advance_btn.setStyleSheet("background: #32CD32; color: white; font-weight: bold;")
         self.advance_btn.clicked.connect(self.advance_stage)
         f.addRow("", self.advance_btn)
@@ -1847,11 +1852,11 @@ class MainWindow(QMainWindow):
         l.addWidget(self.k_table)
 
         h = QHBoxLayout()
-        add_btn = QPushButton("إضافة مباراة إقصائية" if self.lang=="ar" else "Add Knockout Match")
+        add_btn = QPushButton("إضافة مباراة إقصائية")
         add_btn.clicked.connect(self.add_knockout_match_dialog)
         h.addWidget(add_btn)
         
-        refresh_btn = QPushButton("تحديث" if self.lang=="ar" else "Refresh")
+        refresh_btn = QPushButton("تحديث")
         refresh_btn.clicked.connect(self.populate_knockout_table)
         h.addWidget(refresh_btn)
         h.addStretch()
@@ -1884,7 +1889,7 @@ class MainWindow(QMainWindow):
                 teams_label.setWordWrap(True)
                 self.qualified_grid.addWidget(teams_label, i, 1)
             else:
-                no_teams_label = QLabel("لا توجد فرق متأهلة بعد" if self.lang == "ar" else "No qualified teams yet")
+                no_teams_label = QLabel("لا توجد فرق متأهلة بعد")
                 no_teams_label.setStyleSheet("color: #FF6B6B; font-size: 12px;")
                 self.qualified_grid.addWidget(no_teams_label, i, 1)
 
@@ -1900,8 +1905,8 @@ class MainWindow(QMainWindow):
 
     def reset_knockouts(self):
         reply = QMessageBox.question(self, 
-            "تأكيد" if self.lang=="ar" else "Confirm",
-            "هل تريد إعادة تعيين جميع مباريات الإقصائيات؟" if self.lang=="ar" else "Reset all knockout matches?",
+            "تأكيد",
+            "هل تريد إعادة تعيين جميع مباريات الإقصائيات؟",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         
         if reply == QMessageBox.StandardButton.Yes:
@@ -1916,8 +1921,8 @@ class MainWindow(QMainWindow):
             conn.close()
             self.populate_knockout_table()
             self.update_qualified_teams_display()
-            QMessageBox.information(self, "تم" if self.lang=="ar" else "Done", 
-                "تم إعادة تعيين الإقصائيات" if self.lang=="ar" else "Knockouts reset successfully")
+            QMessageBox.information(self, "تم", 
+                "تم إعادة تعيين الإقصائيات")
 
     def populate_knockout_table(self):
         try:
@@ -1956,7 +1961,7 @@ class MainWindow(QMainWindow):
                 self.k_table.setItem(i, 9, QTableWidgetItem(win_method_text))
                 self.k_table.setItem(i, 10, QTableWidgetItem(str(row["date"])))
                 
-                delete_btn = QPushButton("حذف" if self.lang=="ar" else "Delete")
+                delete_btn = QPushButton("حذف")
                 delete_btn.setStyleSheet("background: #FF6B6B; color: white; padding: 5px; font-size: 12px;")
                 delete_btn.clicked.connect(lambda checked, mid=row["id"]: self.delete_match_confirm(mid))
                 
@@ -1968,11 +1973,11 @@ class MainWindow(QMainWindow):
             
             self.k_table.resizeColumnsToContents()
         except Exception as e:
-            print(f"❌ Error in populate_knockout_table: {e}")
+            print(f"Error in populate_knockout_table: {e}")
 
     def add_knockout_match_dialog(self):
         dlg = QDialog(self)
-        dlg.setWindowTitle("إضافة مباراة إقصائية" if self.lang=="ar" else "Add Knockout Match")
+        dlg.setWindowTitle("إضافة مباراة إقصائية")
         dlg.resize(500, 600)
         form = QFormLayout(dlg)
         
@@ -1980,9 +1985,8 @@ class MainWindow(QMainWindow):
         qualified_teams = get_qualified_for_next_stage_correct(current_stage)
         
         if not qualified_teams:
-            QMessageBox.warning(self, "تحذير" if self.lang=="ar" else "Warning",
-                "لا توجد فرق متأهلة للمرحلة الحالية" if self.lang=="ar" 
-                else "No qualified teams for current stage")
+            QMessageBox.warning(self, "تحذير",
+                "لا توجد فرق متأهلة للمرحلة الحالية")
             return
         
         home_cb = QComboBox(); home_cb.addItems(qualified_teams)
@@ -2007,19 +2011,19 @@ class MainWindow(QMainWindow):
         else:
             win_method_cb.addItems(["Normal Time", "Extra Time", "Penalties"])
         
-        form.addRow("الفريق المضيف:" if self.lang=="ar" else "Home Team:", home_cb)
-        form.addRow("الفريق الضيف:" if self.lang=="ar" else "Away Team:", away_cb)
-        form.addRow("أهداف المضيف (الوقت الأصلي):" if self.lang=="ar" else "Home Goals (Normal Time):", hg)
-        form.addRow("أهداف الضيف (الوقت الأصلي):" if self.lang=="ar" else "Away Goals (Normal Time):", ag)
-        form.addRow("أهداف المضيف (وقت إضافي):" if self.lang=="ar" else "Home Goals (Extra Time):", home_extra)
-        form.addRow("أهداف الضيف (وقت إضافي):" if self.lang=="ar" else "Away Goals (Extra Time):", away_extra)
-        form.addRow("ركلات المضيف:" if self.lang=="ar" else "Home Penalties:", home_pen)
-        form.addRow("ركلات الضيف:" if self.lang=="ar" else "Away Penalties:", away_pen)
-        form.addRow("طريقة الفوز:" if self.lang=="ar" else "Win Method:", win_method_cb)
-        form.addRow("التاريخ:" if self.lang=="ar" else "Date:", match_date)
+        form.addRow("الفريق المضيف:", home_cb)
+        form.addRow("الفريق الضيف:", away_cb)
+        form.addRow("أهداف المضيف (الوقت الأصلي):", hg)
+        form.addRow("أهداف الضيف (الوقت الأصلي):", ag)
+        form.addRow("أهداف المضيف (وقت إضافي):", home_extra)
+        form.addRow("أهداف الضيف (وقت إضافي):", away_extra)
+        form.addRow("ركلات المضيف:", home_pen)
+        form.addRow("ركلات الضيف:", away_pen)
+        form.addRow("طريقة الفوز:", win_method_cb)
+        form.addRow("التاريخ:", match_date)
         
         btns = QHBoxLayout()
-        ok = QPushButton("إضافة" if self.lang=="ar" else "Add")
+        ok = QPushButton("إضافة")
         
         def add_and_close():
             home_total = hg.value() + home_extra.value()
@@ -2057,7 +2061,7 @@ class MainWindow(QMainWindow):
         
         ok.clicked.connect(add_and_close)
         btns.addWidget(ok)
-        cancel = QPushButton("إلغاء" if self.lang=="ar" else "Cancel")
+        cancel = QPushButton("إلغاء")
         cancel.clicked.connect(dlg.reject)
         btns.addWidget(cancel)
         form.addRow(btns)
@@ -2071,11 +2075,11 @@ class MainWindow(QMainWindow):
                 dlg.accept()
                 self.populate_knockout_table()
                 self.update_qualified_teams_display()
-                QMessageBox.information(self, "تم" if self.lang=="ar" else "Done", "تمت الإضافة" if self.lang=="ar" else "Added")
+                QMessageBox.information(self, "تم", "تمت الإضافة")
             else:
-                QMessageBox.warning(self, "خطأ" if self.lang=="ar" else "Error", "فشل في إضافة المباراة" if self.lang=="ar" else "Failed to add match")
+                QMessageBox.warning(self, "خطأ", "فشل في إضافة المباراة")
         else:
-            QMessageBox.warning(self, "خطأ" if self.lang=="ar" else "Error", "اختر فريقين مختلفين" if self.lang=="ar" else "Choose two different teams")
+            QMessageBox.warning(self, "خطأ", "اختر فريقين مختلفين")
 
     def advance_stage(self):
         current_stage = self.k_stage_combo.currentText()
@@ -2088,25 +2092,23 @@ class MainWindow(QMainWindow):
         elif current_stage == "Semi Final":
             next_stage = "Final"
         else:
-            QMessageBox.information(self, "تم" if self.lang=="ar" else "Done", 
-                "البطولة انتهت!" if self.lang=="ar" else "Tournament finished!")
+            QMessageBox.information(self, "تم", 
+                "البطولة انتهت!")
             return
         
         winners = get_winners_from_stage(current_stage)
         
         if not winners:
-            QMessageBox.warning(self, "تحذير" if self.lang=="ar" else "Warning",
-                "لا توجد مباريات مكتملة في المرحلة الحالية" if self.lang=="ar" 
-                else "No completed matches in current stage")
+            QMessageBox.warning(self, "تحذير",
+                "لا توجد مباريات مكتملة في المرحلة الحالية")
             return
         
         all_teams = get_all_teams()["name_ar"].tolist()
         eliminated_teams = [team for team in all_teams if team not in winners]
         eliminate_teams(eliminated_teams)
         
-        QMessageBox.information(self, "تم" if self.lang=="ar" else "Done", 
-            f"تم التقدم ل{next_stage}. الفرق المتأهلة: {', '.join(winners)}" if self.lang=="ar" 
-            else f"Advanced to {next_stage}. Qualified teams: {', '.join(winners)}")
+        QMessageBox.information(self, "تم", 
+            f"تم التقدم ل{next_stage}. الفرق المتأهلة: {', '.join(winners)}")
         
         self.k_stage_combo.setCurrentText(next_stage)
         self.update_qualified_teams_display()
@@ -2116,29 +2118,29 @@ class MainWindow(QMainWindow):
         w = QWidget()
         l = QVBoxLayout(w)
         
-        g = QGroupBox("تصدير شامل (PDF + Word)" if self.lang=="ar" else "Export All (PDF + Word)")
+        g = QGroupBox("تصدير شامل (PDF + Word)")
         v = QVBoxLayout(g)
-        label = QLabel("سيتم تصدير: جدول الترتيب، جميع المباريات، ونتائج الإقصائيات." if self.lang=="ar" else "Will export: standings, all matches, and knockout results.")
+        label = QLabel("سيتم تصدير: جدول الترتيب، جميع المباريات، ونتائج الإقصائيات.")
         v.addWidget(label)
         h = QHBoxLayout()
-        pdf_btn = QPushButton("تصدير PDF" if self.lang=="ar" else "Export PDF")
+        pdf_btn = QPushButton("تصدير PDF")
         pdf_btn.clicked.connect(self.export_pdf)
         h.addWidget(pdf_btn)
-        docx_btn = QPushButton("تصدير Word (docx)" if self.lang=="ar" else "Export Word (docx)")
+        docx_btn = QPushButton("تصدير Word (docx)")
         docx_btn.clicked.connect(self.export_docx)
         h.addWidget(docx_btn)
-        export_all_btn = QPushButton("تصدير PDF + Word" if self.lang=="ar" else "Export Both")
+        export_all_btn = QPushButton("تصدير PDF + Word")
         export_all_btn.clicked.connect(self.export_both)
         h.addWidget(export_all_btn)
         v.addLayout(h)
         l.addWidget(g)
         
-        knockout_export_group = QGroupBox("تصدير نتائج الإقصائيات" if self.lang=="ar" else "Export Knockout Results")
+        knockout_export_group = QGroupBox("تصدير نتائج الإقصائيات")
         knockout_layout = QVBoxLayout(knockout_export_group)
-        knockout_label = QLabel("تصدير نتائج الإقصائيات من دور الـ16 إلى النهائي" if self.lang=="ar" else "Export knockout results from Round of 16 to Final")
+        knockout_label = QLabel("تصدير نتائج الإقصائيات من دور الـ16 إلى النهائي")
         knockout_layout.addWidget(knockout_label)
         
-        knockout_btn = QPushButton("تصدير نتائج الإقصائيات" if self.lang=="ar" else "Export Knockout Results")
+        knockout_btn = QPushButton("تصدير نتائج الإقصائيات")
         knockout_btn.clicked.connect(self.export_knockout_results)
         knockout_layout.addWidget(knockout_btn)
         l.addWidget(knockout_export_group)
@@ -2149,17 +2151,17 @@ class MainWindow(QMainWindow):
         ok1 = self.export_pdf(save_dialog=False)
         ok2 = self.export_docx(save_dialog=False)
         if ok1 and ok2:
-            QMessageBox.information(self, "تم" if self.lang=="ar" else "Done", "تم تصدير PDF و Word بنجاح" if self.lang=="ar" else "Exported PDF and Word successfully")
+            QMessageBox.information(self, "تم", "تم تصدير PDF و Word بنجاح")
         else:
-            QMessageBox.warning(self, "خطأ" if self.lang=="ar" else "Error", "حدث خطأ أثناء التصدير" if self.lang=="ar" else "Export error occurred")
+            QMessageBox.warning(self, "خطأ", "حدث خطأ أثناء التصدير")
 
     def export_knockout_results(self):
         if not REPORTLAB_AVAILABLE:
-            QMessageBox.warning(self, "خطأ" if self.lang=="ar" else "Error", "مكتبة reportlab غير مثبتة" if self.lang=="ar" else "reportlab not installed")
+            QMessageBox.warning(self, "خطأ", "مكتبة reportlab غير مثبتة")
             return False
 
         default_name = f"UCL_Knockout_Results_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
-        fname = QFileDialog.getSaveFileName(self, "حفظ نتائج الإقصائيات" if self.lang=="ar" else "Save Knockout Results", default_name, "PDF Files (*.pdf)")[0]
+        fname = QFileDialog.getSaveFileName(self, "حفظ نتائج الإقصائيات", default_name, "PDF Files (*.pdf)")[0]
         if not fname:
             return False
 
@@ -2218,29 +2220,27 @@ class MainWindow(QMainWindow):
                 story.append(Spacer(1, 12))
 
             doc.build(story)
-            QMessageBox.information(self, "تم" if self.lang=="ar" else "Done", 
-                f"تم تصدير نتائج الإقصائيات: {fname}" if self.lang=="ar" 
-                else f"Knockout results exported: {fname}")
+            QMessageBox.information(self, "تم", 
+                f"تم تصدير نتائج الإقصائيات: {fname}")
             return True
             
         except Exception as e:
-            QMessageBox.warning(self, "خطأ" if self.lang=="ar" else "Error", 
-                f"خطأ في التصدير: {str(e)}" if self.lang=="ar" 
-                else f"Export error: {str(e)}")
+            QMessageBox.warning(self, "خطأ", 
+                f"خطأ في التصدير: {str(e)}")
             return False
 
     def export_pdf(self, save_dialog=True):
         """تصدير التقرير الشامل إلى PDF"""
         if not REPORTLAB_AVAILABLE:
-            QMessageBox.warning(self, "خطأ" if self.lang=="ar" else "Error", 
-                               "مكتبة reportlab غير مثبتة" if self.lang=="ar" else "reportlab not installed")
+            QMessageBox.warning(self, "خطأ", 
+                               "مكتبة reportlab غير مثبتة")
             return False
 
         try:
             if save_dialog:
                 default_name = f"UCL_Report_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
                 fname = QFileDialog.getSaveFileName(self, 
-                    "حفظ التقرير PDF" if self.lang=="ar" else "Save PDF Report", 
+                    "حفظ التقرير PDF", 
                     default_name, "PDF Files (*.pdf)")[0]
                 if not fname:
                     return False
@@ -2272,12 +2272,12 @@ class MainWindow(QMainWindow):
                 fontSize=10,
                 textColor=rlcolors.gray
             )
-            story.append(Paragraph(f"تم التصدير في: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}" if self.lang=="ar" 
-                                 else f"Exported on: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", date_style))
+            story.append(Paragraph(f"تم التصدير في: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}" 
+                                 , date_style))
             story.append(Spacer(1, 20))
 
             # 1. جدول الترتيب
-            story.append(Paragraph("جدول الترتيب" if self.lang=="ar" else "Standings Table", styles['Heading2']))
+            story.append(Paragraph("جدول الترتيب", styles['Heading2']))
             story.append(Spacer(1, 10))
             
             standings_df = get_standings()
@@ -2325,12 +2325,12 @@ class MainWindow(QMainWindow):
                 ]))
                 story.append(tbl)
             else:
-                story.append(Paragraph("لا توجد بيانات للترتيب" if self.lang=="ar" else "No standings data available", styles['Normal']))
+                story.append(Paragraph("لا توجد بيانات للترتيب", styles['Normal']))
             
             story.append(Spacer(1, 20))
 
             # 2. المباريات
-            story.append(Paragraph("المباريات" if self.lang=="ar" else "Matches", styles['Heading2']))
+            story.append(Paragraph("المباريات", styles['Heading2']))
             story.append(Spacer(1, 10))
             
             matches_df = get_matches()
@@ -2373,12 +2373,12 @@ class MainWindow(QMainWindow):
                     story.append(stage_tbl)
                     story.append(Spacer(1, 10))
             else:
-                story.append(Paragraph("لا توجد مباريات" if self.lang=="ar" else "No matches available", styles['Normal']))
+                story.append(Paragraph("لا توجد مباريات", styles['Normal']))
             
             story.append(Spacer(1, 20))
 
             # 3. نتائج الإقصائيات
-            story.append(Paragraph("نتائج الأدوار الإقصائية" if self.lang=="ar" else "Knockout Stage Results", styles['Heading2']))
+            story.append(Paragraph("نتائج الأدوار الإقصائية", styles['Heading2']))
             story.append(Spacer(1, 10))
             
             knockout_df = get_knockout_results()
@@ -2420,36 +2420,34 @@ class MainWindow(QMainWindow):
                 ]))
                 story.append(knockout_tbl)
             else:
-                story.append(Paragraph("لا توجد نتائج إقصائية" if self.lang=="ar" else "No knockout results available", styles['Normal']))
+                story.append(Paragraph("لا توجد نتائج إقصائية", styles['Normal']))
 
             # بناء المستند
             doc.build(story)
             
             if save_dialog:
-                QMessageBox.information(self, "تم" if self.lang=="ar" else "Success", 
-                    f"تم تصدير التقرير بنجاح: {fname}" if self.lang=="ar" 
-                    else f"Report exported successfully: {fname}")
+                QMessageBox.information(self, "تم", 
+                    f"تم تصدير التقرير بنجاح: {fname}")
             
             return True
             
         except Exception as e:
-            QMessageBox.warning(self, "خطأ" if self.lang=="ar" else "Error", 
-                f"خطأ في التصدير: {str(e)}" if self.lang=="ar" 
-                else f"Export error: {str(e)}")
+            QMessageBox.warning(self, "خطأ", 
+                f"خطأ في التصدير: {str(e)}")
             return False
 
     def export_docx(self, save_dialog=True):
         """تصدير التقرير إلى مستند Word"""
         if not DOCX_AVAILABLE:
-            QMessageBox.warning(self, "خطأ" if self.lang=="ar" else "Error", 
-                               "مكتبة python-docx غير مثبتة" if self.lang=="ar" else "python-docx not installed")
+            QMessageBox.warning(self, "خطأ", 
+                               "مكتبة python-docx غير مثبتة")
             return False
 
         try:
             if save_dialog:
                 default_name = f"UCL_Report_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.docx"
                 fname = QFileDialog.getSaveFileName(self, 
-                    "حفظ التقرير Word" if self.lang=="ar" else "Save Word Report", 
+                    "حفظ التقرير Word", 
                     default_name, "Word Documents (*.docx)")[0]
                 if not fname:
                     return False
@@ -2459,21 +2457,19 @@ class MainWindow(QMainWindow):
             doc = Document()
             
             # العنوان الرئيسي
-            title = doc.add_heading("تقرير دوري أبطال أوروبا - الموسم 2025" if self.lang=="ar" 
-                                   else "UEFA Champions League Report - Season 2025", 0)
+            title = doc.add_heading("تقرير دوري أبطال أوروبا - الموسم 2025", 0)
             title.alignment = 1  # مركز
             
             # تاريخ التصدير
             date_para = doc.add_paragraph()
             date_para.alignment = 1
-            date_run = date_para.add_run(f"تم التصدير في: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}" if self.lang=="ar" 
-                                        else f"Exported on: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            date_run = date_para.add_run(f"تم التصدير في: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
             date_run.italic = True
             
             doc.add_paragraph()  # سطر فارغ
 
             # 1. جدول الترتيب
-            doc.add_heading("جدول الترتيب" if self.lang=="ar" else "Standings Table", level=1)
+            doc.add_heading("جدول الترتيب", level=1)
             
             standings_df = get_standings()
             if not standings_df.empty:
@@ -2503,7 +2499,7 @@ class MainWindow(QMainWindow):
             doc.add_paragraph()  # سطر فارغ
 
             # 2. المباريات حسب المرحلة
-            doc.add_heading("المباريات" if self.lang=="ar" else "Matches", level=1)
+            doc.add_heading("المباريات", level=1)
             
             matches_df = get_matches()
             if not matches_df.empty:
@@ -2536,7 +2532,7 @@ class MainWindow(QMainWindow):
             final_matches = get_matches("Final")
             if not final_matches.empty and final_matches.iloc[0].get('winner'):
                 champion = final_matches.iloc[0]['winner']
-                doc.add_heading("البطل" if self.lang=="ar" else "Champion", level=1)
+                doc.add_heading("البطل", level=1)
                 champion_para = doc.add_paragraph()
                 champion_run = champion_para.add_run(champion)
                 champion_run.bold = True
@@ -2546,16 +2542,14 @@ class MainWindow(QMainWindow):
             doc.save(fname)
             
             if save_dialog:
-                QMessageBox.information(self, "تم" if self.lang=="ar" else "Success", 
-                    f"تم تصدير التقرير بنجاح: {fname}" if self.lang=="ar" 
-                    else f"Report exported successfully: {fname}")
+                QMessageBox.information(self, "تم", 
+                    f"تم تصدير التقرير بنجاح: {fname}")
             
             return True
             
         except Exception as e:
-            QMessageBox.warning(self, "خطأ" if self.lang=="ar" else "Error", 
-                f"خطأ في التصدير: {str(e)}" if self.lang=="ar" 
-                else f"Export error: {str(e)}")
+            QMessageBox.warning(self, "خطأ", 
+                f"خطأ في التصدير: {str(e)}")
             return False
 
 # الدالة الرئيسية لتشغيل البرنامج
@@ -2564,7 +2558,7 @@ def main():
     try:
         # تهيئة قاعدة البيانات
         if not DB_PATH.exists():
-            print("🎯 جاري إنشاء قاعدة البيانات للمرة الأولى...")
+            print("جاري إنشاء قاعدة البيانات للمرة الأولى...")
             init_db()
         
         # التحقق من المكتبات المطلوبة
@@ -2575,8 +2569,8 @@ def main():
             missing_libs.append("python-docx")
         
         if missing_libs:
-            print(f"⚠️ تحذير: المكتبات التالية غير مثبتة: {', '.join(missing_libs)}")
-            print("⚠️ بعض ميزات التصدير قد لا تعمل بشكل صحيح.")
+            print(f"تحذير: المكتبات التالية غير مثبتة: {', '.join(missing_libs)}")
+            print("بعض ميزات التصدير قد لا تعمل بشكل صحيح.")
         
         # إنشاء وتشغيل التطبيق
         app = QApplication(sys.argv)
@@ -2588,8 +2582,8 @@ def main():
         window = MainWindow()
         window.show()
         
-        print("✅ تم تشغيل نظام إدارة دوري أبطال أوروبا بنجاح!")
-        print("🎯 الميزات المتاحة:")
+        print("تم تشغيل نظام إدارة دوري أبطال أوروبا بنجاح!")
+        print("الميزات المتاحة:")
         print("- إدارة الفرق والمجموعات")
         print("- إدارة المباريات والنتائج") 
         print("- التوليد التلقائي للبطولة")
@@ -2599,7 +2593,7 @@ def main():
         sys.exit(app.exec())
         
     except Exception as e:
-        print(f"❌ خطأ في تشغيل التطبيق: {e}")
+        print(f"خطأ في تشغيل التطبيق: {e}")
         traceback.print_exc()
         QMessageBox.critical(None, "خطأ", f"فشل في تشغيل التطبيق: {str(e)}")
 
