@@ -1209,39 +1209,45 @@ class MainWindow(QMainWindow):
         w = QWidget()
         l = QVBoxLayout(w)
         
-        # زر التوليد الصحيح لدور الـ16
-        correct_round16_btn = QPushButton("توليد دور الـ16 (حسب القواعد الرسمية)" if self.lang=="ar" else "Generate Round of 16 (Official Rules)")
-        correct_round16_btn.setStyleSheet("background: #32CD32; color: white; font-weight: bold; padding: 12px;")
-        correct_round16_btn.clicked.connect(self.generate_correct_round_of_16)
-        l.addWidget(correct_round16_btn)
+        # زر واحد للتوليد التلقائي الكامل
+        auto_gen_group = QGroupBox("التوليد التلقائي الكامل للبطولة" if self.lang=="ar" else "Full Tournament Auto-Generation")
+        auto_gen_layout = QVBoxLayout(auto_gen_group)
         
-        # زر توليد مباريات المجموعات
-        group_matches_btn = QPushButton("توليد جميع مباريات دور المجموعات" if self.lang=="ar" else "Generate All Group Stage Matches")
-        group_matches_btn.setStyleSheet("background: #1E90FF; color: white; font-weight: bold; padding: 12px;")
-        group_matches_btn.clicked.connect(self.generate_group_matches)
-        l.addWidget(group_matches_btn)
+        auto_gen_desc = QLabel("اضغط على الزر لتوليد جميع مراحل البطولة تلقائياً:" if self.lang=="ar" 
+                          else "Press the button to generate all tournament stages automatically:")
+        auto_gen_desc.setWordWrap(True)
+        auto_gen_layout.addWidget(auto_gen_desc)
         
-        # زر واحد فقط للتوليد التدريجي للإقصائيات
-        knockout_group = QGroupBox("توليد مباريات الإقصائيات تدريجياً" if self.lang=="ar" else "Gradual Knockout Matches Generation")
-        knockout_layout = QVBoxLayout(knockout_group)
+        # زر التوليد التلقائي الكامل
+        self.auto_gen_btn = QPushButton("بدء التوليد التلقائي الكامل" if self.lang=="ar" else "Start Full Auto-Generation")
+        self.auto_gen_btn.setStyleSheet("background: #32CD32; color: white; font-weight: bold; padding: 15px; font-size: 18px;")
+        self.auto_gen_btn.clicked.connect(self.start_full_auto_generation)
+        auto_gen_layout.addWidget(self.auto_gen_btn)
         
-        knockout_desc = QLabel("اضغط على الزر لتوليد مباريات المرحلة التالية من الإقصائيات:" if self.lang=="ar" 
-                          else "Press the button to generate matches for the next knockout stage:")
-        knockout_desc.setWordWrap(True)
-        knockout_layout.addWidget(knockout_desc)
-        
-        # زر التوليد التدريجي للإقصائيات فقط
-        self.knockout_gen_btn = QPushButton("بدء توليد مباريات الإقصائيات" if self.lang=="ar" else "Start Knockout Matches Generation")
-        self.knockout_gen_btn.setStyleSheet("background: #FFA500; color: white; font-weight: bold; padding: 12px; font-size: 16px;")
-        self.knockout_gen_btn.clicked.connect(self.generate_knockout_step_by_step)
-        knockout_layout.addWidget(self.knockout_gen_btn)
+        # زر الإلغاء
+        self.cancel_btn = QPushButton("إلغاء العملية" if self.lang=="ar" else "Cancel Process")
+        self.cancel_btn.setStyleSheet("background: #FF6B6B; color: white; font-weight: bold; padding: 10px;")
+        self.cancel_btn.clicked.connect(self.cancel_auto_generation)
+        self.cancel_btn.setVisible(False)
+        auto_gen_layout.addWidget(self.cancel_btn)
         
         # عرض المرحلة الحالية
-        self.current_knockout_stage_label = QLabel("المرحلة الحالية: دور المجموعات" if self.lang=="ar" else "Current Stage: Group Stage")
-        self.current_knockout_stage_label.setStyleSheet("color: #FFD700; font-weight: bold; font-size: 14px;")
-        knockout_layout.addWidget(self.current_knockout_stage_label)
+        self.current_stage_label = QLabel("جاهز للبدء" if self.lang=="ar" else "Ready to start")
+        self.current_stage_label.setStyleSheet("color: #FFD700; font-weight: bold; font-size: 16px;")
+        auto_gen_layout.addWidget(self.current_stage_label)
         
-        l.addWidget(knockout_group)
+        # شريط التقدم
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setVisible(False)
+        auto_gen_layout.addWidget(self.progress_bar)
+        
+        # عرض التفاصيل
+        self.details_label = QLabel("")
+        self.details_label.setWordWrap(True)
+        self.details_label.setStyleSheet("color: #CCCCCC; font-size: 12px;")
+        auto_gen_layout.addWidget(self.details_label)
+        
+        l.addWidget(auto_gen_group)
         
         # زر Reset خاص بالمباريات
         reset_matches_btn = QPushButton("حذف جميع المباريات" if self.lang=="ar" else "Delete All Matches")
@@ -1311,135 +1317,324 @@ class MainWindow(QMainWindow):
         self.populate_matches_table()
         return w
 
-    def generate_correct_round_of_16(self):
-        """توليد دور الـ16 حسب القواعد الرسمية"""
+    def setup_auto_generation_ui(self):
+        """إعداد واجهة المستخدم لعملية التوليد"""
+        self.auto_gen_btn.setEnabled(False)
+        self.cancel_btn.setVisible(True)
+        self.progress_bar.setVisible(True)
+        self.progress_bar.setValue(0)
+        self.current_stage_label.setText("جاري البدء..." if self.lang=="ar" else "Starting...")
+        self.details_label.setText("")
+        self.cancel_generation = False
+
+    def finalize_generation_ui(self):
+        """إنهاء واجهة المستخدم بعد التوليد"""
+        self.auto_gen_btn.setEnabled(True)
+        self.cancel_btn.setVisible(False)
+        self.progress_bar.setVisible(False)
+        self.refresh_ui()
+
+    def update_stage_ui(self, stage, stage_name_ar):
+        """تحديث واجهة المستخدم للمرحلة الحالية"""
+        self.current_stage_label.setText(
+            f"جاري توليد: {stage_name_ar}" if self.lang=="ar" 
+            else f"Generating: {stage['name']}"
+        )
+        self.progress_bar.setValue(stage["progress"] - 20)
+        
+        # تحديث التفاصيل
+        stage_details = {
+            "Group Stage": "48 مباراة في 8 مجموعات" if self.lang=="ar" else "48 matches in 8 groups",
+            "Round of 16": "8 مباريات إقصائية" if self.lang=="ar" else "8 knockout matches",
+            "Quarter Final": "4 مباريات ربع نهائي" if self.lang=="ar" else "4 quarter final matches",
+            "Semi Final": "مباراتين نصف نهائي" if self.lang=="ar" else "2 semi final matches",
+            "Final": "مباراة النهائي الكبرى" if self.lang=="ar" else "1 final match"
+        }
+        
+        self.details_label.setText(stage_details.get(stage["name"], ""))
+        QApplication.processEvents()
+
+    def get_stage_name_ar(self, stage_name):
+        """الحصول على اسم المرحلة بالعربية"""
+        stage_names = {
+            "Group Stage": "دور المجموعات",
+            "Round of 16": "دور الـ16", 
+            "Quarter Final": "ربع النهائي",
+            "Semi Final": "نصف النهائي",
+            "Final": "النهائي"
+        }
+        return stage_names.get(stage_name, stage_name)
+
+    def handle_stage_failure(self, stage_name, stage_name_ar):
+        """معالجة فشل مرحلة"""
+        QMessageBox.warning(self, "تحذير" if self.lang=="ar" else "Warning",
+            f"فشل في توليد مرحلة {stage_name_ar}. سيتم إيقاف العملية." if self.lang=="ar"
+            else f"Failed to generate {stage_name} stage. Process will be stopped.")
+
+    def handle_generation_error(self, error):
+        """معالجة الأخطاء العامة"""
+        QMessageBox.critical(self, "خطأ" if self.lang=="ar" else "Error", 
+            f"حدث خطأ أثناء التوليد: {str(error)}")
+
+    def cancel_auto_generation(self):
+        """إلغاء عملية التوليد"""
+        self.cancel_generation = True
+        self.current_stage_label.setText("تم الإلغاء" if self.lang=="ar" else "Cancelled")
+        self.details_label.setText("تم إيقاف العملية بناءً على طلبك" if self.lang=="ar" else "Process stopped by user request")
+        self.finalize_generation_ui()
+
+    def check_previous_stage_completed(self, stage_name):
+        """التحقق من اكتمال المرحلة السابقة"""
+        stage_order = ["Group Stage", "Round of 16", "Quarter Final", "Semi Final", "Final"]
+        
+        if stage_name == "Group Stage":
+            return True  # لا توجد مرحلة قبل دور المجموعات
+        
+        current_index = stage_order.index(stage_name)
+        previous_stage = stage_order[current_index - 1]
+        
+        previous_matches = get_matches(previous_stage)
+        if previous_matches.empty:
+            return False
+        
+        # التحقق من أن جميع المباريات السابقة لها نتائج (للمراحل الإقصائية)
+        if stage_name != "Group Stage":
+            # للمراحل الإقصائية، نتحقق من وجود نتائج للمرحلة السابقة
+            previous_stage_matches = get_matches(previous_stage)
+            if not previous_stage_matches.empty and previous_stage_matches['home_score'].isna().all():
+                return False
+        
+        return True
+
+    def start_full_auto_generation(self):
+        """بدء التوليد التلقائي الكامل للبطولة مع تحسينات"""
         try:
-            # التحقق من اكتمال مباريات المجموعات أولاً
+            # تأكيد البدء مع تفاصيل أكثر
+            confirmation_msg = (
+                "سيتم تنفيذ الخطوات التالية:\n"
+                "1. توليد دور المجموعات (48 مباراة)\n"
+                "2. توليد دور الـ16 (8 مباريات)\n" 
+                "3. توليد ربع النهائي (4 مباريات)\n"
+                "4. توليد نصف النهائي (مباراتين)\n"
+                "5. توليد النهائي (مباراة واحدة)\n\n"
+                "هل تريد المتابعة؟"
+            ) if self.lang == "ar" else (
+                "The following steps will be executed:\n"
+                "1. Generate Group Stage (48 matches)\n"
+                "2. Generate Round of 16 (8 matches)\n"
+                "3. Generate Quarter Final (4 matches)\n"
+                "4. Generate Semi Final (2 matches)\n"
+                "5. Generate Final (1 match)\n\n"
+                "Do you want to continue?"
+            )
+            
+            reply = QMessageBox.question(self, 
+                "بدء التوليد التلقائي" if self.lang=="ar" else "Start Auto-Generation",
+                confirmation_msg,
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No)
+            
+            if reply != QMessageBox.StandardButton.Yes:
+                return
+            
+            # إعداد واجهة المستخدم
+            self.setup_auto_generation_ui()
+            
+            # تنفيذ المراحل
+            success = self.execute_generation_stages()
+            
+            if success and not self.cancel_generation:
+                # إكمال العملية بنجاح
+                self.current_stage_label.setText("اكتمل التوليد بنجاح!" if self.lang=="ar" else "Generation completed successfully!")
+                self.progress_bar.setValue(100)
+                self.details_label.setText("تم توليد جميع مراحل البطولة بنجاح" if self.lang=="ar" else "All tournament stages generated successfully")
+                
+                QMessageBox.information(self, "تم بنجاح" if self.lang=="ar" else "Success", 
+                    "تم التوليد التلقائي الكامل للبطولة بنجاح!" if self.lang=="ar"
+                    else "Full tournament auto-generation completed successfully!")
+            
+        except Exception as e:
+            self.handle_generation_error(e)
+        finally:
+            if hasattr(self, 'cancel_generation') and self.cancel_generation:
+                self.finalize_generation_ui()
+            elif not hasattr(self, 'cancel_generation') or not self.cancel_generation:
+                self.finalize_generation_ui()
+
+    def execute_generation_stages(self):
+        """تنفيذ مراحل التوليد"""
+        stages = [
+            {"name": "Group Stage", "function": self.generate_group_stage, "progress": 20},
+            {"name": "Round of 16", "function": self.generate_round_of_16, "progress": 40},
+            {"name": "Quarter Final", "function": self.generate_quarter_final, "progress": 60},
+            {"name": "Semi Final", "function": self.generate_semi_final, "progress": 80},
+            {"name": "Final", "function": self.generate_final, "progress": 100}
+        ]
+        
+        for stage in stages:
+            if self.cancel_generation:
+                break
+                
+            if not self.execute_single_stage(stage):
+                return False
+                
+        return not self.cancel_generation
+
+    def execute_single_stage(self, stage):
+        """تنفيذ مرحلة واحدة"""
+        stage_name = stage["name"]
+        stage_name_ar = self.get_stage_name_ar(stage_name)
+        
+        # التحقق من اكتمال المرحلة السابقة
+        if not self.check_previous_stage_completed(stage_name):
+            QMessageBox.warning(self, "تحذير" if self.lang=="ar" else "Warning",
+                f"يجب إكمال المرحلة السابقة أولاً قبل توليد {stage_name_ar}" if self.lang=="ar"
+                else f"Please complete previous stage before generating {stage_name}")
+            return False
+        
+        # تحديث الواجهة
+        self.update_stage_ui(stage, stage_name_ar)
+        
+        # تنفيذ المرحلة
+        success = stage["function"]()
+        
+        if not success:
+            self.handle_stage_failure(stage_name, stage_name_ar)
+            return False
+        
+        # تحديث التقدم
+        self.progress_bar.setValue(stage["progress"])
+        QApplication.processEvents()
+        
+        # انتظار قصير للعرض (يمكن تعديل المدة حسب الحاجة)
+        self.delay_execution(500)
+        
+        return True
+
+    def delay_execution(self, milliseconds):
+        """تنفيذ تأخير مع معالجة الأحداث"""
+        import time
+        start_time = time.time()
+        while (time.time() - start_time) * 1000 < milliseconds:
+            QApplication.processEvents()
+            time.sleep(0.01)
+
+    def generate_group_stage(self):
+        """توليد دور المجموعات"""
+        try:
+            if self.cancel_generation:
+                return False
+                
+            match_count = generate_all_group_matches()
+            if match_count > 0:
+                print(f"تم توليد {match_count} مباراة في دور المجموعات")
+                return True
+            else:
+                print("فشل في توليد مباريات دور المجموعات")
+                return False
+        except Exception as e:
+            print(f"خطأ في توليد دور المجموعات: {e}")
+            return False
+
+    def generate_round_of_16(self):
+        """توليد دور الـ16"""
+        try:
+            if self.cancel_generation:
+                return False
+                
+            # التحقق من اكتمال دور المجموعات أولاً
             group_matches = get_matches("Group Stage")
             if group_matches.empty:
                 QMessageBox.warning(self, "تحذير" if self.lang=="ar" else "Warning",
                     "يجب توليد مباريات دور المجموعات أولاً" if self.lang=="ar"
                     else "Please generate group stage matches first")
-                return
+                return False
             
             match_count = generate_round_of_16_correct()
-            
             if match_count > 0:
-                QMessageBox.information(self, "تم" if self.lang=="ar" else "Success", 
-                    f"تم توليد {match_count} مباراة في دور الـ16 حسب القواعد الرسمية" if self.lang=="ar"
-                    else f"Generated {match_count} Round of 16 matches using official rules")
-                self.populate_matches_table()
-                self.current_stage_index = 1  # تحديث الفهرس ليكون جاهزاً للمرحلة التالية
-                self.update_knockout_button()
+                print(f"تم توليد {match_count} مباراة في دور الـ16")
+                return True
             else:
-                QMessageBox.warning(self, "تحذير" if self.lang=="ar" else "Warning",
-                    "لم يتم توليد أي مباراة. تأكد من اكتمال مباريات المجموعات." if self.lang=="ar"
-                    else "No matches generated. Make sure group stage matches are completed.")
-                
+                print("فشل في توليد مباريات دور الـ16")
+                return False
         except Exception as e:
-            QMessageBox.critical(self, "خطأ" if self.lang=="ar" else "Error", 
-                f"حدث خطأ: {str(e)}")
+            print(f"خطأ في توليد دور الـ16: {e}")
+            return False
 
-    def generate_group_matches(self):
-        """توليد مباريات دور المجموعات"""
+    def generate_quarter_final(self):
+        """توليد ربع النهائي"""
         try:
-            match_count = generate_all_group_matches()
+            if self.cancel_generation:
+                return False
+                
+            # التحقق من اكتمال دور الـ16 أولاً
+            round_of_16_matches = get_matches("Round of 16")
+            if round_of_16_matches.empty:
+                QMessageBox.warning(self, "تحذير" if self.lang=="ar" else "Warning",
+                    "يجب توليد مباريات دور الـ16 أولاً" if self.lang=="ar"
+                    else "Please generate Round of 16 matches first")
+                return False
             
+            match_count = generate_knockout_stage_matches("Quarter Final")
             if match_count > 0:
-                QMessageBox.information(self, "تم" if self.lang=="ar" else "Success", 
-                    f"تم توليد {match_count} مباراة في دور المجموعات" if self.lang=="ar"
-                    else f"Generated {match_count} group stage matches")
-                self.populate_matches_table()
+                print(f"تم توليد {match_count} مباراة في ربع النهائي")
+                return True
             else:
-                QMessageBox.warning(self, "تحذير" if self.lang=="ar" else "Warning",
-                    "لم يتم توليد أي مباراة." if self.lang=="ar"
-                    else "No matches generated.")
-                
+                print("فشل في توليد مباريات ربع النهائي")
+                return False
         except Exception as e:
-            QMessageBox.critical(self, "خطأ" if self.lang=="ar" else "Error", 
-                f"حدث خطأ: {str(e)}")
+            print(f"خطأ في توليد ربع النهائي: {e}")
+            return False
 
-    def generate_knockout_step_by_step(self):
-        """التوليد التدريجي لمباريات الإقصائيات فقط"""
+    def generate_semi_final(self):
+        """توليد نصف النهائي"""
         try:
-            # المراحل الإقصائية فقط (بدون دور المجموعات)
-            knockout_stages = ["Round of 16", "Quarter Final", "Semi Final", "Final"]
-            
-            if self.current_stage_index >= len(knockout_stages):
-                QMessageBox.information(self, "تم الانتهاء" if self.lang=="ar" else "Finished", 
-                    "تم إنشاء جميع مراحل الإقصائيات!" if self.lang=="ar" 
-                    else "All knockout stages have been created!")
-                self.current_stage_index = 0
-                self.update_knockout_button()
-                return
-            
-            current_stage = knockout_stages[self.current_stage_index]
-            self.current_knockout_stage_label.setText(f"المرحلة الحالية: {self.get_stage_name_ar(current_stage)}" if self.lang=="ar" 
-                                           else f"Current Stage: {current_stage}")
-            
-            # عرض حوار تأكيد
-            reply = QMessageBox.question(self, 
-                "تأكيد التوليد" if self.lang=="ar" else "Confirm Generation",
-                f"هل تريد توليد مباريات مرحلة {self.get_stage_name_ar(current_stage) if self.lang=='ar' else current_stage}؟" if self.lang=="ar" 
-                else f"Generate matches for {current_stage} stage?",
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-            
-            if reply == QMessageBox.StandardButton.Yes:
-                match_count = generate_knockout_stage_matches(current_stage)
+            if self.cancel_generation:
+                return False
                 
-                if match_count > 0:
-                    QMessageBox.information(self, "تم بنجاح" if self.lang=="ar" else "Success", 
-                        f"تم توليد {match_count} مباراة في مرحلة {self.get_stage_name_ar(current_stage) if self.lang=='ar' else current_stage}" if self.lang=="ar" 
-                        else f"Generated {match_count} matches in {current_stage} stage")
-                    
-                    # الانتقال للمرحلة التالية
-                    self.current_stage_index += 1
-                    self.update_knockout_button()
-                    
-                    # تحديث الواجهات
-                    self.populate_matches_table()
-                    self.refresh_ui()
-                    
-                    # إذا كانت المرحلة التالية هي دور الـ16، الانتقال لواجهة الإقصاء
-                    if self.current_stage_index > 0 and self.current_stage_index < len(knockout_stages):
-                        next_stage = knockout_stages[self.current_stage_index]
-                        if next_stage == "Round of 16":
-                            self.tabs.setCurrentIndex(3)  # الانتقال لواجهة الإقصاء
-                else:
-                    QMessageBox.warning(self, "تحذير" if self.lang=="ar" else "Warning",
-                        f"لم يتم توليد أي مباراة في مرحلة {self.get_stage_name_ar(current_stage) if self.lang=='ar' else current_stage}" if self.lang=="ar" 
-                        else f"No matches generated in {current_stage} stage")
+            # التحقق من اكتمال ربع النهائي أولاً
+            quarter_final_matches = get_matches("Quarter Final")
+            if quarter_final_matches.empty:
+                QMessageBox.warning(self, "تحذير" if self.lang=="ar" else "Warning",
+                    "يجب توليد مباريات ربع النهائي أولاً" if self.lang=="ar"
+                    else "Please generate Quarter Final matches first")
+                return False
             
+            match_count = generate_knockout_stage_matches("Semi Final")
+            if match_count > 0:
+                print(f"تم توليد {match_count} مباراة في نصف النهائي")
+                return True
+            else:
+                print("فشل في توليد مباريات نصف النهائي")
+                return False
         except Exception as e:
-            print(f"خطأ في التوليد التدريجي: {str(e)}")
-            QMessageBox.critical(self, "خطأ" if self.lang=="ar" else "Error", 
-                f"حدث خطأ أثناء التوليد: {str(e)}" if self.lang=="ar" 
-                else f"Error during generation: {str(e)}")
+            print(f"خطأ في توليد نصف النهائي: {e}")
+            return False
 
-    def update_knockout_button(self):
-        """تحديث نص زر التوليد التدريجي للإقصائيات"""
-        knockout_stages = ["Round of 16", "Quarter Final", "Semi Final", "Final"]
-        
-        if self.current_stage_index >= len(knockout_stages):
-            self.knockout_gen_btn.setText("إعادة البدء" if self.lang=="ar" else "Restart")
-            self.current_knockout_stage_label.setText("تم الانتهاء من جميع مراحل الإقصائيات" if self.lang=="ar" else "All knockout stages completed")
-        else:
-            next_stage = knockout_stages[self.current_stage_index]
-            self.knockout_gen_btn.setText(f"توليد مرحلة {self.get_stage_name_ar(next_stage) if self.lang=='ar' else next_stage}" if self.lang=="ar" 
-                                        else f"Generate {next_stage}")
-            self.current_knockout_stage_label.setText(f"المرحلة التالية: {self.get_stage_name_ar(next_stage) if self.lang=='ar' else next_stage}" if self.lang=="ar" 
-                                           else f"Next Stage: {next_stage}")
-
-    def get_stage_name_ar(self, stage):
-        """ترجمة اسم المرحلة للعربية"""
-        translations = {
-            "Group Stage": "دور المجموعات",
-            "Round of 16": "دور الـ16",
-            "Quarter Final": "ربع النهائي", 
-            "Semi Final": "نصف النهائي",
-            "Final": "النهائي"
-        }
-        return translations.get(stage, stage)
+    def generate_final(self):
+        """توليد النهائي"""
+        try:
+            if self.cancel_generation:
+                return False
+                
+            # التحقق من اكتمال نصف النهائي أولاً
+            semi_final_matches = get_matches("Semi Final")
+            if semi_final_matches.empty:
+                QMessageBox.warning(self, "تحذير" if self.lang=="ar" else "Warning",
+                    "يجب توليد مباريات نصف النهائي أولاً" if self.lang=="ar"
+                    else "Please generate Semi Final matches first")
+                return False
+            
+            match_count = generate_knockout_stage_matches("Final")
+            if match_count > 0:
+                print(f"تم توليد {match_count} مباراة في النهائي")
+                return True
+            else:
+                print("فشل في توليد مباراة النهائي")
+                return False
+        except Exception as e:
+            print(f"خطأ في توليد النهائي: {e}")
+            return False
 
     def refresh_teams_combo(self):
         teams_df = get_teams()
@@ -1705,11 +1900,45 @@ class MainWindow(QMainWindow):
         w = QWidget()
         l = QVBoxLayout(w)
         
-        # زر التوليد الصحيح لدور الـ16
-        correct_round16_btn = QPushButton("توليد دور الـ16 (حسب القواعد الرسمية)" if self.lang=="ar" else "Generate Round of 16 (Official Rules)")
-        correct_round16_btn.setStyleSheet("background: #32CD32; color: white; font-weight: bold; padding: 12px;")
-        correct_round16_btn.clicked.connect(self.generate_correct_round_of_16)
-        l.addWidget(correct_round16_btn)
+        # زر التوليد التلقائي الكامل (نفس الزر الموجود في واجهة المباريات)
+        auto_gen_group = QGroupBox("التوليد التلقائي الكامل للبطولة" if self.lang=="ar" else "Full Tournament Auto-Generation")
+        auto_gen_layout = QVBoxLayout(auto_gen_group)
+        
+        auto_gen_desc = QLabel("اضغط على الزر لتوليد جميع مراحل البطولة تلقائياً:" if self.lang=="ar" 
+                          else "Press the button to generate all tournament stages automatically:")
+        auto_gen_desc.setWordWrap(True)
+        auto_gen_layout.addWidget(auto_gen_desc)
+        
+        # زر التوليد التلقائي الكامل
+        self.auto_gen_btn_knockout = QPushButton("بدء التوليد التلقائي الكامل" if self.lang=="ar" else "Start Full Auto-Generation")
+        self.auto_gen_btn_knockout.setStyleSheet("background: #32CD32; color: white; font-weight: bold; padding: 15px; font-size: 18px;")
+        self.auto_gen_btn_knockout.clicked.connect(self.start_full_auto_generation)
+        auto_gen_layout.addWidget(self.auto_gen_btn_knockout)
+        
+        # زر الإلغاء
+        self.cancel_btn_knockout = QPushButton("إلغاء العملية" if self.lang=="ar" else "Cancel Process")
+        self.cancel_btn_knockout.setStyleSheet("background: #FF6B6B; color: white; font-weight: bold; padding: 10px;")
+        self.cancel_btn_knockout.clicked.connect(self.cancel_auto_generation)
+        self.cancel_btn_knockout.setVisible(False)
+        auto_gen_layout.addWidget(self.cancel_btn_knockout)
+        
+        # عرض المرحلة الحالية
+        self.current_stage_label_knockout = QLabel("جاهز للبدء" if self.lang=="ar" else "Ready to start")
+        self.current_stage_label_knockout.setStyleSheet("color: #FFD700; font-weight: bold; font-size: 16px;")
+        auto_gen_layout.addWidget(self.current_stage_label_knockout)
+        
+        # شريط التقدم
+        self.progress_bar_knockout = QProgressBar()
+        self.progress_bar_knockout.setVisible(False)
+        auto_gen_layout.addWidget(self.progress_bar_knockout)
+        
+        # عرض التفاصيل
+        self.details_label_knockout = QLabel("")
+        self.details_label_knockout.setWordWrap(True)
+        self.details_label_knockout.setStyleSheet("color: #CCCCCC; font-size: 12px;")
+        auto_gen_layout.addWidget(self.details_label_knockout)
+        
+        l.addWidget(auto_gen_group)
         
         # زر Reset خاص بالإقصائيات
         reset_knockout_btn = QPushButton("إعادة تعيين الإقصائيات" if self.lang=="ar" else "Reset Knockouts")
@@ -1748,10 +1977,6 @@ class MainWindow(QMainWindow):
         add_btn = QPushButton("إضافة مباراة إقصائية" if self.lang=="ar" else "Add Knockout Match")
         add_btn.clicked.connect(self.add_knockout_match_dialog)
         h.addWidget(add_btn)
-        
-        gen_btn = QPushButton("توليد مباريات المرحلة الحالية" if self.lang=="ar" else "Generate Current Stage Matches")
-        gen_btn.clicked.connect(self.generate_current_stage_matches)
-        h.addWidget(gen_btn)
         
         refresh_btn = QPushButton("تحديث" if self.lang=="ar" else "Refresh")
         refresh_btn.clicked.connect(self.populate_knockout_table)
@@ -1981,30 +2206,6 @@ class MainWindow(QMainWindow):
                 QMessageBox.warning(self, "خطأ" if self.lang=="ar" else "Error", "فشل في إضافة المباراة" if self.lang=="ar" else "Failed to add match")
         else:
             QMessageBox.warning(self, "خطأ" if self.lang=="ar" else "Error", "اختر فريقين مختلفين" if self.lang=="ar" else "Choose two different teams")
-
-    def generate_current_stage_matches(self):
-        """توليد مباريات المرحلة الحالية تلقائياً"""
-        try:
-            current_stage = self.k_stage_combo.currentText()
-            match_count = generate_knockout_stage_matches(current_stage)
-            
-            if match_count > 0:
-                QMessageBox.information(self, "تم" if self.lang=="ar" else "Done", 
-                    f"تم توليد {match_count} مباراة لمرحلة {current_stage}" if self.lang=="ar" 
-                    else f"Generated {match_count} matches for {current_stage} stage")
-                
-                self.populate_knockout_table()
-                self.update_qualified_teams_display()
-            else:
-                QMessageBox.warning(self, "تحذير" if self.lang=="ar" else "Warning",
-                    "لا توجد فرق كافية أو لم يتم توليد أي مباريات" if self.lang=="ar" 
-                    else "Not enough teams or no matches generated")
-                
-        except Exception as e:
-            print(f"خطأ في توليد المباريات: {str(e)}")
-            QMessageBox.critical(self, "خطأ" if self.lang=="ar" else "Error", 
-                f"حدث خطأ أثناء توليد المباريات: {str(e)}" if self.lang=="ar" 
-                else f"Error generating matches: {str(e)}")
 
     def advance_stage(self):
         """التقدم للمرحلة التالية تلقائياً"""
