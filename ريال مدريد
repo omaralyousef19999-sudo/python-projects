@@ -1281,6 +1281,7 @@ class MainWindow(QMainWindow):
         w = QWidget()
         l = QVBoxLayout(w)
         
+        # زر توليد دور المجموعات
         auto_gen_group = QGroupBox("التوليد التلقائي لدور المجموعات" if self.lang=="ar" else "Group Stage Auto-Generation")
         auto_gen_layout = QVBoxLayout(auto_gen_group)
         
@@ -1295,6 +1296,100 @@ class MainWindow(QMainWindow):
         auto_gen_layout.addWidget(self.auto_gen_btn)
         
         l.addWidget(auto_gen_group)
+        
+        # ازرار التوليد التلقائي للادوار الاقصائية - مربعة وجنب بعض
+        knockout_buttons_group = QGroupBox("التوليد التلقائي للأدوار الإقصائية" if self.lang=="ar" else "Knockout Stages Auto-Generation")
+        knockout_buttons_layout = QHBoxLayout(knockout_buttons_group)
+        
+        # ازرار مربعة وجنب بعض
+        self.round_16_btn = QPushButton("توليد\nدور الـ16" if self.lang=="ar" else "Generate\nRound of 16")
+        self.round_16_btn.setFixedSize(120, 80)
+        self.round_16_btn.setStyleSheet("""
+            QPushButton {
+                background: #32CD32; 
+                color: white; 
+                font-weight: bold; 
+                font-size: 14px;
+                border-radius: 8px;
+            }
+            QPushButton:hover {
+                background: #28a428;
+            }
+            QPushButton:disabled {
+                background: #cccccc;
+                color: #666666;
+            }
+        """)
+        self.round_16_btn.clicked.connect(self.generate_round_of_16)
+        
+        self.quarter_btn = QPushButton("توليد\nربع النهائي" if self.lang=="ar" else "Generate\nQuarter Final")
+        self.quarter_btn.setFixedSize(120, 80)
+        self.quarter_btn.setStyleSheet("""
+            QPushButton {
+                background: #1E90FF; 
+                color: white; 
+                font-weight: bold; 
+                font-size: 14px;
+                border-radius: 8px;
+            }
+            QPushButton:hover {
+                background: #1873cc;
+            }
+            QPushButton:disabled {
+                background: #cccccc;
+                color: #666666;
+            }
+        """)
+        self.quarter_btn.clicked.connect(self.generate_quarter_final)
+        
+        self.semi_btn = QPushButton("توليد\nنصف النهائي" if self.lang=="ar" else "Generate\nSemi Final")
+        self.semi_btn.setFixedSize(120, 80)
+        self.semi_btn.setStyleSheet("""
+            QPushButton {
+                background: #FF8C00; 
+                color: white; 
+                font-weight: bold; 
+                font-size: 14px;
+                border-radius: 8px;
+            }
+            QPushButton:hover {
+                background: #d97800;
+            }
+            QPushButton:disabled {
+                background: #cccccc;
+                color: #666666;
+            }
+        """)
+        self.semi_btn.clicked.connect(self.generate_semi_final)
+        
+        self.final_btn = QPushButton("توليد\nالنهائي" if self.lang=="ar" else "Generate\nFinal")
+        self.final_btn.setFixedSize(120, 80)
+        self.final_btn.setStyleSheet("""
+            QPushButton {
+                background: #FF1493; 
+                color: white; 
+                font-weight: bold; 
+                font-size: 14px;
+                border-radius: 8px;
+            }
+            QPushButton:hover {
+                background: #d4117a;
+            }
+            QPushButton:disabled {
+                background: #cccccc;
+                color: #666666;
+            }
+        """)
+        self.final_btn.clicked.connect(self.generate_final)
+        
+        # اضافة الازرار جنب بعض
+        knockout_buttons_layout.addWidget(self.round_16_btn)
+        knockout_buttons_layout.addWidget(self.quarter_btn)
+        knockout_buttons_layout.addWidget(self.semi_btn)
+        knockout_buttons_layout.addWidget(self.final_btn)
+        knockout_buttons_layout.addStretch()
+        
+        l.addWidget(knockout_buttons_group)
         
         reset_matches_btn = QPushButton("حذف جميع المباريات" if self.lang=="ar" else "Delete All Matches")
         reset_matches_btn.setStyleSheet("background: #FF6B6B; color: white;")
@@ -1377,13 +1472,116 @@ class MainWindow(QMainWindow):
             match_count = generate_all_group_matches()
             if match_count > 0:
                 QMessageBox.information(self, "تم", f"تم توليد {match_count} مباراة في دور المجموعات بنجاح!")
+                self.populate_matches_table()
             else:
                 QMessageBox.warning(self, "خطأ", "فشل في توليد مباريات دور المجموعات")
         except Exception as e:
             QMessageBox.warning(self, "خطأ", f"حدث خطأ: {str(e)}")
         finally:
             self.auto_gen_btn.setEnabled(True)
-            self.populate_matches_table()
+
+    def generate_round_of_16(self):
+        """توليد مباريات دور الـ16"""
+        reply = QMessageBox.question(self, 
+            "توليد دور الـ16",
+            "سيتم توليد مباريات دور الـ16 تلقائياً. هل تريد المتابعة؟",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        
+        self.round_16_btn.setEnabled(False)
+        
+        try:
+            match_count = generate_round_of_16_correct()
+            if match_count > 0:
+                QMessageBox.information(self, "تم", f"تم توليد {match_count} مباراة في دور الـ16 بنجاح!")
+                self.populate_matches_table()
+            else:
+                QMessageBox.warning(self, "خطأ", "فشل في توليد مباريات دور الـ16. تأكد من اكتمال دور المجموعات.")
+        except Exception as e:
+            QMessageBox.warning(self, "خطأ", f"حدث خطأ: {str(e)}")
+        finally:
+            self.round_16_btn.setEnabled(True)
+
+    def generate_quarter_final(self):
+        """توليد مباريات ربع النهائي"""
+        reply = QMessageBox.question(self, 
+            "توليد ربع النهائي",
+            "سيتم توليد مباريات ربع النهائي تلقائياً. هل تريد المتابعة؟",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        
+        self.quarter_btn.setEnabled(False)
+        
+        try:
+            match_count = generate_knockout_stage_matches("Quarter Final")
+            if match_count > 0:
+                QMessageBox.information(self, "تم", f"تم توليد {match_count} مباراة في ربع النهائي بنجاح!")
+                self.populate_matches_table()
+            else:
+                QMessageBox.warning(self, "خطأ", "فشل في توليد مباريات ربع النهائي. تأكد من اكتمال دور الـ16.")
+        except Exception as e:
+            QMessageBox.warning(self, "خطأ", f"حدث خطأ: {str(e)}")
+        finally:
+            self.quarter_btn.setEnabled(True)
+
+    def generate_semi_final(self):
+        """توليد مباريات نصف النهائي"""
+        reply = QMessageBox.question(self, 
+            "توليد نصف النهائي",
+            "سيتم توليد مباريات نصف النهائي تلقائياً. هل تريد المتابعة؟",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        
+        self.semi_btn.setEnabled(False)
+        
+        try:
+            match_count = generate_knockout_stage_matches("Semi Final")
+            if match_count > 0:
+                QMessageBox.information(self, "تم", f"تم توليد {match_count} مباراة في نصف النهائي بنجاح!")
+                self.populate_matches_table()
+            else:
+                QMessageBox.warning(self, "خطأ", "فشل في توليد مباريات نصف النهائي. تأكد من اكتمال ربع النهائي.")
+        except Exception as e:
+            QMessageBox.warning(self, "خطأ", f"حدث خطأ: {str(e)}")
+        finally:
+            self.semi_btn.setEnabled(True)
+
+    def generate_final(self):
+        """توليد مباراة النهائي"""
+        reply = QMessageBox.question(self, 
+            "توليد النهائي",
+            "سيتم توليد مباراة النهائي تلقائياً. هل تريد المتابعة؟",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        
+        self.final_btn.setEnabled(False)
+        
+        try:
+            match_count = generate_knockout_stage_matches("Final")
+            if match_count > 0:
+                QMessageBox.information(self, "تم", f"تم توليد مباراة النهائي بنجاح!")
+                self.populate_matches_table()
+                
+                # عرض البطل
+                final_matches = get_matches("Final")
+                if not final_matches.empty and final_matches.iloc[0].get('winner'):
+                    champion = final_matches.iloc[0]['winner']
+                    QMessageBox.information(self, "البطل", f"🏆 بطل دوري أبطال أوروبا: {champion} 🏆")
+                    
+            else:
+                QMessageBox.warning(self, "خطأ", "فشل في توليد مباراة النهائي. تأكد من اكتمال نصف النهائي.")
+        except Exception as e:
+            QMessageBox.warning(self, "خطأ", f"حدث خطأ: {str(e)}")
+        finally:
+            self.final_btn.setEnabled(True)
 
     def refresh_teams_combo(self):
         teams_df = get_teams()
@@ -1641,49 +1839,99 @@ class MainWindow(QMainWindow):
         w = QWidget()
         l = QVBoxLayout(w)
         
-        # زر توليد دور الـ16
-        round_16_group = QGroupBox("توليد دور الـ16")
-        round_16_layout = QHBoxLayout(round_16_group)
+        # ازرار التوليد التلقائي للادوار الاقصائية - مربعة وجنب بعض
+        knockout_buttons_group = QGroupBox("التوليد التلقائي للأدوار الإقصائية" if self.lang=="ar" else "Knockout Stages Auto-Generation")
+        knockout_buttons_layout = QHBoxLayout(knockout_buttons_group)
         
-        self.round_16_btn = QPushButton("توليد دور الـ16")
-        self.round_16_btn.setStyleSheet("background: #32CD32; color: white; font-weight: bold; padding: 10px;")
-        self.round_16_btn.clicked.connect(self.generate_round_of_16)
-        round_16_layout.addWidget(self.round_16_btn)
+        # ازرار مربعة وجنب بعض
+        self.round_16_btn_knockout = QPushButton("توليد\nدور الـ16" if self.lang=="ar" else "Generate\nRound of 16")
+        self.round_16_btn_knockout.setFixedSize(120, 80)
+        self.round_16_btn_knockout.setStyleSheet("""
+            QPushButton {
+                background: #32CD32; 
+                color: white; 
+                font-weight: bold; 
+                font-size: 14px;
+                border-radius: 8px;
+            }
+            QPushButton:hover {
+                background: #28a428;
+            }
+            QPushButton:disabled {
+                background: #cccccc;
+                color: #666666;
+            }
+        """)
+        self.round_16_btn_knockout.clicked.connect(self.generate_round_of_16)
         
-        l.addWidget(round_16_group)
+        self.quarter_btn_knockout = QPushButton("توليد\nربع النهائي" if self.lang=="ar" else "Generate\nQuarter Final")
+        self.quarter_btn_knockout.setFixedSize(120, 80)
+        self.quarter_btn_knockout.setStyleSheet("""
+            QPushButton {
+                background: #1E90FF; 
+                color: white; 
+                font-weight: bold; 
+                font-size: 14px;
+                border-radius: 8px;
+            }
+            QPushButton:hover {
+                background: #1873cc;
+            }
+            QPushButton:disabled {
+                background: #cccccc;
+                color: #666666;
+            }
+        """)
+        self.quarter_btn_knockout.clicked.connect(self.generate_quarter_final)
         
-        # زر توليد ربع النهائي
-        quarter_group = QGroupBox("توليد ربع النهائي")
-        quarter_layout = QHBoxLayout(quarter_group)
+        self.semi_btn_knockout = QPushButton("توليد\nنصف النهائي" if self.lang=="ar" else "Generate\nSemi Final")
+        self.semi_btn_knockout.setFixedSize(120, 80)
+        self.semi_btn_knockout.setStyleSheet("""
+            QPushButton {
+                background: #FF8C00; 
+                color: white; 
+                font-weight: bold; 
+                font-size: 14px;
+                border-radius: 8px;
+            }
+            QPushButton:hover {
+                background: #d97800;
+            }
+            QPushButton:disabled {
+                background: #cccccc;
+                color: #666666;
+            }
+        """)
+        self.semi_btn_knockout.clicked.connect(self.generate_semi_final)
         
-        self.quarter_btn = QPushButton("توليد ربع النهائي")
-        self.quarter_btn.setStyleSheet("background: #1E90FF; color: white; font-weight: bold; padding: 10px;")
-        self.quarter_btn.clicked.connect(self.generate_quarter_final)
-        quarter_layout.addWidget(self.quarter_btn)
+        self.final_btn_knockout = QPushButton("توليد\nالنهائي" if self.lang=="ar" else "Generate\nFinal")
+        self.final_btn_knockout.setFixedSize(120, 80)
+        self.final_btn_knockout.setStyleSheet("""
+            QPushButton {
+                background: #FF1493; 
+                color: white; 
+                font-weight: bold; 
+                font-size: 14px;
+                border-radius: 8px;
+            }
+            QPushButton:hover {
+                background: #d4117a;
+            }
+            QPushButton:disabled {
+                background: #cccccc;
+                color: #666666;
+            }
+        """)
+        self.final_btn_knockout.clicked.connect(self.generate_final)
         
-        l.addWidget(quarter_group)
+        # اضافة الازرار جنب بعض
+        knockout_buttons_layout.addWidget(self.round_16_btn_knockout)
+        knockout_buttons_layout.addWidget(self.quarter_btn_knockout)
+        knockout_buttons_layout.addWidget(self.semi_btn_knockout)
+        knockout_buttons_layout.addWidget(self.final_btn_knockout)
+        knockout_buttons_layout.addStretch()
         
-        # زر توليد نصف النهائي
-        semi_group = QGroupBox("توليد نصف النهائي")
-        semi_layout = QHBoxLayout(semi_group)
-        
-        self.semi_btn = QPushButton("توليد نصف النهائي")
-        self.semi_btn.setStyleSheet("background: #FF8C00; color: white; font-weight: bold; padding: 10px;")
-        self.semi_btn.clicked.connect(self.generate_semi_final)
-        semi_layout.addWidget(self.semi_btn)
-        
-        l.addWidget(semi_group)
-        
-        # زر توليد النهائي
-        final_group = QGroupBox("توليد النهائي")
-        final_layout = QHBoxLayout(final_group)
-        
-        self.final_btn = QPushButton("توليد النهائي")
-        self.final_btn.setStyleSheet("background: #FF1493; color: white; font-weight: bold; padding: 10px;")
-        self.final_btn.clicked.connect(self.generate_final)
-        final_layout.addWidget(self.final_btn)
-        
-        l.addWidget(final_group)
+        l.addWidget(knockout_buttons_group)
         
         reset_knockout_btn = QPushButton("إعادة تعيين الإقصائيات")
         reset_knockout_btn.setStyleSheet("background: #FF6B6B; color: white; margin: 10px;")
@@ -1772,113 +2020,6 @@ class MainWindow(QMainWindow):
             "Final": "النهائي"
         }
         return stage_names.get(stage_name, stage_name)
-
-    def generate_round_of_16(self):
-        """توليد مباريات دور الـ16"""
-        reply = QMessageBox.question(self, 
-            "توليد دور الـ16",
-            "سيتم توليد مباريات دور الـ16 تلقائياً. هل تريد المتابعة؟",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-        
-        if reply != QMessageBox.StandardButton.Yes:
-            return
-        
-        self.round_16_btn.setEnabled(False)
-        
-        try:
-            match_count = generate_round_of_16_correct()
-            if match_count > 0:
-                QMessageBox.information(self, "تم", f"تم توليد {match_count} مباراة في دور الـ16 بنجاح!")
-                self.update_qualified_teams_display()
-                self.populate_knockout_table()
-            else:
-                QMessageBox.warning(self, "خطأ", "فشل في توليد مباريات دور الـ16. تأكد من اكتمال دور المجموعات.")
-        except Exception as e:
-            QMessageBox.warning(self, "خطأ", f"حدث خطأ: {str(e)}")
-        finally:
-            self.round_16_btn.setEnabled(True)
-
-    def generate_quarter_final(self):
-        """توليد مباريات ربع النهائي"""
-        reply = QMessageBox.question(self, 
-            "توليد ربع النهائي",
-            "سيتم توليد مباريات ربع النهائي تلقائياً. هل تريد المتابعة؟",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-        
-        if reply != QMessageBox.StandardButton.Yes:
-            return
-        
-        self.quarter_btn.setEnabled(False)
-        
-        try:
-            match_count = generate_knockout_stage_matches("Quarter Final")
-            if match_count > 0:
-                QMessageBox.information(self, "تم", f"تم توليد {match_count} مباراة في ربع النهائي بنجاح!")
-                self.update_qualified_teams_display()
-                self.populate_knockout_table()
-            else:
-                QMessageBox.warning(self, "خطأ", "فشل في توليد مباريات ربع النهائي. تأكد من اكتمال دور الـ16.")
-        except Exception as e:
-            QMessageBox.warning(self, "خطأ", f"حدث خطأ: {str(e)}")
-        finally:
-            self.quarter_btn.setEnabled(True)
-
-    def generate_semi_final(self):
-        """توليد مباريات نصف النهائي"""
-        reply = QMessageBox.question(self, 
-            "توليد نصف النهائي",
-            "سيتم توليد مباريات نصف النهائي تلقائياً. هل تريد المتابعة؟",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-        
-        if reply != QMessageBox.StandardButton.Yes:
-            return
-        
-        self.semi_btn.setEnabled(False)
-        
-        try:
-            match_count = generate_knockout_stage_matches("Semi Final")
-            if match_count > 0:
-                QMessageBox.information(self, "تم", f"تم توليد {match_count} مباراة في نصف النهائي بنجاح!")
-                self.update_qualified_teams_display()
-                self.populate_knockout_table()
-            else:
-                QMessageBox.warning(self, "خطأ", "فشل في توليد مباريات نصف النهائي. تأكد من اكتمال ربع النهائي.")
-        except Exception as e:
-            QMessageBox.warning(self, "خطأ", f"حدث خطأ: {str(e)}")
-        finally:
-            self.semi_btn.setEnabled(True)
-
-    def generate_final(self):
-        """توليد مباراة النهائي"""
-        reply = QMessageBox.question(self, 
-            "توليد النهائي",
-            "سيتم توليد مباراة النهائي تلقائياً. هل تريد المتابعة؟",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-        
-        if reply != QMessageBox.StandardButton.Yes:
-            return
-        
-        self.final_btn.setEnabled(False)
-        
-        try:
-            match_count = generate_knockout_stage_matches("Final")
-            if match_count > 0:
-                QMessageBox.information(self, "تم", f"تم توليد مباراة النهائي بنجاح!")
-                self.update_qualified_teams_display()
-                self.populate_knockout_table()
-                
-                # عرض البطل
-                final_matches = get_matches("Final")
-                if not final_matches.empty and final_matches.iloc[0].get('winner'):
-                    champion = final_matches.iloc[0]['winner']
-                    QMessageBox.information(self, "البطل", f"🏆 بطل دوري أبطال أوروبا: {champion} 🏆")
-                    
-            else:
-                QMessageBox.warning(self, "خطأ", "فشل في توليد مباراة النهائي. تأكد من اكتمال نصف النهائي.")
-        except Exception as e:
-            QMessageBox.warning(self, "خطأ", f"حدث خطأ: {str(e)}")
-        finally:
-            self.final_btn.setEnabled(True)
 
     def reset_knockouts(self):
         reply = QMessageBox.question(self, 
