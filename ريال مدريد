@@ -887,128 +887,6 @@ def generate_knockout_stage_matches(stage):
         traceback.print_exc()
         return 0
 
-# ---------- Thread للتوليد التلقائي المصحح ----------
-class GenerationThread(QThread):
-    progress_updated = pyqtSignal(int)
-    stage_updated = pyqtSignal(str)
-    finished_signal = pyqtSignal(bool, str)
-
-    def __init__(self):
-        super().__init__()
-        self.cancelled = False
-
-    def run(self):
-        try:
-            total_matches = 0
-            
-            # 1. توليد دور المجموعات
-            if self.cancelled: return
-            self.stage_updated.emit("جاري توليد دور المجموعات...")
-            self.progress_updated.emit(10)
-            
-            group_matches = generate_all_group_matches()
-            if group_matches == 0:
-                self.finished_signal.emit(False, "فشل في توليد دور المجموعات")
-                return
-            total_matches += group_matches
-            
-            # الانتظار والتأكد من حفظ البيانات
-            time.sleep(2)
-            
-            # التحقق من اكتمال دور المجموعات
-            qualified_group = get_qualified_for_next_stage_correct("Group Stage")
-            if len(qualified_group) < 16:
-                self.finished_signal.emit(False, f"عدد الفرق المتأهلة غير كافي: {len(qualified_group)} من 16")
-                return
-            
-            self.progress_updated.emit(30)
-            
-            # 2. توليد دور الـ16
-            if self.cancelled: return
-            self.stage_updated.emit("جاري توليد دور الـ16...")
-            
-            round_of_16_matches = generate_round_of_16_correct()
-            if round_of_16_matches == 0:
-                self.finished_signal.emit(False, "فشل في توليد دور الـ16")
-                return
-            total_matches += round_of_16_matches
-            
-            # الانتظار والتأكد من حفظ البيانات
-            time.sleep(2)
-            
-            # التحقق من اكتمال دور الـ16
-            qualified_quarter = get_qualified_for_next_stage_correct("Round of 16")
-            if len(qualified_quarter) < 8:
-                self.finished_signal.emit(False, f"عدد الفرق المتأهلة لربع النهائي غير كافي: {len(qualified_quarter)} من 8")
-                return
-            
-            self.progress_updated.emit(50)
-            
-            # 3. توليد ربع النهائي
-            if self.cancelled: return
-            self.stage_updated.emit("جاري توليد ربع النهائي...")
-            
-            quarter_matches = generate_knockout_stage_matches("Quarter Final")
-            if quarter_matches == 0:
-                self.finished_signal.emit(False, "فشل في توليد ربع النهائي")
-                return
-            total_matches += quarter_matches
-            
-            # الانتظار والتأكد من حفظ البيانات
-            time.sleep(2)
-            
-            # التحقق من اكتمال ربع النهائي
-            qualified_semi = get_qualified_for_next_stage_correct("Quarter Final")
-            if len(qualified_semi) < 4:
-                self.finished_signal.emit(False, f"عدد الفرق المتأهلة لنصف النهائي غير كافي: {len(qualified_semi)} من 4")
-                return
-            
-            self.progress_updated.emit(70)
-            
-            # 4. توليد نصف النهائي
-            if self.cancelled: return
-            self.stage_updated.emit("جاري توليد نصف النهائي...")
-            
-            semi_matches = generate_knockout_stage_matches("Semi Final")
-            if semi_matches == 0:
-                self.finished_signal.emit(False, "فشل في توليد نصف النهائي")
-                return
-            total_matches += semi_matches
-            
-            # الانتظار والتأكد من حفظ البيانات
-            time.sleep(2)
-            
-            # التحقق من اكتمال نصف النهائي
-            qualified_final = get_qualified_for_next_stage_correct("Semi Final")
-            if len(qualified_final) < 2:
-                self.finished_signal.emit(False, f"عدد الفرق المتأهلة للنهائي غير كافي: {len(qualified_final)} من 2")
-                return
-            
-            self.progress_updated.emit(90)
-            
-            # 5. توليد النهائي
-            if self.cancelled: return
-            self.stage_updated.emit("جاري توليد النهائي...")
-            
-            final_matches = generate_knockout_stage_matches("Final")
-            if final_matches == 0:
-                self.finished_signal.emit(False, "فشل في توليد النهائي")
-                return
-            total_matches += final_matches
-            
-            self.progress_updated.emit(100)
-            
-            if self.cancelled:
-                self.finished_signal.emit(False, "تم إلغاء العملية")
-            else:
-                self.finished_signal.emit(True, f"تم توليد {total_matches} مباراة بنجاح! البطولة اكتملت!")
-                
-        except Exception as e:
-            self.finished_signal.emit(False, f"حدث خطأ: {str(e)}")
-
-    def cancel(self):
-        self.cancelled = True
-
 # ---------- واجهة المستخدم ----------
 class EnterLineEdit(QLineEdit):
     def __init__(self, parent=None):
@@ -1403,32 +1281,18 @@ class MainWindow(QMainWindow):
         w = QWidget()
         l = QVBoxLayout(w)
         
-        auto_gen_group = QGroupBox("التوليد التلقائي الكامل للبطولة" if self.lang=="ar" else "Full Tournament Auto-Generation")
+        auto_gen_group = QGroupBox("التوليد التلقائي لدور المجموعات" if self.lang=="ar" else "Group Stage Auto-Generation")
         auto_gen_layout = QVBoxLayout(auto_gen_group)
         
-        auto_gen_desc = QLabel("اضغط على الزر لتوليد جميع مراحل البطولة تلقائياً:" if self.lang=="ar" 
-                          else "Press the button to generate all tournament stages automatically:")
+        auto_gen_desc = QLabel("اضغط على الزر لتوليد جميع مباريات دور المجموعات تلقائياً:" if self.lang=="ar" 
+                          else "Press the button to generate all group stage matches automatically:")
         auto_gen_desc.setWordWrap(True)
         auto_gen_layout.addWidget(auto_gen_desc)
         
-        self.auto_gen_btn = QPushButton("بدء التوليد التلقائي الكامل" if self.lang=="ar" else "Start Full Auto-Generation")
-        self.auto_gen_btn.setStyleSheet("background: #32CD32; color: white; font-weight: bold; padding: 15px; font-size: 18px;")
-        self.auto_gen_btn.clicked.connect(self.start_full_auto_generation)
+        self.auto_gen_btn = QPushButton("توليد مباريات دور المجموعات" if self.lang=="ar" else "Generate Group Stage Matches")
+        self.auto_gen_btn.setStyleSheet("background: #32CD32; color: white; font-weight: bold; padding: 12px; font-size: 16px;")
+        self.auto_gen_btn.clicked.connect(self.generate_group_stage)
         auto_gen_layout.addWidget(self.auto_gen_btn)
-        
-        self.cancel_btn = QPushButton("إلغاء العملية" if self.lang=="ar" else "Cancel Process")
-        self.cancel_btn.setStyleSheet("background: #FF6B6B; color: white; font-weight: bold; padding: 10px;")
-        self.cancel_btn.clicked.connect(self.cancel_auto_generation)
-        self.cancel_btn.setVisible(False)
-        auto_gen_layout.addWidget(self.cancel_btn)
-        
-        self.current_stage_label = QLabel("جاهز للبدء" if self.lang=="ar" else "Ready to start")
-        self.current_stage_label.setStyleSheet("color: #FFD700; font-weight: bold; font-size: 16px;")
-        auto_gen_layout.addWidget(self.current_stage_label)
-        
-        self.progress_bar = QProgressBar()
-        self.progress_bar.setVisible(False)
-        auto_gen_layout.addWidget(self.progress_bar)
         
         l.addWidget(auto_gen_group)
         
@@ -1497,46 +1361,29 @@ class MainWindow(QMainWindow):
         self.populate_matches_table()
         return w
 
-    def start_full_auto_generation(self):
+    def generate_group_stage(self):
         reply = QMessageBox.question(self, 
-            "بدء التوليد التلقائي",
-            "سيتم توليد جميع مراحل البطولة تلقائياً. هل تريد المتابعة؟" if self.lang=="ar" 
-            else "All tournament stages will be generated automatically. Do you want to continue?",
+            "توليد دور المجموعات",
+            "سيتم توليد جميع مباريات دور المجموعات تلقائياً. هل تريد المتابعة؟" if self.lang=="ar" 
+            else "All group stage matches will be generated automatically. Do you want to continue?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         
         if reply != QMessageBox.StandardButton.Yes:
             return
         
         self.auto_gen_btn.setEnabled(False)
-        self.cancel_btn.setVisible(True)
-        self.progress_bar.setVisible(True)
-        self.progress_bar.setValue(0)
-        self.current_stage_label.setText("جاري البدء..." if self.lang=="ar" else "Starting...")
         
-        self.generation_thread = GenerationThread()
-        self.generation_thread.progress_updated.connect(self.progress_bar.setValue)
-        self.generation_thread.stage_updated.connect(self.current_stage_label.setText)
-        self.generation_thread.finished_signal.connect(self.generation_finished)
-        self.generation_thread.start()
-
-    def cancel_auto_generation(self):
-        if self.generation_thread and self.generation_thread.isRunning():
-            self.generation_thread.cancel()
-            self.current_stage_label.setText("جاري الإلغاء..." if self.lang=="ar" else "Cancelling...")
-
-    def generation_finished(self, success, message):
-        self.auto_gen_btn.setEnabled(True)
-        self.cancel_btn.setVisible(False)
-        self.progress_bar.setVisible(False)
-        
-        if success:
-            self.current_stage_label.setText("اكتمل التوليد بنجاح!")
-            QMessageBox.information(self, "تم", message)
-        else:
-            self.current_stage_label.setText("فشل التوليد")
-            QMessageBox.warning(self, "خطأ", message)
-        
-        self.refresh_ui()
+        try:
+            match_count = generate_all_group_matches()
+            if match_count > 0:
+                QMessageBox.information(self, "تم", f"تم توليد {match_count} مباراة في دور المجموعات بنجاح!")
+            else:
+                QMessageBox.warning(self, "خطأ", "فشل في توليد مباريات دور المجموعات")
+        except Exception as e:
+            QMessageBox.warning(self, "خطأ", f"حدث خطأ: {str(e)}")
+        finally:
+            self.auto_gen_btn.setEnabled(True)
+            self.populate_matches_table()
 
     def refresh_teams_combo(self):
         teams_df = get_teams()
@@ -1794,33 +1641,49 @@ class MainWindow(QMainWindow):
         w = QWidget()
         l = QVBoxLayout(w)
         
-        auto_gen_group = QGroupBox("التوليد التلقائي الكامل للبطولة")
-        auto_gen_layout = QVBoxLayout(auto_gen_group)
+        # زر توليد دور الـ16
+        round_16_group = QGroupBox("توليد دور الـ16")
+        round_16_layout = QHBoxLayout(round_16_group)
         
-        auto_gen_desc = QLabel("اضغط على الزر لتوليد جميع مراحل البطولة تلقائياً:")
-        auto_gen_desc.setWordWrap(True)
-        auto_gen_layout.addWidget(auto_gen_desc)
+        self.round_16_btn = QPushButton("توليد دور الـ16")
+        self.round_16_btn.setStyleSheet("background: #32CD32; color: white; font-weight: bold; padding: 10px;")
+        self.round_16_btn.clicked.connect(self.generate_round_of_16)
+        round_16_layout.addWidget(self.round_16_btn)
         
-        self.auto_gen_btn_knockout = QPushButton("بدء التوليد التلقائي الكامل")
-        self.auto_gen_btn_knockout.setStyleSheet("background: #32CD32; color: white; font-weight: bold; padding: 15px; font-size: 18px;")
-        self.auto_gen_btn_knockout.clicked.connect(self.start_full_auto_generation)
-        auto_gen_layout.addWidget(self.auto_gen_btn_knockout)
+        l.addWidget(round_16_group)
         
-        self.cancel_btn_knockout = QPushButton("إلغاء العملية")
-        self.cancel_btn_knockout.setStyleSheet("background: #FF6B6B; color: white; font-weight: bold; padding: 10px;")
-        self.cancel_btn_knockout.clicked.connect(self.cancel_auto_generation)
-        self.cancel_btn_knockout.setVisible(False)
-        auto_gen_layout.addWidget(self.cancel_btn_knockout)
+        # زر توليد ربع النهائي
+        quarter_group = QGroupBox("توليد ربع النهائي")
+        quarter_layout = QHBoxLayout(quarter_group)
         
-        self.current_stage_label_knockout = QLabel("جاهز للبدء")
-        self.current_stage_label_knockout.setStyleSheet("color: #FFD700; font-weight: bold; font-size: 16px;")
-        auto_gen_layout.addWidget(self.current_stage_label_knockout)
+        self.quarter_btn = QPushButton("توليد ربع النهائي")
+        self.quarter_btn.setStyleSheet("background: #1E90FF; color: white; font-weight: bold; padding: 10px;")
+        self.quarter_btn.clicked.connect(self.generate_quarter_final)
+        quarter_layout.addWidget(self.quarter_btn)
         
-        self.progress_bar_knockout = QProgressBar()
-        self.progress_bar_knockout.setVisible(False)
-        auto_gen_layout.addWidget(self.progress_bar_knockout)
+        l.addWidget(quarter_group)
         
-        l.addWidget(auto_gen_group)
+        # زر توليد نصف النهائي
+        semi_group = QGroupBox("توليد نصف النهائي")
+        semi_layout = QHBoxLayout(semi_group)
+        
+        self.semi_btn = QPushButton("توليد نصف النهائي")
+        self.semi_btn.setStyleSheet("background: #FF8C00; color: white; font-weight: bold; padding: 10px;")
+        self.semi_btn.clicked.connect(self.generate_semi_final)
+        semi_layout.addWidget(self.semi_btn)
+        
+        l.addWidget(semi_group)
+        
+        # زر توليد النهائي
+        final_group = QGroupBox("توليد النهائي")
+        final_layout = QHBoxLayout(final_group)
+        
+        self.final_btn = QPushButton("توليد النهائي")
+        self.final_btn.setStyleSheet("background: #FF1493; color: white; font-weight: bold; padding: 10px;")
+        self.final_btn.clicked.connect(self.generate_final)
+        final_layout.addWidget(self.final_btn)
+        
+        l.addWidget(final_group)
         
         reset_knockout_btn = QPushButton("إعادة تعيين الإقصائيات")
         reset_knockout_btn.setStyleSheet("background: #FF6B6B; color: white; margin: 10px;")
@@ -1830,8 +1693,8 @@ class MainWindow(QMainWindow):
         qualified_group = QGroupBox("الفرق المتأهلة تلقائياً من المباريات")
         qualified_layout = QVBoxLayout(qualified_group)
         
-        self.qualified_grid = QGridLayout()
-        qualified_layout.addLayout(self.qualified_grid)
+        self.qualified_table = QTableWidget()
+        qualified_layout.addWidget(self.qualified_table)
         
         l.addWidget(qualified_group)
         self.update_qualified_teams_display()
@@ -1867,10 +1730,13 @@ class MainWindow(QMainWindow):
         return w
 
     def update_qualified_teams_display(self):
-        for i in reversed(range(self.qualified_grid.count())): 
-            self.qualified_grid.itemAt(i).widget().setParent(None)
-        
+        """تحديث عرض الفرق المتأهلة في جدول منظم"""
         stages = ["Round of 16", "Quarter Final", "Semi Final", "Final"]
+        
+        # إنشاء جدول الفرق المتأهلة
+        self.qualified_table.setColumnCount(2)
+        self.qualified_table.setHorizontalHeaderLabels(["المرحلة", "الفرق المتأهلة"])
+        self.qualified_table.setRowCount(len(stages))
         
         for i, stage in enumerate(stages):
             if stage == "Round of 16":
@@ -1878,20 +1744,24 @@ class MainWindow(QMainWindow):
             else:
                 qualified_teams = get_qualified_for_next_stage_correct(stage)
             
-            stage_label = QLabel(f"{stage}:" if self.lang == "en" else f"{self.get_stage_name_ar(stage)}:")
-            stage_label.setStyleSheet("font-weight: bold; color: #FFD700; font-size: 14px;")
-            self.qualified_grid.addWidget(stage_label, i, 0)
+            # اسم المرحلة
+            stage_name = self.get_stage_name_ar(stage)
+            stage_item = QTableWidgetItem(stage_name)
+            stage_item.setBackground(QColor(70, 130, 180, 150))
+            self.qualified_table.setItem(i, 0, stage_item)
             
+            # الفرق المتأهلة
             if qualified_teams:
-                teams_text = ", ".join(qualified_teams[:8])
-                teams_label = QLabel(teams_text)
-                teams_label.setStyleSheet("color: #E6F0FF; font-size: 12px;")
-                teams_label.setWordWrap(True)
-                self.qualified_grid.addWidget(teams_label, i, 1)
+                teams_text = ", ".join(qualified_teams)
+                teams_item = QTableWidgetItem(teams_text)
+                teams_item.setBackground(QColor(144, 238, 144, 120))
+                self.qualified_table.setItem(i, 1, teams_item)
             else:
-                no_teams_label = QLabel("لا توجد فرق متأهلة بعد")
-                no_teams_label.setStyleSheet("color: #FF6B6B; font-size: 12px;")
-                self.qualified_grid.addWidget(no_teams_label, i, 1)
+                no_teams_item = QTableWidgetItem("لا توجد فرق متأهلة بعد")
+                no_teams_item.setBackground(QColor(255, 182, 193, 120))
+                self.qualified_table.setItem(i, 1, no_teams_item)
+        
+        self.qualified_table.resizeColumnsToContents()
 
     def get_stage_name_ar(self, stage_name):
         stage_names = {
@@ -1902,6 +1772,113 @@ class MainWindow(QMainWindow):
             "Final": "النهائي"
         }
         return stage_names.get(stage_name, stage_name)
+
+    def generate_round_of_16(self):
+        """توليد مباريات دور الـ16"""
+        reply = QMessageBox.question(self, 
+            "توليد دور الـ16",
+            "سيتم توليد مباريات دور الـ16 تلقائياً. هل تريد المتابعة؟",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        
+        self.round_16_btn.setEnabled(False)
+        
+        try:
+            match_count = generate_round_of_16_correct()
+            if match_count > 0:
+                QMessageBox.information(self, "تم", f"تم توليد {match_count} مباراة في دور الـ16 بنجاح!")
+                self.update_qualified_teams_display()
+                self.populate_knockout_table()
+            else:
+                QMessageBox.warning(self, "خطأ", "فشل في توليد مباريات دور الـ16. تأكد من اكتمال دور المجموعات.")
+        except Exception as e:
+            QMessageBox.warning(self, "خطأ", f"حدث خطأ: {str(e)}")
+        finally:
+            self.round_16_btn.setEnabled(True)
+
+    def generate_quarter_final(self):
+        """توليد مباريات ربع النهائي"""
+        reply = QMessageBox.question(self, 
+            "توليد ربع النهائي",
+            "سيتم توليد مباريات ربع النهائي تلقائياً. هل تريد المتابعة؟",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        
+        self.quarter_btn.setEnabled(False)
+        
+        try:
+            match_count = generate_knockout_stage_matches("Quarter Final")
+            if match_count > 0:
+                QMessageBox.information(self, "تم", f"تم توليد {match_count} مباراة في ربع النهائي بنجاح!")
+                self.update_qualified_teams_display()
+                self.populate_knockout_table()
+            else:
+                QMessageBox.warning(self, "خطأ", "فشل في توليد مباريات ربع النهائي. تأكد من اكتمال دور الـ16.")
+        except Exception as e:
+            QMessageBox.warning(self, "خطأ", f"حدث خطأ: {str(e)}")
+        finally:
+            self.quarter_btn.setEnabled(True)
+
+    def generate_semi_final(self):
+        """توليد مباريات نصف النهائي"""
+        reply = QMessageBox.question(self, 
+            "توليد نصف النهائي",
+            "سيتم توليد مباريات نصف النهائي تلقائياً. هل تريد المتابعة؟",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        
+        self.semi_btn.setEnabled(False)
+        
+        try:
+            match_count = generate_knockout_stage_matches("Semi Final")
+            if match_count > 0:
+                QMessageBox.information(self, "تم", f"تم توليد {match_count} مباراة في نصف النهائي بنجاح!")
+                self.update_qualified_teams_display()
+                self.populate_knockout_table()
+            else:
+                QMessageBox.warning(self, "خطأ", "فشل في توليد مباريات نصف النهائي. تأكد من اكتمال ربع النهائي.")
+        except Exception as e:
+            QMessageBox.warning(self, "خطأ", f"حدث خطأ: {str(e)}")
+        finally:
+            self.semi_btn.setEnabled(True)
+
+    def generate_final(self):
+        """توليد مباراة النهائي"""
+        reply = QMessageBox.question(self, 
+            "توليد النهائي",
+            "سيتم توليد مباراة النهائي تلقائياً. هل تريد المتابعة؟",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        
+        self.final_btn.setEnabled(False)
+        
+        try:
+            match_count = generate_knockout_stage_matches("Final")
+            if match_count > 0:
+                QMessageBox.information(self, "تم", f"تم توليد مباراة النهائي بنجاح!")
+                self.update_qualified_teams_display()
+                self.populate_knockout_table()
+                
+                # عرض البطل
+                final_matches = get_matches("Final")
+                if not final_matches.empty and final_matches.iloc[0].get('winner'):
+                    champion = final_matches.iloc[0]['winner']
+                    QMessageBox.information(self, "البطل", f"🏆 بطل دوري أبطال أوروبا: {champion} 🏆")
+                    
+            else:
+                QMessageBox.warning(self, "خطأ", "فشل في توليد مباراة النهائي. تأكد من اكتمال نصف النهائي.")
+        except Exception as e:
+            QMessageBox.warning(self, "خطأ", f"حدث خطأ: {str(e)}")
+        finally:
+            self.final_btn.setEnabled(True)
 
     def reset_knockouts(self):
         reply = QMessageBox.question(self, 
@@ -2184,7 +2161,7 @@ class MainWindow(QMainWindow):
                 
                 matches = get_matches(stage)
                 if not matches.empty:
-                    table_data = [["Home", "Away", "Score", "ET", "Pens", "Winner", "Method"]]
+                    table_data = [["Home Team", "Away Team", "Score", "Extra Time", "Penalties", "Winner", "Method"]]
                     
                     for _, match in matches.iterrows():
                         home = match["home_team"]
@@ -2211,7 +2188,8 @@ class MainWindow(QMainWindow):
                         ('BACKGROUND', (0,0), (-1,0), rlcolors.HexColor("#1E90FF")),
                         ('TEXTCOLOR', (0,0), (-1,0), rlcolors.white),
                         ('GRID', (0,0), (-1,-1), 0.25, rlcolors.gray),
-                        ('ALIGN', (1,1), (-1,-1), 'CENTER'),
+                        ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+                        ('FONTSIZE', (0,0), (-1,-1), 8),
                     ]))
                     story.append(tbl)
                 else:
@@ -2339,15 +2317,15 @@ class MainWindow(QMainWindow):
                 stages = matches_df['stage'].unique()
                 
                 for stage in stages:
-                    stage_matches = matches_df[matches_df['stage'] == stage]
-                    
                     story.append(Paragraph(stage, styles['Heading3']))
                     
+                    stage_matches = matches_df[matches_df['stage'] == stage]
                     stage_table_data = []
+                    
                     if self.lang == "ar":
-                        stage_headers = ["المضيف", "النتيجة", "الضيف", "التاريخ", "الحالة"]
+                        stage_headers = ["المضيف", "النتيجة", "الضيف", "التاريخ"]
                     else:
-                        stage_headers = ["Home", "Score", "Away", "Date", "Status"]
+                        stage_headers = ["Home", "Score", "Away", "Date"]
                     
                     stage_table_data.append(stage_headers)
                     
@@ -2356,11 +2334,8 @@ class MainWindow(QMainWindow):
                         away_team = match['away_team']
                         score = f"{match['home_goals']} - {match['away_goals']}"
                         date = match['date']
-                        status = "مكتملة" if match.get('winner') else "مجدولة"
-                        if self.lang == "en":
-                            status = "Completed" if match.get('winner') else "Scheduled"
                         
-                        stage_table_data.append([home_team, score, away_team, date, status])
+                        stage_table_data.append([home_team, score, away_team, date])
                     
                     stage_tbl = RLTable(stage_table_data, repeatRows=1)
                     stage_tbl.setStyle(TableStyle([
