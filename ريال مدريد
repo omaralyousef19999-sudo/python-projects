@@ -1,4 +1,4 @@
-# ucl_manager_enhanced.py
+# ucl_manager_complete.py
 import sys
 import sqlite3
 from pathlib import Path
@@ -20,7 +20,7 @@ from PyQt6.QtGui import QColor, QIcon, QFont, QKeyEvent
 try:
     from docx import Document
     from docx.shared import Inches
-except Exception as e:
+except ImportError:
     Document = None
 
 try:
@@ -28,7 +28,9 @@ try:
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
     from reportlab.lib.pagesizes import A4
     from reportlab.lib import colors as rlcolors
-except Exception as e:
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+except ImportError:
     SimpleDocTemplate = None
 
 DB_PATH = Path("ucl_database.db")
@@ -37,8 +39,8 @@ DB_PATH = Path("ucl_database.db")
 def get_db_connection():
     """الحصول على اتصال بقاعدة البيانات مع معالجة الأقفال"""
     conn = sqlite3.connect(DB_PATH, timeout=30)
-    conn.execute("PRAGMA journal_mode=WAL")  # تحسين الأداء مع العمليات المتزامنة
-    conn.execute("PRAGMA busy_timeout=30000")  # زيادة وقت الانتظار
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=30000")
     return conn
 
 def init_db():
@@ -50,7 +52,7 @@ def init_db():
     c.execute("DROP TABLE IF EXISTS matches")
     c.execute("DROP TABLE IF EXISTS knockout_results")
     
-    # إنشاء جدول الفرق مع الحقول الجديدة
+    # إنشاء جدول الفرق
     c.execute('''CREATE TABLE IF NOT EXISTS teams (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name_ar TEXT NOT NULL,
@@ -63,7 +65,7 @@ def init_db():
         UNIQUE(name_ar, name_en)
     )''')
     
-    # إنشاء جدول المباريات مع الحقول الجديدة للأشواط الإضافية
+    # إنشاء جدول المباريات
     c.execute('''CREATE TABLE IF NOT EXISTS matches (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         home_team TEXT,
@@ -83,7 +85,7 @@ def init_db():
         win_method TEXT DEFAULT 'normal'
     )''')
     
-    # جدول لتخزين نتائج الإقصائيات بشكل منظم
+    # جدول لتخزين نتائج الإقصائيات
     c.execute('''CREATE TABLE IF NOT EXISTS knockout_results (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         stage TEXT,
@@ -102,7 +104,7 @@ def init_db():
         FOREIGN KEY(match_id) REFERENCES matches(id)
     )''')
     
-    # إضافة فرق دوري الأبطال الافتراضية (عربي وإنجليزي)
+    # إضافة فرق دوري الأبطال الافتراضية
     default_teams = [
         # المجموعة A
         ("بايرن ميونخ", "Bayern Munich", "ألمانيا", "Germany", "A"),
@@ -157,7 +159,7 @@ def init_db():
         try:
             c.execute("INSERT INTO teams (name_ar, name_en, country_ar, country_en, group_char) VALUES (?, ?, ?, ?, ?)", team)
         except sqlite3.IntegrityError:
-            pass  # تجاهل إذا كان الفريق موجوداً مسبقاً
+            pass
     
     conn.commit()
     conn.close()
@@ -181,7 +183,6 @@ def add_match(home, away, hg, ag, date, stage, leg='single', pair_id=0,
     conn = get_db_connection()
     c = conn.cursor()
     try:
-        # التأكد من صحة البيانات
         home = str(home) if home else ""
         away = str(away) if away else ""
         hg = int(hg) if hg is not None else 0
@@ -206,7 +207,6 @@ def add_match(home, away, hg, ag, date, stage, leg='single', pair_id=0,
         
         match_id = c.lastrowid
         
-        # إذا كانت مباراة إقصائية، حفظ النتيجة في جدول النتائج
         if stage != "Group Stage":
             c.execute("""INSERT INTO knockout_results 
                         (stage, match_id, home_team, away_team, home_goals, away_goals, 
@@ -306,21 +306,44 @@ def get_group_standings():
     conn = get_db_connection()
     try:
         query = """
-        SELECT t.name_ar, t.name_en, t.group_char,
-               COUNT(m.id) AS P,
-               SUM(CASE WHEN (m.home_team = t.name_ar AND m.home_goals > m.away_goals) OR 
-                             (m.away_team = t.name_ar AND m.away_goals > m.home_goals) THEN 1 ELSE 0 END) AS W,
-               SUM(CASE WHEN m.home_goals = m.away_goals AND m.home_goals IS NOT NULL THEN 1 ELSE 0 END) AS D,
-               SUM(CASE WHEN (m.home_team = t.name_ar AND m.home_goals < m.away_goals) OR 
-                             (m.away_team = t.name_ar AND m.away_goals < m.home_goals) THEN 1 ELSE 0 END) AS L,
-               COALESCE(SUM(CASE WHEN m.home_team = t.name_ar THEN m.home_goals ELSE m.away_goals END), 0) AS GF,
-               COALESCE(SUM(CASE WHEN m.home_team = t.name_ar THEN m.away_goals ELSE m.home_goals END), 0) AS GA,
-               (COALESCE(SUM(CASE WHEN m.home_team = t.name_ar THEN m.home_goals ELSE m.away_goals END), 0) -
-                COALESCE(SUM(CASE WHEN m.home_team = t.name_ar THEN m.away_goals ELSE m.home_goals END), 0)) AS GD,
-               SUM(CASE WHEN (m.home_team = t.name_ar AND m.home_goals > m.away_goals) OR 
-                            (m.away_team = t.name_ar AND m.away_goals > m.home_goals) THEN 3
-                    WHEN m.home_goals = m.away_goals AND m.home_goals IS NOT NULL THEN 1 ELSE 0 END) AS Pts
-        FROM teams t LEFT JOIN matches m ON (m.home_team = t.name_ar OR m.away_team = t.name_ar) AND m.stage = 'Group Stage'
+        SELECT 
+            t.name_ar, 
+            t.name_en, 
+            t.group_char,
+            COUNT(m.id) AS P,
+            SUM(CASE 
+                WHEN (m.home_team = t.name_ar AND m.home_goals > m.away_goals) OR 
+                     (m.away_team = t.name_ar AND m.away_goals > m.home_goals) THEN 1 
+                ELSE 0 
+            END) AS W,
+            SUM(CASE 
+                WHEN m.home_goals = m.away_goals AND m.home_goals IS NOT NULL THEN 1 
+                ELSE 0 
+            END) AS D,
+            SUM(CASE 
+                WHEN (m.home_team = t.name_ar AND m.home_goals < m.away_goals) OR 
+                     (m.away_team = t.name_ar AND m.away_goals < m.home_goals) THEN 1 
+                ELSE 0 
+            END) AS L,
+            COALESCE(SUM(CASE 
+                WHEN m.home_team = t.name_ar THEN m.home_goals 
+                ELSE m.away_goals 
+            END), 0) AS GF,
+            COALESCE(SUM(CASE 
+                WHEN m.home_team = t.name_ar THEN m.away_goals 
+                ELSE m.home_goals 
+            END), 0) AS GA,
+            (COALESCE(SUM(CASE WHEN m.home_team = t.name_ar THEN m.home_goals ELSE m.away_goals END), 0) -
+             COALESCE(SUM(CASE WHEN m.home_team = t.name_ar THEN m.away_goals ELSE m.home_goals END), 0)) AS GD,
+            SUM(CASE 
+                WHEN (m.home_team = t.name_ar AND m.home_goals > m.away_goals) OR 
+                     (m.away_team = t.name_ar AND m.away_goals > m.home_goals) THEN 3
+                WHEN m.home_goals = m.away_goals AND m.home_goals IS NOT NULL THEN 1 
+                ELSE 0 
+            END) AS Pts
+        FROM teams t 
+        LEFT JOIN matches m ON (m.home_team = t.name_ar OR m.away_team = t.name_ar) 
+                            AND m.stage = 'Group Stage'
         GROUP BY t.name_ar, t.group_char
         ORDER BY t.group_char, Pts DESC, GD DESC, GF DESC
         """
@@ -395,9 +418,7 @@ def eliminate_teams(team_names):
     conn = get_db_connection()
     c = conn.cursor()
     try:
-        # إعادة تعيين جميع الفرق أولاً
         c.execute("UPDATE teams SET eliminated = 0")
-        # ثم إقصاء الفرق المحددة
         for team in team_names:
             c.execute("UPDATE teams SET eliminated = 1 WHERE name_ar = ? OR name_en = ?", (team, team))
         conn.commit()
@@ -421,9 +442,7 @@ def delete_team(team_name):
     conn = get_db_connection()
     c = conn.cursor()
     try:
-        # حذف المباريات المرتبطة أولاً
         c.execute("DELETE FROM matches WHERE home_team = ? OR away_team = ?", (team_name, team_name))
-        # ثم حذف الفريق
         c.execute("DELETE FROM teams WHERE name_ar = ? OR name_en = ?", (team_name, team_name))
         conn.commit()
         return True
@@ -437,9 +456,7 @@ def delete_match(match_id):
     conn = get_db_connection()
     c = conn.cursor()
     try:
-        # حذف من جدول النتائج أولاً
         c.execute("DELETE FROM knockout_results WHERE match_id = ?", (match_id,))
-        # ثم حذف من جدول المباريات
         c.execute("DELETE FROM matches WHERE id = ?", (match_id,))
         conn.commit()
         return True
@@ -462,6 +479,15 @@ def reset_tournament():
     finally:
         conn.close()
 
+def check_stage_completion(stage):
+    """التحقق من اكتمال مرحلة معينة"""
+    matches = get_matches(stage)
+    if matches.empty:
+        return False
+    
+    completed_matches = matches[matches['winner'].notna() & (matches['winner'] != '')]
+    return len(completed_matches) == len(matches)
+
 def get_qualified_teams_correct():
     """الحصول على الفرق المتأهلة حسب قواعد دوري الأبطال الحقيقية - المتصدرين والمركز الثاني"""
     try:
@@ -471,32 +497,30 @@ def get_qualified_teams_correct():
             print("لا توجد بيانات للترتيب")
             return []
         
-        # تجميع المتصدرين والمركز الثاني من كل مجموعة
-        group_winners = []  # المتصدرين
-        runners_up = []     # المركز الثاني
+        group_winners = []
+        runners_up = []
         
         for group in ['A','B','C','D','E','F','G','H']:
-            group_teams = df[df['group_char'] == group].head(2)  # أول فريقين في المجموعة
+            group_teams = df[df['group_char'] == group]
             
             if len(group_teams) >= 1:
                 group_winners.append({
                     'name': group_teams.iloc[0]['name_ar'],
-                    'group': group
+                    'group': group,
+                    'points': group_teams.iloc[0]['Pts'],
+                    'goal_difference': group_teams.iloc[0]['GD']
                 })
             if len(group_teams) >= 2:
                 runners_up.append({
                     'name': group_teams.iloc[1]['name_ar'],
-                    'group': group
+                    'group': group,
+                    'points': group_teams.iloc[1]['Pts'],
+                    'goal_difference': group_teams.iloc[1]['GD']
                 })
         
         print(f"المتصدرون: {[w['name'] for w in group_winners]}")
         print(f"المركز الثاني: {[r['name'] for r in runners_up]}")
         
-        if len(group_winners) < 8 or len(runners_up) < 8:
-            print(f"عدد الفرق غير كافي: {len(group_winners)} متصدر و {len(runners_up)} مركز ثاني")
-            return []
-        
-        # في دوري الأبطال: جميع المتصدرين والمركز الثاني يتأهلون مباشرة لدور الـ16
         qualified_teams = group_winners + runners_up
         
         print(f"المجموع المتأهل: {len(qualified_teams)} فريق")
@@ -514,7 +538,7 @@ def get_winners_from_stage(stage):
     try:
         df = pd.read_sql_query("""
             SELECT winner FROM matches 
-            WHERE stage = ? AND winner IS NOT NULL
+            WHERE stage = ? AND winner IS NOT NULL AND winner != ''
             GROUP BY winner
         """, conn, params=(stage,))
         return df["winner"].tolist()
@@ -524,31 +548,25 @@ def get_winners_from_stage(stage):
     finally:
         conn.close()
 
-def get_qualified_for_next_stage(current_stage):
-    """الحصول على الفرق المتأهلة للمرحلة التالية بناءً على نتائج المرحلة الحالية"""
-    if current_stage == "Group Stage":
-        return get_qualified_teams()["name_ar"].tolist()
-    else:
-        return get_winners_from_stage(current_stage)
-
 def get_qualified_for_next_stage_correct(current_stage):
     """الحصول على الفرق المتأهلة للمرحلة التالية بناءً على نتائج المرحلة الحالية - الإصدار المصحح"""
     if current_stage == "Group Stage":
         qualified = get_qualified_teams_correct()
-        return [team['name'] for team in qualified]  # إرجاع الأسماء فقط
+        return [team['name'] for team in qualified]
     else:
+        if not check_stage_completion(current_stage):
+            print(f"مرحلة {current_stage} لم تكتمل بعد")
+            return []
         return get_winners_from_stage(current_stage)
 
 def generate_all_group_matches():
-    """توليد جميع مباريات دور المجموعات تلقائياً - الإصدار المعدل والمحسَن"""
+    """توليد جميع مباريات دور المجموعات تلقائياً"""
     conn = get_db_connection()
     c = conn.cursor()
     try:
-        # حذف مباريات المجموعات الحالية أولاً
         c.execute("DELETE FROM matches WHERE stage = 'Group Stage'")
         conn.commit()
         
-        # الحصول على جميع الفرق
         teams_df = get_all_teams()
         if teams_df.empty:
             print("لا توجد فرق في قاعدة البيانات")
@@ -557,7 +575,6 @@ def generate_all_group_matches():
         match_count = 0
         base_date = QDate.currentDate()
         
-        # تجميع الفرق حسب المجموعات
         groups = {}
         for _, team in teams_df.iterrows():
             group = team["group_char"]
@@ -567,7 +584,6 @@ def generate_all_group_matches():
         
         print(f"تم تجميع {len(groups)} مجموعة")
         
-        # توليد مباريات كل مجموعة
         for group, group_teams in groups.items():
             if len(group_teams) < 4:
                 print(f"المجموعة {group} تحتوي على أقل من 4 فرق")
@@ -575,17 +591,14 @@ def generate_all_group_matches():
             
             print(f"جاري توليد مباريات المجموعة {group}...")
             
-            # توليد جميع المباريات الممكنة في المجموعة (ذهاب وإياب)
             match_days = 0
             
             for i in range(len(group_teams)):
                 for j in range(i + 1, len(group_teams)):
-                    # مباراة الذهاب
                     home_team = group_teams[i]
                     away_team = group_teams[j]
                     match_date = base_date.addDays(match_days).toString("yyyy-MM-dd")
                     
-                    # نتائج عشوائية منطقية
                     home_goals = random.randint(0, 4)
                     away_goals = random.randint(0, 3)
                     
@@ -593,7 +606,6 @@ def generate_all_group_matches():
                         match_count += 1
                         print(f"تمت إضافة مباراة: {home_team} vs {away_team} - {home_goals}-{away_goals}")
                     
-                    # مباراة الإياب (بعد 3 أيام)
                     match_date_return = base_date.addDays(match_days + 3).toString("yyyy-MM-dd")
                     home_goals_return = random.randint(0, 3)
                     away_goals_return = random.randint(0, 4)
@@ -602,7 +614,6 @@ def generate_all_group_matches():
                         match_count += 1
                         print(f"تمت إضافة مباراة: {away_team} vs {home_team} - {home_goals_return}-{away_goals_return}")
                     
-                    # زيادة الأيام بعد كل زوج من المباريات
                     match_days += 6
         
         print(f"تم توليد {match_count} مباراة في دور المجموعات")
@@ -619,32 +630,29 @@ def generate_all_group_matches():
 def generate_round_of_16_correct():
     """توليد مباريات دور الـ16 بشكل صحيح حسب القواعد الرسمية"""
     try:
-        # الحصول على المتصدرين والمركز الثاني من كل مجموعة
         qualified_teams = get_qualified_teams_correct()
         
         if len(qualified_teams) < 16:
             print(f"عدد الفرق المتأهلة غير كافي: {len(qualified_teams)} من 16")
+            print("يجب إكمال جميع مباريات دور المجموعات أولاً")
             return 0
         
-        # فصل المتصدرين والمركز الثاني
-        group_winners = [team for team in qualified_teams if qualified_teams.index(team) < 8]
-        runners_up = [team for team in qualified_teams if qualified_teams.index(team) >= 8]
+        group_winners = [team for team in qualified_teams[:8]]
+        runners_up = [team for team in qualified_teams[8:]]
         
         print(f"المتصدرون: {[w['name'] for w in group_winners]}")
         print(f"المركز الثاني: {[r['name'] for r in runners_up]}")
         
-        # توليد المباريات: متصدر ضد مركز ثاني من مجموعة مختلفة
         match_count = 0
         base_date = QDate.currentDate()
         
-        # خلط القوائم لتوليد مباريات عشوائية
         random.shuffle(group_winners)
         random.shuffle(runners_up)
         
         used_runners = set()
+        matches_created = []
         
         for i, winner in enumerate(group_winners):
-            # إيجاد مركز ثاني من مجموعة مختلفة
             suitable_runner = None
             for runner in runners_up:
                 if runner['name'] not in used_runners and runner['group'] != winner['group']:
@@ -652,7 +660,6 @@ def generate_round_of_16_correct():
                     break
             
             if suitable_runner is None:
-                # إذا لم نجد مركز ثاني من مجموعة مختلفة، نأخذ أي مركز ثاني متبقي
                 for runner in runners_up:
                     if runner['name'] not in used_runners:
                         suitable_runner = runner
@@ -665,11 +672,9 @@ def generate_round_of_16_correct():
                 
                 match_date = base_date.addDays(i * 3).toString("yyyy-MM-dd")
                 
-                # نتائج واقعية
                 home_goals = random.randint(0, 3)
                 away_goals = random.randint(0, 2)
                 
-                # تحديد الفائز
                 winner_team = ""
                 win_method = "normal"
                 home_extra = 0
@@ -682,7 +687,6 @@ def generate_round_of_16_correct():
                 elif away_goals > home_goals:
                     winner_team = away_team
                 else:
-                    # وقت إضافي
                     home_extra = random.randint(0, 1)
                     away_extra = random.randint(0, 1)
                     if home_goals + home_extra > away_goals + away_extra:
@@ -692,7 +696,6 @@ def generate_round_of_16_correct():
                         winner_team = away_team
                         win_method = "extra_time"
                     else:
-                        # ركلات ترجيح
                         home_pen = random.randint(3, 5)
                         away_pen = random.randint(2, 4)
                         winner_team = home_team if home_pen > away_pen else away_team
@@ -702,9 +705,14 @@ def generate_round_of_16_correct():
                            "Round of 16", 'single', 0, home_extra, away_extra, 
                            home_pen, away_pen, winner_team, win_method):
                     match_count += 1
+                    matches_created.append(f"{home_team} vs {away_team} - الفائز: {winner_team}")
                     print(f"مباراة دور الـ16: {home_team} ({winner['group']}) vs {away_team} ({suitable_runner['group']}) - الفائز: {winner_team}")
         
         print(f"تم توليد {match_count} مباراة في دور الـ16")
+        print("المباريات المُنشأة:")
+        for match in matches_created:
+            print(f"  - {match}")
+        
         return match_count
         
     except Exception as e:
@@ -713,9 +721,8 @@ def generate_round_of_16_correct():
         return 0
 
 def generate_knockout_stage_matches(stage):
-    """توليد مباريات مرحلة إقصائية تلقائياً - الإصدار المعدل"""
+    """توليد مباريات مرحلة إقصائية تلقائياً"""
     try:
-        # الحصول على الفرق المتأهلة لهذه المرحلة
         if stage == "Round of 16":
             qualified_teams = get_qualified_for_next_stage_correct("Group Stage")
         else:
@@ -727,7 +734,6 @@ def generate_knockout_stage_matches(stage):
             print(f"لا توجد فرق متأهلة لمرحلة {stage}")
             return 0
         
-        # تحديد عدد المباريات المطلوبة
         if stage == "Round of 16":
             required_teams = 16
             matches_needed = 8
@@ -745,9 +751,9 @@ def generate_knockout_stage_matches(stage):
         
         if len(qualified_teams) < required_teams:
             print(f"عدد الفرق المتأهلة ({len(qualified_teams)}) أقل من المطلوب ({required_teams})")
+            print("يجب إكمال المرحلة السابقة أولاً")
             return 0
         
-        # استخدام الفرق المتاحة
         available_teams = qualified_teams[:required_teams]
         random.shuffle(available_teams)
         match_count = 0
@@ -761,11 +767,9 @@ def generate_knockout_stage_matches(stage):
             
             match_date = base_date.addDays(i * 3).toString("yyyy-MM-dd")
             
-            # توليد نتائج واقعية
             home_goals = random.randint(0, 3)
             away_goals = random.randint(0, 2)
             
-            # تحديد الفائز وطريقة الفوز
             winner = ""
             win_method = "normal"
             home_extra = 0
@@ -774,12 +778,10 @@ def generate_knockout_stage_matches(stage):
             away_pen = 0
             
             if home_goals == away_goals:
-                # وقت إضافي
                 home_extra = random.randint(0, 2)
                 away_extra = random.randint(0, 2)
                 
                 if home_goals + home_extra == away_goals + away_extra:
-                    # ركلات ترجيح
                     win_method = "penalties"
                     home_pen = random.randint(3, 5)
                     away_pen = random.randint(2, 4)
@@ -804,38 +806,6 @@ def generate_knockout_stage_matches(stage):
         traceback.print_exc()
         return 0
 
-def simple_auto_generate_all():
-    """توليد مبسط لجميع المراحل"""
-    try:
-        # 1. توليد دور المجموعات
-        print("جاري توليد دور المجموعات...")
-        group_matches = generate_all_group_matches()
-        
-        # 2. توليد دور الـ16
-        print("جاري توليد دور الـ16...")
-        round_of_16_matches = generate_round_of_16_correct()
-        
-        # 3. توليد ربع النهائي
-        print("جاري توليد ربع النهائي...")
-        quarter_matches = generate_knockout_stage_matches("Quarter Final")
-        
-        # 4. توليد نصف النهائي
-        print("جاري توليد نصف النهائي...")
-        semi_matches = generate_knockout_stage_matches("Semi Final")
-        
-        # 5. توليد النهائي
-        print("جاري توليد النهائي...")
-        final_matches = generate_knockout_stage_matches("Final")
-        
-        total = group_matches + round_of_16_matches + quarter_matches + semi_matches + final_matches
-        
-        QMessageBox.information(None, "تم", f"تم توليد {total} مباراة بنجاح!")
-        return True
-        
-    except Exception as e:
-        QMessageBox.critical(None, "خطأ", f"فشل في التوليد: {str(e)}")
-        return False
-
 # ---------- Thread للتوليد التلقائي ----------
 class GenerationThread(QThread):
     progress_updated = pyqtSignal(int)
@@ -851,37 +821,65 @@ class GenerationThread(QThread):
             total_matches = 0
             
             # 1. توليد دور المجموعات
-            if self.cancelled: return
+            if self.cancelled: 
+                return
             self.stage_updated.emit("جاري توليد دور المجموعات...")
             group_matches = generate_all_group_matches()
+            if group_matches == 0:
+                self.finished_signal.emit(False, "فشل في توليد دور المجموعات")
+                return
             total_matches += group_matches
             self.progress_updated.emit(20)
             
+            time.sleep(1)
+            
             # 2. توليد دور الـ16
-            if self.cancelled: return
+            if self.cancelled: 
+                return
             self.stage_updated.emit("جاري توليد دور الـ16...")
             round_of_16_matches = generate_round_of_16_correct()
+            if round_of_16_matches == 0:
+                self.finished_signal.emit(False, "فشل في توليد دور الـ16 - تأكد من اكتمال دور المجموعات")
+                return
             total_matches += round_of_16_matches
             self.progress_updated.emit(40)
             
+            time.sleep(1)
+            
             # 3. توليد ربع النهائي
-            if self.cancelled: return
+            if self.cancelled: 
+                return
             self.stage_updated.emit("جاري توليد ربع النهائي...")
             quarter_matches = generate_knockout_stage_matches("Quarter Final")
+            if quarter_matches == 0:
+                self.finished_signal.emit(False, "فشل في توليد ربع النهائي - تأكد من اكتمال دور الـ16")
+                return
             total_matches += quarter_matches
             self.progress_updated.emit(60)
             
+            time.sleep(1)
+            
             # 4. توليد نصف النهائي
-            if self.cancelled: return
+            if self.cancelled: 
+                return
             self.stage_updated.emit("جاري توليد نصف النهائي...")
             semi_matches = generate_knockout_stage_matches("Semi Final")
+            if semi_matches == 0:
+                self.finished_signal.emit(False, "فشل في توليد نصف النهائي - تأكد من اكتمال ربع النهائي")
+                return
             total_matches += semi_matches
             self.progress_updated.emit(80)
             
+            time.sleep(1)
+            
             # 5. توليد النهائي
-            if self.cancelled: return
+            if self.cancelled: 
+                return
             self.stage_updated.emit("جاري توليد النهائي...")
             final_matches = generate_knockout_stage_matches("Final")
+            if final_matches == 0:
+                self.finished_signal.emit(False, "فشل في توليد النهائي - تأكد من اكتمال نصف النهائي")
+                return
             total_matches += final_matches
             self.progress_updated.emit(100)
             
@@ -896,7 +894,7 @@ class GenerationThread(QThread):
     def cancel(self):
         self.cancelled = True
 
-# ---------- واجهة المستخدم مع دعم الإدخال بالإنتر ----------
+# ---------- واجهة المستخدم ----------
 class EnterLineEdit(QLineEdit):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -919,12 +917,10 @@ class MainWindow(QMainWindow):
         self.stages = ["Group Stage", "Round of 16", "Quarter Final", "Semi Final", "Final"]
         self.generation_thread = None
 
-        # أيقونة البرنامج
         icon_path = Path("fifa.ico")
         if icon_path.exists():
             self.setWindowIcon(QIcon(str(icon_path)))
 
-        # تدرّج أزرق عبر الـ stylesheet
         self.setStyleSheet("""
             QMainWindow {
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
@@ -1005,14 +1001,12 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(8)
 
-        # شريط العنوان
         title_bar = QHBoxLayout()
         title_label = QLabel("نظام إدارة دوري أبطال أوروبا 2025" if self.lang == "ar" else "UEFA Champions League Manager 2025")
         title_label.setStyleSheet("font-size: 24px; font-weight: bold; color: #FFD700; padding: 10px;")
         title_bar.addWidget(title_label)
         title_bar.addStretch()
         
-        # زر Reset العام
         self.reset_btn = QPushButton("إعادة تعيين البطولة" if self.lang=="ar" else "Reset Tournament")
         self.reset_btn.setFixedSize(180, 42)
         self.reset_btn.setStyleSheet("background: #FF6B6B; color: white; font-weight: bold;")
@@ -1071,12 +1065,10 @@ class MainWindow(QMainWindow):
                 "تم إعادة تعيين البطولة بنجاح" if self.lang=="ar" else "Tournament reset successfully")
             self.refresh_ui()
 
-    # ---------- تاب الفرق ----------
     def tab_teams(self):
         w = QWidget()
         l = QVBoxLayout(w)
         
-        # زر Reset خاص بالفرق
         reset_teams_btn = QPushButton("إعادة تعيين الفرق" if self.lang=="ar" else "Reset Teams")
         reset_teams_btn.setStyleSheet("background: #FF6B6B; color: white;")
         reset_teams_btn.clicked.connect(self.reset_teams)
@@ -1085,7 +1077,6 @@ class MainWindow(QMainWindow):
         g = QGroupBox("إضافة فريق جديد (اضغط Enter للإضافة)" if self.lang=="ar" else "Add New Team (Press Enter to Add)")
         f = QFormLayout(g)
         
-        # استخدام EnterLineEdit بدلاً من QLineEdit العادي
         self.t_name_ar = EnterLineEdit()
         self.t_name_ar.setPlaceholderText("أدخل اسم الفريق بالعربية" if self.lang=="ar" else "Enter team name in Arabic")
         
@@ -1104,7 +1095,6 @@ class MainWindow(QMainWindow):
         btn = QPushButton("إضافة الفريق" if self.lang=="ar" else "Add Team")
         btn.clicked.connect(self.add_team_act)
         
-        # تعيين وظيفة الإنتر للحقول
         self.t_name_ar.enter_callback = self.add_team_act
         self.t_name_en.enter_callback = self.add_team_act
         self.t_country_ar.enter_callback = self.add_team_act
@@ -1118,7 +1108,6 @@ class MainWindow(QMainWindow):
         f.addRow("", btn)
         l.addWidget(g)
 
-        # عرض جدول الفرق مع إجراءات
         grp2 = QGroupBox("قائمة الفرق" if self.lang=="ar" else "Teams List")
         v2 = QVBoxLayout(grp2)
         self.teams_table = QTableWidget()
@@ -1141,7 +1130,6 @@ class MainWindow(QMainWindow):
             c = conn.cursor()
             c.execute("DELETE FROM teams")
             
-            # إعادة إضافة الفرق الافتراضية
             default_teams = [
                 ("بايرن ميونخ", "Bayern Munich", "ألمانيا", "Germany", "A"),
                 ("مانشستر يونايتد", "Manchester United", "إنجلترا", "England", "A"),
@@ -1197,14 +1185,12 @@ class MainWindow(QMainWindow):
         self.teams_table.setRowCount(len(df))
         
         for i, row in df.iterrows():
-            # بيانات الفريق
             self.teams_table.setItem(i, 0, QTableWidgetItem(str(row["name_ar"])))
             self.teams_table.setItem(i, 1, QTableWidgetItem(str(row["name_en"])))
             self.teams_table.setItem(i, 2, QTableWidgetItem(str(row["country_ar"])))
             self.teams_table.setItem(i, 3, QTableWidgetItem(str(row["country_en"])))
             self.teams_table.setItem(i, 4, QTableWidgetItem(str(row["group_char"])))
             
-            # حالة الفريق
             status = "مقصي" if row.get("eliminated", 0) else "نشط"
             status_item = QTableWidgetItem(status)
             if row.get("eliminated", 0):
@@ -1213,14 +1199,12 @@ class MainWindow(QMainWindow):
                 status_item.setBackground(QColor(100, 255, 100, 150))
             self.teams_table.setItem(i, 5, status_item)
             
-            # حالة الحظر
             banned_status = "نعم" if row.get("banned", 0) else "لا"
             banned_item = QTableWidgetItem(banned_status)
             if row.get("banned", 0):
                 banned_item.setBackground(QColor(255, 0, 0, 150))
             self.teams_table.setItem(i, 6, banned_item)
             
-            # أزرار الإجراءات
             actions_widget = QWidget()
             actions_layout = QHBoxLayout(actions_widget)
             actions_layout.setContentsMargins(4, 4, 4, 4)
@@ -1294,12 +1278,10 @@ class MainWindow(QMainWindow):
         else:
             QMessageBox.warning(self, "خطأ" if self.lang=="ar" else "Error", "املأ كل الحقول" if self.lang=="ar" else "Fill all fields")
 
-    # ---------- تاب المباريات ----------
     def tab_matches(self):
         w = QWidget()
         l = QVBoxLayout(w)
         
-        # زر التوليد التلقائي الكامل
         auto_gen_group = QGroupBox("التوليد التلقائي الكامل للبطولة" if self.lang=="ar" else "Full Tournament Auto-Generation")
         auto_gen_layout = QVBoxLayout(auto_gen_group)
         
@@ -1308,32 +1290,27 @@ class MainWindow(QMainWindow):
         auto_gen_desc.setWordWrap(True)
         auto_gen_layout.addWidget(auto_gen_desc)
         
-        # زر التوليد التلقائي الكامل
         self.auto_gen_btn = QPushButton("بدء التوليد التلقائي الكامل" if self.lang=="ar" else "Start Full Auto-Generation")
         self.auto_gen_btn.setStyleSheet("background: #32CD32; color: white; font-weight: bold; padding: 15px; font-size: 18px;")
         self.auto_gen_btn.clicked.connect(self.start_full_auto_generation)
         auto_gen_layout.addWidget(self.auto_gen_btn)
         
-        # زر الإلغاء
         self.cancel_btn = QPushButton("إلغاء العملية" if self.lang=="ar" else "Cancel Process")
         self.cancel_btn.setStyleSheet("background: #FF6B6B; color: white; font-weight: bold; padding: 10px;")
         self.cancel_btn.clicked.connect(self.cancel_auto_generation)
         self.cancel_btn.setVisible(False)
         auto_gen_layout.addWidget(self.cancel_btn)
         
-        # عرض المرحلة الحالية
         self.current_stage_label = QLabel("جاهز للبدء" if self.lang=="ar" else "Ready to start")
         self.current_stage_label.setStyleSheet("color: #FFD700; font-weight: bold; font-size: 16px;")
         auto_gen_layout.addWidget(self.current_stage_label)
         
-        # شريط التقدم
         self.progress_bar = QProgressBar()
         self.progress_bar.setVisible(False)
         auto_gen_layout.addWidget(self.progress_bar)
         
         l.addWidget(auto_gen_group)
         
-        # زر Reset خاص بالمباريات
         reset_matches_btn = QPushButton("حذف جميع المباريات" if self.lang=="ar" else "Delete All Matches")
         reset_matches_btn.setStyleSheet("background: #FF6B6B; color: white;")
         reset_matches_btn.clicked.connect(self.reset_matches)
@@ -1400,7 +1377,6 @@ class MainWindow(QMainWindow):
         return w
 
     def start_full_auto_generation(self):
-        """بدء التوليد التلقائي الكامل باستخدام Thread"""
         reply = QMessageBox.question(self, 
             "بدء التوليد التلقائي" if self.lang=="ar" else "Start Auto-Generation",
             "سيتم توليد جميع مراحل البطولة تلقائياً. هل تريد المتابعة؟" if self.lang=="ar" 
@@ -1410,14 +1386,12 @@ class MainWindow(QMainWindow):
         if reply != QMessageBox.StandardButton.Yes:
             return
         
-        # إعداد واجهة المستخدم
         self.auto_gen_btn.setEnabled(False)
         self.cancel_btn.setVisible(True)
         self.progress_bar.setVisible(True)
         self.progress_bar.setValue(0)
         self.current_stage_label.setText("جاري البدء..." if self.lang=="ar" else "Starting...")
         
-        # إنشاء وتشغيل Thread التوليد
         self.generation_thread = GenerationThread()
         self.generation_thread.progress_updated.connect(self.progress_bar.setValue)
         self.generation_thread.stage_updated.connect(self.current_stage_label.setText)
@@ -1425,13 +1399,11 @@ class MainWindow(QMainWindow):
         self.generation_thread.start()
 
     def cancel_auto_generation(self):
-        """إلغاء عملية التوليد"""
         if self.generation_thread and self.generation_thread.isRunning():
             self.generation_thread.cancel()
             self.current_stage_label.setText("جاري الإلغاء..." if self.lang=="ar" else "Cancelling...")
 
     def generation_finished(self, success, message):
-        """معالجة انتهاء التوليد"""
         self.auto_gen_btn.setEnabled(True)
         self.cancel_btn.setVisible(False)
         self.progress_bar.setVisible(False)
@@ -1443,7 +1415,6 @@ class MainWindow(QMainWindow):
             self.current_stage_label.setText("فشل التوليد" if self.lang=="ar" else "Generation failed")
             QMessageBox.warning(self, "خطأ" if self.lang=="ar" else "Error", message)
         
-        # تحديث الواجهة
         self.refresh_ui()
 
     def refresh_teams_combo(self):
@@ -1558,7 +1529,6 @@ class MainWindow(QMainWindow):
                 QMessageBox.warning(self, "خطأ" if self.lang=="ar" else "Error", 
                     "فشل في حذف المباراة" if self.lang=="ar" else "Failed to delete match")
 
-    # ---------- تاب الترتيب ----------
     def tab_standings(self):
         w = QWidget()
         layout = QVBoxLayout(w)
@@ -1697,7 +1667,6 @@ class MainWindow(QMainWindow):
         except Exception as e:
             print(f"Error in update_table: {e}")
 
-    # ---------- تاب إدارة الإقصائيات ----------
     def tab_knockouts(self):
         w = QWidget()
         l = QVBoxLayout(w)
@@ -1776,7 +1745,6 @@ class MainWindow(QMainWindow):
         return w
 
     def update_qualified_teams_display(self):
-        """تحديث عرض الفرق المتأهلة تلقائياً من المباريات"""
         for i in reversed(range(self.qualified_grid.count())): 
             self.qualified_grid.itemAt(i).widget().setParent(None)
         
@@ -1804,7 +1772,6 @@ class MainWindow(QMainWindow):
                 self.qualified_grid.addWidget(no_teams_label, i, 1)
 
     def get_stage_name_ar(self, stage_name):
-        """الحصول على اسم المرحلة بالعربية"""
         stage_names = {
             "Group Stage": "دور المجموعات",
             "Round of 16": "دور الـ16", 
@@ -1992,7 +1959,6 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "خطأ" if self.lang=="ar" else "Error", "اختر فريقين مختلفين" if self.lang=="ar" else "Choose two different teams")
 
     def advance_stage(self):
-        """التقدم للمرحلة التالية تلقائياً"""
         current_stage = self.k_stage_combo.currentText()
         next_stage = ""
         
@@ -2027,7 +1993,6 @@ class MainWindow(QMainWindow):
         self.update_qualified_teams_display()
         self.populate_knockout_table()
 
-    # ---------- تاب التصدير ----------
     def tab_export(self):
         w = QWidget()
         l = QVBoxLayout(w)
@@ -2070,7 +2035,6 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "خطأ" if self.lang=="ar" else "Error", "حدث خطأ أثناء التصدير" if self.lang=="ar" else "Export error occurred")
 
     def export_knockout_results(self):
-        """تصدير نتائج الإقصائيات فقط"""
         if SimpleDocTemplate is None:
             QMessageBox.warning(self, "خطأ" if self.lang=="ar" else "Error", "مكتبة reportlab غير مثبتة" if self.lang=="ar" else "reportlab not installed")
             return False
@@ -2142,200 +2106,383 @@ class MainWindow(QMainWindow):
             
         except Exception as e:
             QMessageBox.warning(self, "خطأ" if self.lang=="ar" else "Error", 
-                f"فشل في تصدير النتائج: {e}" if self.lang=="ar" 
-                else f"Failed to export results: {e}")
+                f"خطأ في التصدير: {str(e)}" if self.lang=="ar" 
+                else f"Export error: {str(e)}")
             return False
 
     def export_pdf(self, save_dialog=True):
+        """تصدير التقرير الشامل إلى PDF"""
         if SimpleDocTemplate is None:
-            QMessageBox.warning(self, "خطأ" if self.lang=="ar" else "Error", "مكتبة reportlab غير مثبتة" if self.lang=="ar" else "reportlab not installed")
-            return False
-
-        default_name = f"UCL_Export_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
-        fname = QFileDialog.getSaveFileName(self, "حفظ PDF" if self.lang=="ar" else "Save PDF", default_name, "PDF Files (*.pdf)")[0] if save_dialog else default_name
-        if not fname:
+            QMessageBox.warning(self, "خطأ" if self.lang=="ar" else "Error", 
+                               "مكتبة reportlab غير مثبتة" if self.lang=="ar" else "reportlab not installed")
             return False
 
         try:
+            if save_dialog:
+                default_name = f"UCL_Report_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+                fname = QFileDialog.getSaveFileName(self, 
+                    "حفظ التقرير PDF" if self.lang=="ar" else "Save PDF Report", 
+                    default_name, "PDF Files (*.pdf)")[0]
+                if not fname:
+                    return False
+            else:
+                fname = f"UCL_Report_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+
             doc = SimpleDocTemplate(fname, pagesize=A4)
             styles = getSampleStyleSheet()
             story = []
-            title_style = ParagraphStyle('title', parent=styles['Heading1'], alignment=1, fontSize=18, textColor=rlcolors.HexColor("#003f7f"))
-            story.append(Paragraph("UEFA Champions League - Export", title_style))
-            story.append(Spacer(1, 12))
 
-            story.append(Paragraph(f"Generated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", styles['Normal']))
-            story.append(Spacer(1, 12))
+            # العنوان الرئيسي
+            title_style = ParagraphStyle(
+                'CustomTitle',
+                parent=styles['Heading1'],
+                alignment=1,  # مركز
+                fontSize=20,
+                textColor=rlcolors.HexColor("#003366"),
+                spaceAfter=30
+            )
+            
+            title_text = "تقرير دوري أبطال أوروبا - الموسم 2025" if self.lang == "ar" else "UEFA Champions League Report - Season 2025"
+            story.append(Paragraph(title_text, title_style))
+            
+            # تاريخ التصدير
+            date_style = ParagraphStyle(
+                'DateStyle',
+                parent=styles['Normal'],
+                alignment=1,
+                fontSize=10,
+                textColor=rlcolors.gray
+            )
+            story.append(Paragraph(f"تم التصدير في: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}" if self.lang=="ar" 
+                                 else f"Exported on: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", date_style))
+            story.append(Spacer(1, 20))
 
-            st_df = get_standings()
-            if not st_df.empty:
-                story.append(Paragraph("Standings / الترتيب", styles['Heading2']))
-                table_data = [[c for c in ["Team","P","W","D","L","GF","GA","GD","Pts","Status"]]]
-                for _, r in st_df.iterrows():
-                    team_name = r["name_ar"] if self.lang == "ar" else r["name_en"]
-                    if r.get("banned", 0):
-                        status = "محظور" if self.lang == "ar" else "Banned"
-                    elif r.get("eliminated", 0):
-                        status = "مقصي" if self.lang == "ar" else "Eliminated"
-                    else:
-                        status = "نشط" if self.lang == "ar" else "Active"
-                    table_data.append([team_name, int(r["P"]), int(r["W"]), int(r["D"]), int(r["L"]), int(r["GF"]), int(r["GA"]), int(r["GD"]), int(r["Pts"]), status])
+            # 1. جدول الترتيب
+            story.append(Paragraph("جدول الترتيب" if self.lang=="ar" else "Standings Table", styles['Heading2']))
+            story.append(Spacer(1, 10))
+            
+            standings_df = get_standings()
+            if not standings_df.empty:
+                table_data = []
+                
+                # عناوين الأعمدة
+                if self.lang == "ar":
+                    headers = ["المركز", "الفريق", "المجموعة", "ل", "ف", "ت", "خ", "له", "عليه", "فارق", "نقاط"]
+                else:
+                    headers = ["Pos", "Team", "Group", "P", "W", "D", "L", "GF", "GA", "GD", "Pts"]
+                
+                table_data.append(headers)
+                
+                # بيانات الترتيب
+                for i, row in standings_df.iterrows():
+                    team_name = row["name_ar"] if self.lang == "ar" else row["name_en"]
+                    row_data = [
+                        str(i + 1),
+                        team_name,
+                        row["group_char"],
+                        str(row["P"]),
+                        str(row["W"]),
+                        str(row["D"]),
+                        str(row["L"]),
+                        str(row["GF"]),
+                        str(row["GA"]),
+                        str(row["GD"]),
+                        str(row["Pts"])
+                    ]
+                    table_data.append(row_data)
+                
+                # إنشاء الجدول
                 tbl = RLTable(table_data, repeatRows=1)
                 tbl.setStyle(TableStyle([
-                    ('BACKGROUND', (0,0), (-1,0), rlcolors.HexColor("#1E90FF")),
-                    ('TEXTCOLOR', (0,0), (-1,0), rlcolors.white),
-                    ('GRID', (0,0), (-1,-1), 0.25, rlcolors.gray),
-                    ('ALIGN', (1,1), (-1,-1), 'CENTER'),
+                    ('BACKGROUND', (0, 0), (-1, 0), rlcolors.HexColor("#1E90FF")),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), rlcolors.white),
+                    ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, 0), (-1, 0), 10),
+                    ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                    ('BACKGROUND', (0, 1), (-1, -1), rlcolors.beige),
+                    ('GRID', (0, 0), (-1, -1), 1, rlcolors.black),
+                    ('FONTSIZE', (0, 1), (-1, -1), 8),
                 ]))
                 story.append(tbl)
-                story.append(Spacer(1, 12))
+            else:
+                story.append(Paragraph("لا توجد بيانات للترتيب" if self.lang=="ar" else "No standings data available", styles['Normal']))
+            
+            story.append(Spacer(1, 20))
 
-            knockout_df = get_knockout_results()
-            if not knockout_df.empty:
-                story.append(Paragraph("Knockout Stages Results / نتائج الأدوار الإقصائية", styles['Heading2']))
+            # 2. المباريات
+            story.append(Paragraph("المباريات" if self.lang=="ar" else "Matches", styles['Heading2']))
+            story.append(Spacer(1, 10))
+            
+            matches_df = get_matches()
+            if not matches_df.empty:
+                # تجميع المباريات حسب المرحلة
+                stages = matches_df['stage'].unique()
                 
-                stages = knockout_df["stage"].unique()
                 for stage in stages:
-                    stage_matches = knockout_df[knockout_df["stage"] == stage]
+                    stage_matches = matches_df[matches_df['stage'] == stage]
+                    
                     story.append(Paragraph(stage, styles['Heading3']))
                     
-                    table_data = [["Home", "Away", "Score", "ET", "Pens", "Winner", "Method"]]
+                    stage_table_data = []
+                    if self.lang == "ar":
+                        stage_headers = ["المضيف", "النتيجة", "الضيف", "التاريخ", "الحالة"]
+                    else:
+                        stage_headers = ["Home", "Score", "Away", "Date", "Status"]
+                    
+                    stage_table_data.append(stage_headers)
                     
                     for _, match in stage_matches.iterrows():
-                        home = match["home_team"]
-                        away = match["away_team"]
-                        score = f"{match['home_goals']}-{match['away_goals']}"
+                        home_team = match['home_team']
+                        away_team = match['away_team']
+                        score = f"{match['home_goals']} - {match['away_goals']}"
+                        date = match['date']
+                        status = "مكتملة" if match.get('winner') else "مجدولة"
+                        if self.lang == "en":
+                            status = "Completed" if match.get('winner') else "Scheduled"
                         
-                        et = f"{match['home_extra_time_goals']}-{match['away_extra_time_goals']}" if match['home_extra_time_goals'] > 0 or match['away_extra_time_goals'] > 0 else "-"
-                        pens = f"{match['home_penalties']}-{match['away_penalties']}" if match['home_penalties'] > 0 or match['away_penalties'] > 0 else "-"
-                        
-                        winner = match["winner"]
-                        method = match["win_method"]
-                        
-                        if method == "normal":
-                            method_text = "Normal Time"
-                        elif method == "extra_time":
-                            method_text = "Extra Time"
-                        else:
-                            method_text = "Penalties"
-                        
-                        table_data.append([home, away, score, et, pens, winner, method_text])
+                        stage_table_data.append([home_team, score, away_team, date, status])
                     
-                    tbl = RLTable(table_data, repeatRows=1)
-                    tbl.setStyle(TableStyle([
-                        ('BACKGROUND', (0,0), (-1,0), rlcolors.HexColor("#87CEFA")),
-                        ('GRID', (0,0), (-1,-1), 0.25, rlcolors.gray),
+                    stage_tbl = RLTable(stage_table_data, repeatRows=1)
+                    stage_tbl.setStyle(TableStyle([
+                        ('BACKGROUND', (0, 0), (-1, 0), rlcolors.HexColor("#32CD32")),
+                        ('TEXTCOLOR', (0, 0), (-1, 0), rlcolors.white),
+                        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                        ('GRID', (0, 0), (-1, -1), 0.5, rlcolors.gray),
+                        ('FONTSIZE', (0, 0), (-1, -1), 8),
                     ]))
-                    story.append(tbl)
-                    story.append(Spacer(1, 6))
+                    story.append(stage_tbl)
+                    story.append(Spacer(1, 10))
+            else:
+                story.append(Paragraph("لا توجد مباريات" if self.lang=="ar" else "No matches available", styles['Normal']))
+            
+            story.append(Spacer(1, 20))
 
+            # 3. نتائج الإقصائيات
+            story.append(Paragraph("نتائج الأدوار الإقصائية" if self.lang=="ar" else "Knockout Stage Results", styles['Heading2']))
+            story.append(Spacer(1, 10))
+            
+            knockout_df = get_knockout_results()
+            if not knockout_df.empty:
+                knockout_table_data = []
+                
+                if self.lang == "ar":
+                    knockout_headers = ["المرحلة", "المضيف", "الضيف", "النتيجة", "الوقت الإضافي", "الركلات", "الفائز"]
+                else:
+                    knockout_headers = ["Stage", "Home", "Away", "Score", "Extra Time", "Penalties", "Winner"]
+                
+                knockout_table_data.append(knockout_headers)
+                
+                for _, match in knockout_df.iterrows():
+                    stage = match['stage']
+                    home = match['home_team']
+                    away = match['away_team']
+                    score = f"{match['home_goals']}-{match['away_goals']}"
+                    
+                    et = f"{match.get('home_extra_time_goals', 0)}-{match.get('away_extra_time_goals', 0)}"
+                    if et == "0-0":
+                        et = "-"
+                    
+                    pens = f"{match.get('home_penalties', 0)}-{match.get('away_penalties', 0)}"
+                    if pens == "0-0":
+                        pens = "-"
+                    
+                    winner = match.get('winner', '')
+                    
+                    knockout_table_data.append([stage, home, away, score, et, pens, winner])
+                
+                knockout_tbl = RLTable(knockout_table_data, repeatRows=1)
+                knockout_tbl.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), rlcolors.HexColor("#FF6B6B")),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), rlcolors.white),
+                    ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                    ('GRID', (0, 0), (-1, -1), 0.5, rlcolors.gray),
+                    ('FONTSIZE', (0, 0), (-1, -1), 8),
+                ]))
+                story.append(knockout_tbl)
+            else:
+                story.append(Paragraph("لا توجد نتائج إقصائية" if self.lang=="ar" else "No knockout results available", styles['Normal']))
+
+            # بناء المستند
             doc.build(story)
-            QMessageBox.information(self, "تم" if self.lang=="ar" else "Done", f"تم حفظ PDF: {fname}" if self.lang=="ar" else f"PDF saved: {fname}")
+            
+            if save_dialog:
+                QMessageBox.information(self, "تم" if self.lang=="ar" else "Success", 
+                    f"تم تصدير التقرير بنجاح: {fname}" if self.lang=="ar" 
+                    else f"Report exported successfully: {fname}")
+            
             return True
+            
         except Exception as e:
-            QMessageBox.warning(self, "خطأ" if self.lang=="ar" else "Error", f"Failed to export PDF: {e}")
+            QMessageBox.warning(self, "خطأ" if self.lang=="ar" else "Error", 
+                f"خطأ في التصدير: {str(e)}" if self.lang=="ar" 
+                else f"Export error: {str(e)}")
             return False
 
     def export_docx(self, save_dialog=True):
+        """تصدير التقرير إلى مستند Word"""
         if Document is None:
-            QMessageBox.warning(self, "خطأ" if self.lang=="ar" else "Error", "مكتبة python-docx غير مثبتة" if self.lang=="ar" else "python-docx not installed")
+            QMessageBox.warning(self, "خطأ" if self.lang=="ar" else "Error", 
+                               "مكتبة python-docx غير مثبتة" if self.lang=="ar" else "python-docx not installed")
             return False
 
-        default_name = f"UCL_Export_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.docx"
-        fname = QFileDialog.getSaveFileName(self, "حفظ Word" if self.lang=="ar" else "Save Word", default_name, "Word Files (*.docx)")[0] if save_dialog else default_name
-        if not fname:
-            return False
         try:
+            if save_dialog:
+                default_name = f"UCL_Report_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.docx"
+                fname = QFileDialog.getSaveFileName(self, 
+                    "حفظ التقرير Word" if self.lang=="ar" else "Save Word Report", 
+                    default_name, "Word Documents (*.docx)")[0]
+                if not fname:
+                    return False
+            else:
+                fname = f"UCL_Report_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.docx"
+
             doc = Document()
-            doc.add_heading('UEFA Champions League - Export', 0)
-            doc.add_paragraph(f"Generated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-            doc.add_paragraph(" ")
+            
+            # العنوان الرئيسي
+            title = doc.add_heading("تقرير دوري أبطال أوروبا - الموسم 2025" if self.lang=="ar" 
+                                   else "UEFA Champions League Report - Season 2025", 0)
+            title.alignment = 1  # مركز
+            
+            # تاريخ التصدير
+            date_para = doc.add_paragraph()
+            date_para.alignment = 1
+            date_run = date_para.add_run(f"تم التصدير في: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}" if self.lang=="ar" 
+                                        else f"Exported on: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            date_run.italic = True
+            
+            doc.add_paragraph()  # سطر فارغ
 
-            st_df = get_standings()
-            if not st_df.empty:
-                doc.add_heading('Standings / الترتيب', level=1)
-                table = doc.add_table(rows=1, cols=10)
-                hdr_cells = table.rows[0].cells
-                hdrs = ["Team","P","W","D","L","GF","GA","GD","Pts","Status"]
-                for i, h in enumerate(hdrs):
-                    hdr_cells[i].text = h
-                for _, r in st_df.iterrows():
-                    row_cells = table.add_row().cells
-                    team_name = r["name_ar"] if self.lang == "ar" else r["name_en"]
-                    if r.get("banned", 0):
-                        status = "محظور" if self.lang == "ar" else "Banned"
-                    elif r.get("eliminated", 0):
-                        status = "مقصي" if self.lang == "ar" else "Eliminated"
-                    else:
-                        status = "نشط" if self.lang == "ar" else "Active"
-                    row_cells[0].text = team_name
-                    row_cells[1].text = str(int(r["P"]))
-                    row_cells[2].text = str(int(r["W"]))
-                    row_cells[3].text = str(int(r["D"]))
-                    row_cells[4].text = str(int(r["L"]))
-                    row_cells[5].text = str(int(r["GF"]))
-                    row_cells[6].text = str(int(r["GA"]))
-                    row_cells[7].text = str(int(r["GD"]))
-                    row_cells[8].text = str(int(r["Pts"]))
-                    row_cells[9].text = status
-                doc.add_paragraph(" ")
-
-            knockout_df = get_knockout_results()
-            if not knockout_df.empty:
-                doc.add_heading('Knockout Stages Results / نتائج الأدوار الإقصائية', level=1)
+            # 1. جدول الترتيب
+            doc.add_heading("جدول الترتيب" if self.lang=="ar" else "Standings Table", level=1)
+            
+            standings_df = get_standings()
+            if not standings_df.empty:
+                table = doc.add_table(rows=len(standings_df) + 1, cols=7)
+                table.style = 'Table Grid'
                 
-                stages = knockout_df["stage"].unique()
+                # عناوين الأعمدة
+                if self.lang == "ar":
+                    headers = ["المركز", "الفريق", "المجموعة", "ل", "ف", "ت", "خ", "له", "عليه", "فارق", "نقاط"]
+                else:
+                    headers = ["Pos", "Team", "Group", "P", "W", "D", "L", "GF", "GA", "GD", "Pts"]
+                
+                for i, header in enumerate(headers[:7]):  # أول 7 أعمدة فقط لتجنب الاتساع
+                    table.cell(0, i).text = header
+                
+                # بيانات الترتيب
+                for i, row in standings_df.iterrows():
+                    team_name = row["name_ar"] if self.lang == "ar" else row["name_en"]
+                    table.cell(i + 1, 0).text = str(i + 1)
+                    table.cell(i + 1, 1).text = team_name
+                    table.cell(i + 1, 2).text = row["group_char"]
+                    table.cell(i + 1, 3).text = str(row["P"])
+                    table.cell(i + 1, 4).text = str(row["W"])
+                    table.cell(i + 1, 5).text = str(row["D"])
+                    table.cell(i + 1, 6).text = str(row["L"])
+            
+            doc.add_paragraph()  # سطر فارغ
+
+            # 2. المباريات حسب المرحلة
+            doc.add_heading("المباريات" if self.lang=="ar" else "Matches", level=1)
+            
+            matches_df = get_matches()
+            if not matches_df.empty:
+                stages = matches_df['stage'].unique()
+                
                 for stage in stages:
                     doc.add_heading(stage, level=2)
-                    stage_matches = knockout_df[knockout_df["stage"] == stage]
+                    stage_matches = matches_df[matches_df['stage'] == stage]
                     
-                    table2 = doc.add_table(rows=1, cols=7)
-                    hdr = table2.rows[0].cells
-                    headers = ["Home", "Away", "Score", "ET", "Pens", "Winner", "Method"]
-                    for i, h in enumerate(headers):
-                        hdr[i].text = h
+                    stage_table = doc.add_table(rows=len(stage_matches) + 1, cols=4)
+                    stage_table.style = 'Table Grid'
                     
-                    for _, match in stage_matches.iterrows():
-                        row = table2.add_row().cells
-                        home = match["home_team"]
-                        away = match["away_team"]
-                        score = f"{match['home_goals']}-{match['away_goals']}"
-                        
-                        et = f"{match['home_extra_time_goals']}-{match['away_extra_time_goals']}" if match['home_extra_time_goals'] > 0 or match['away_extra_time_goals'] > 0 else "-"
-                        pens = f"{match['home_penalties']}-{match['away_penalties']}" if match['home_penalties'] > 0 or match['away_penalties'] > 0 else "-"
-                        
-                        winner = match["winner"]
-                        method = match["win_method"]
-                        
-                        if method == "normal":
-                            method_text = "Normal Time"
-                        elif method == "extra_time":
-                            method_text = "Extra Time"
-                        else:
-                            method_text = "Penalties"
-                        
-                        row[0].text = home
-                        row[1].text = away
-                        row[2].text = score
-                        row[3].text = et
-                        row[4].text = pens
-                        row[5].text = winner
-                        row[6].text = method_text
+                    if self.lang == "ar":
+                        stage_headers = ["المضيف", "النتيجة", "الضيف", "التاريخ"]
+                    else:
+                        stage_headers = ["Home", "Score", "Away", "Date"]
                     
-                    doc.add_paragraph(" ")
+                    for i, header in enumerate(stage_headers):
+                        stage_table.cell(0, i).text = header
+                    
+                    for i, match in stage_matches.iterrows():
+                        stage_table.cell(i + 1, 0).text = match['home_team']
+                        stage_table.cell(i + 1, 1).text = f"{match['home_goals']} - {match['away_goals']}"
+                        stage_table.cell(i + 1, 2).text = match['away_team']
+                        stage_table.cell(i + 1, 3).text = match['date']
+            
+            doc.add_paragraph()  # سطر فارغ
 
+            # 3. البطل النهائي (إذا كان موجوداً)
+            final_matches = get_matches("Final")
+            if not final_matches.empty and final_matches.iloc[0].get('winner'):
+                champion = final_matches.iloc[0]['winner']
+                doc.add_heading("البطل" if self.lang=="ar" else "Champion", level=1)
+                champion_para = doc.add_paragraph()
+                champion_run = champion_para.add_run(champion)
+                champion_run.bold = True
+                champion_run.font.size = docx.shared.Pt(16)
+
+            # حفظ المستند
             doc.save(fname)
-            QMessageBox.information(self, "تم" if self.lang=="ar" else "Done", f"تم حفظ Word: {fname}" if self.lang=="ar" else f"Word saved: {fname}")
+            
+            if save_dialog:
+                QMessageBox.information(self, "تم" if self.lang=="ar" else "Success", 
+                    f"تم تصدير التقرير بنجاح: {fname}" if self.lang=="ar" 
+                    else f"Report exported successfully: {fname}")
+            
             return True
+            
         except Exception as e:
-            QMessageBox.warning(self, "خطأ" if self.lang=="ar" else "Error", f"Failed to export Word: {e}")
+            QMessageBox.warning(self, "خطأ" if self.lang=="ar" else "Error", 
+                f"خطأ في التصدير: {str(e)}" if self.lang=="ar" 
+                else f"Export error: {str(e)}")
             return False
 
-# ---------- بداية البرنامج ----------
+# الدوال الرئيسية لتشغيل البرنامج
+def main():
+    """الدالة الرئيسية لتشغيل التطبيق"""
+    try:
+        # تهيئة قاعدة البيانات
+        if not DB_PATH.exists():
+            print("جاري إنشاء قاعدة البيانات للمرة الأولى...")
+            init_db()
+        
+        # التحقق من المكتبات المطلوبة
+        missing_libs = []
+        if SimpleDocTemplate is None:
+            missing_libs.append("reportlab")
+        if Document is None:
+            missing_libs.append("python-docx")
+        
+        if missing_libs:
+            print(f"تحذير: المكتبات التالية غير مثبتة: {', '.join(missing_libs)}")
+            print("بعض ميزات التصدير قد لا تعمل بشكل صحيح.")
+        
+        # إنشاء وتشغيل التطبيق
+        app = QApplication(sys.argv)
+        
+        # تعيين خط افتراضي يدعم العربية
+        font = QFont("Arial", 10)
+        app.setFont(font)
+        
+        window = MainWindow()
+        window.show()
+        
+        print("تم تشغيل نظام إدارة دوري أبطال أوروبا بنجاح!")
+        print("الميزات المتاحة:")
+        print("- إدارة الفرق والمجموعات")
+        print("- إدارة المباريات والنتائج") 
+        print("- التوليد التلقائي للبطولة")
+        print("- تصدير التقارير (PDF, Word)")
+        print("- دعم اللغتين العربية والإنجليزية")
+        
+        sys.exit(app.exec())
+        
+    except Exception as e:
+        print(f"خطأ في تشغيل التطبيق: {e}")
+        traceback.print_exc()
+        QMessageBox.critical(None, "خطأ", f"فشل في تشغيل التطبيق: {str(e)}")
+
 if __name__ == "__main__":
-    init_db()
-    app = QApplication(sys.argv)
-    app.setStyle("Fusion")
-    win = MainWindow()
-    win.show()
-    sys.exit(app.exec())
+    main()
