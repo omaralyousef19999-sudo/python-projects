@@ -1,7 +1,148 @@
-[my_app] dart pub get --no-example
-Error on line 90, column 1 of pubspec.yaml: Duplicate mapping key.
-   ╷
-90 │ dependencies:
-   │ ^^^^^^^^^^^^
-   ╵
-exit code 65
+[{
+	"resource": "/d:/FlutterProj/flutter_application_1/my_awesome_app/lib/main.dart",
+	"owner": "_generated_diagnostic_collection_name_#1",
+	"code": {
+		"value": "uri_does_not_exist",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/uri_does_not_exist",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 8,
+	"message": "Target of URI doesn't exist: 'package:provider/provider.dart'.\nTry creating the file referenced by the URI, or try using a URI for a file that does exist.",
+	"source": "dart",
+	"startLineNumber": 2,
+	"startColumn": 8,
+	"endLineNumber": 2,
+	"endColumn": 40,
+	"modelVersionId": 3,
+	"origin": "extHost1"
+},{
+	"resource": "/d:/FlutterProj/flutter_application_1/my_awesome_app/lib/main.dart",
+	"owner": "_generated_diagnostic_collection_name_#1",
+	"code": {
+		"value": "undefined_function",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/undefined_function",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 8,
+	"message": "The function 'ChangeNotifierProvider' isn't defined.\nTry importing the library that defines 'ChangeNotifierProvider', correcting the name to the name of an existing function, or defining a function named 'ChangeNotifierProvider'.",
+	"source": "dart",
+	"startLineNumber": 7,
+	"startColumn": 5,
+	"endLineNumber": 7,
+	"endColumn": 27,
+	"modelVersionId": 3,
+	"origin": "extHost1"
+},{
+	"resource": "/d:/FlutterProj/flutter_application_1/my_awesome_app/lib/main.dart",
+	"owner": "_generated_diagnostic_collection_name_#1",
+	"code": {
+		"value": "undefined_method",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/undefined_method",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 8,
+	"message": "The method 'Consumer' isn't defined for the type 'ProductsScreen'.\nTry correcting the name to the name of an existing method, or defining a method named 'Consumer'.",
+	"source": "dart",
+	"startLineNumber": 89,
+	"startColumn": 11,
+	"endLineNumber": 89,
+	"endColumn": 19,
+	"modelVersionId": 3,
+	"origin": "extHost1"
+},{
+	"resource": "/d:/FlutterProj/flutter_application_1/my_awesome_app/lib/main.dart",
+	"owner": "_generated_diagnostic_collection_name_#1",
+	"code": {
+		"value": "undefined_identifier",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/undefined_identifier",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 8,
+	"message": "Undefined name 'Provider'.\nTry correcting the name to one that is defined, or defining the name.",
+	"source": "dart",
+	"startLineNumber": 139,
+	"startColumn": 19,
+	"endLineNumber": 139,
+	"endColumn": 27,
+	"modelVersionId": 3,
+	"origin": "extHost1"
+},{
+	"resource": "/d:/FlutterProj/flutter_application_1/my_awesome_app/lib/main.dart",
+	"owner": "_generated_diagnostic_collection_name_#1",
+	"code": {
+		"value": "undefined_method",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/undefined_method",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 8,
+	"message": "The method 'Consumer' isn't defined for the type 'CartScreen'.\nTry correcting the name to the name of an existing method, or defining a method named 'Consumer'.",
+	"source": "dart",
+	"startLineNumber": 167,
+	"startColumn": 13,
+	"endLineNumber": 167,
+	"endColumn": 21,
+	"modelVersionId": 3,
+	"origin": "extHost1"
+},{
+	"resource": "/d:/FlutterProj/flutter_application_1/my_awesome_app/lib/main.dart",
+	"owner": "_generated_diagnostic_collection_name_#1",
+	"code": {
+		"value": "depend_on_referenced_packages",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/depend_on_referenced_packages",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 2,
+	"message": "The imported package 'provider' isn't a dependency of the importing package.\nTry adding a dependency for 'provider' in the 'pubspec.yaml' file.",
+	"source": "dart",
+	"startLineNumber": 2,
+	"startColumn": 8,
+	"endLineNumber": 2,
+	"endColumn": 40,
+	"modelVersionId": 3,
+	"origin": "extHost1"
+},{
+	"resource": "/d:/FlutterProj/flutter_application_1/my_awesome_app/lib/main.dart",
+	"owner": "_generated_diagnostic_collection_name_#1",
+	"code": {
+		"value": "prefer_final_fields",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/prefer_final_fields",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 2,
+	"message": "The private field _cartItems could be 'final'.\nTry making the field 'final'.",
+	"source": "dart",
+	"startLineNumber": 34,
+	"startColumn": 30,
+	"endLineNumber": 34,
+	"endColumn": 45,
+	"modelVersionId": 3,
+	"origin": "extHost1"
+}]
