@@ -1,148 +1,34 @@
-[{
-	"resource": "/d:/FlutterProj/flutter_application_1/my_awesome_app/lib/main.dart",
-	"owner": "_generated_diagnostic_collection_name_#1",
-	"code": {
-		"value": "uri_does_not_exist",
-		"target": {
-			"$mid": 1,
-			"path": "/diagnostics/uri_does_not_exist",
-			"scheme": "https",
-			"authority": "dart.dev"
-		}
-	},
-	"severity": 8,
-	"message": "Target of URI doesn't exist: 'package:provider/provider.dart'.\nTry creating the file referenced by the URI, or try using a URI for a file that does exist.",
-	"source": "dart",
-	"startLineNumber": 2,
-	"startColumn": 8,
-	"endLineNumber": 2,
-	"endColumn": 40,
-	"modelVersionId": 3,
-	"origin": "extHost1"
-},{
-	"resource": "/d:/FlutterProj/flutter_application_1/my_awesome_app/lib/main.dart",
-	"owner": "_generated_diagnostic_collection_name_#1",
-	"code": {
-		"value": "undefined_function",
-		"target": {
-			"$mid": 1,
-			"path": "/diagnostics/undefined_function",
-			"scheme": "https",
-			"authority": "dart.dev"
-		}
-	},
-	"severity": 8,
-	"message": "The function 'ChangeNotifierProvider' isn't defined.\nTry importing the library that defines 'ChangeNotifierProvider', correcting the name to the name of an existing function, or defining a function named 'ChangeNotifierProvider'.",
-	"source": "dart",
-	"startLineNumber": 7,
-	"startColumn": 5,
-	"endLineNumber": 7,
-	"endColumn": 27,
-	"modelVersionId": 3,
-	"origin": "extHost1"
-},{
-	"resource": "/d:/FlutterProj/flutter_application_1/my_awesome_app/lib/main.dart",
-	"owner": "_generated_diagnostic_collection_name_#1",
-	"code": {
-		"value": "undefined_method",
-		"target": {
-			"$mid": 1,
-			"path": "/diagnostics/undefined_method",
-			"scheme": "https",
-			"authority": "dart.dev"
-		}
-	},
-	"severity": 8,
-	"message": "The method 'Consumer' isn't defined for the type 'ProductsScreen'.\nTry correcting the name to the name of an existing method, or defining a method named 'Consumer'.",
-	"source": "dart",
-	"startLineNumber": 89,
-	"startColumn": 11,
-	"endLineNumber": 89,
-	"endColumn": 19,
-	"modelVersionId": 3,
-	"origin": "extHost1"
-},{
-	"resource": "/d:/FlutterProj/flutter_application_1/my_awesome_app/lib/main.dart",
-	"owner": "_generated_diagnostic_collection_name_#1",
-	"code": {
-		"value": "undefined_identifier",
-		"target": {
-			"$mid": 1,
-			"path": "/diagnostics/undefined_identifier",
-			"scheme": "https",
-			"authority": "dart.dev"
-		}
-	},
-	"severity": 8,
-	"message": "Undefined name 'Provider'.\nTry correcting the name to one that is defined, or defining the name.",
-	"source": "dart",
-	"startLineNumber": 139,
-	"startColumn": 19,
-	"endLineNumber": 139,
-	"endColumn": 27,
-	"modelVersionId": 3,
-	"origin": "extHost1"
-},{
-	"resource": "/d:/FlutterProj/flutter_application_1/my_awesome_app/lib/main.dart",
-	"owner": "_generated_diagnostic_collection_name_#1",
-	"code": {
-		"value": "undefined_method",
-		"target": {
-			"$mid": 1,
-			"path": "/diagnostics/undefined_method",
-			"scheme": "https",
-			"authority": "dart.dev"
-		}
-	},
-	"severity": 8,
-	"message": "The method 'Consumer' isn't defined for the type 'CartScreen'.\nTry correcting the name to the name of an existing method, or defining a method named 'Consumer'.",
-	"source": "dart",
-	"startLineNumber": 167,
-	"startColumn": 13,
-	"endLineNumber": 167,
-	"endColumn": 21,
-	"modelVersionId": 3,
-	"origin": "extHost1"
-},{
-	"resource": "/d:/FlutterProj/flutter_application_1/my_awesome_app/lib/main.dart",
-	"owner": "_generated_diagnostic_collection_name_#1",
-	"code": {
-		"value": "depend_on_referenced_packages",
-		"target": {
-			"$mid": 1,
-			"path": "/diagnostics/depend_on_referenced_packages",
-			"scheme": "https",
-			"authority": "dart.dev"
-		}
-	},
-	"severity": 2,
-	"message": "The imported package 'provider' isn't a dependency of the importing package.\nTry adding a dependency for 'provider' in the 'pubspec.yaml' file.",
-	"source": "dart",
-	"startLineNumber": 2,
-	"startColumn": 8,
-	"endLineNumber": 2,
-	"endColumn": 40,
-	"modelVersionId": 3,
-	"origin": "extHost1"
-},{
-	"resource": "/d:/FlutterProj/flutter_application_1/my_awesome_app/lib/main.dart",
-	"owner": "_generated_diagnostic_collection_name_#1",
-	"code": {
-		"value": "prefer_final_fields",
-		"target": {
-			"$mid": 1,
-			"path": "/diagnostics/prefer_final_fields",
-			"scheme": "https",
-			"authority": "dart.dev"
-		}
-	},
-	"severity": 2,
-	"message": "The private field _cartItems could be 'final'.\nTry making the field 'final'.",
-	"source": "dart",
-	"startLineNumber": 34,
-	"startColumn": 30,
-	"endLineNumber": 34,
-	"endColumn": 45,
-	"modelVersionId": 3,
-	"origin": "extHost1"
-}]
+Error: Couldn't resolve the package 'provider' in 'package:provider/provider.dart'.
+lib/main.dart:2:8: Error: Not found: 'package:provider/provider.dart'
+import 'package:provider/provider.dart';
+       ^
+lib/main.dart:7:5: Error: Method not found: 'ChangeNotifierProvider'.
+    ChangeNotifierProvider(
+    ^^^^^^^^^^^^^^^^^^^^^^
+lib/main.dart:89:11: Error: The method 'Consumer' isn't defined for the type 'ProductsScreen'.
+ - 'ProductsScreen' is from 'package:my_awesome_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'Consumer'.
+          Consumer<CartProvider>(
+          ^^^^^^^^
+lib/main.dart:139:19: Error: The getter 'Provider' isn't defined for the type 'ProductsScreen'.
+ - 'ProductsScreen' is from 'package:my_awesome_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'Provider'.
+                  Provider.of<CartProvider>(context, listen: false).addToCart(product);
+                  ^^^^^^^^
+lib/main.dart:167:13: Error: The method 'Consumer' isn't defined for the type 'CartScreen'.
+ - 'CartScreen' is from 'package:my_awesome_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'Consumer'.
+      body: Consumer<CartProvider>(
+            ^^^^^^^^
+Unhandled exception:
+Null check operator used on a null value
+#0      IncrementalJavaScriptBundler.compile (package:frontend_server/src/javascript_bundle.dart:336)
+#1      FrontendCompiler.writeJavaScriptBundle (package:frontend_server/frontend_server.dart:922)
+<asynchronous suspension>
+#2      FrontendCompiler.compile (package:frontend_server/frontend_server.dart:728)
+<asynchronous suspension>
+#3      listenAndCompile.<anonymous closure> (package:frontend_server/frontend_server.dart:1449)
+<asynchronous suspension>
+The Dart compiler exited unexpectedly.
+Waiting for connection from debug service on Chrome...              5.3s
+Failed to compile application.
