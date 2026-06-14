@@ -1,34 +1,21 @@
-Error: Couldn't resolve the package 'provider' in 'package:provider/provider.dart'.
-lib/main.dart:2:8: Error: Not found: 'package:provider/provider.dart'
-import 'package:provider/provider.dart';
-       ^
-lib/main.dart:7:5: Error: Method not found: 'ChangeNotifierProvider'.
-    ChangeNotifierProvider(
-    ^^^^^^^^^^^^^^^^^^^^^^
-lib/main.dart:89:11: Error: The method 'Consumer' isn't defined for the type 'ProductsScreen'.
- - 'ProductsScreen' is from 'package:my_awesome_app/main.dart' ('lib/main.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'Consumer'.
-          Consumer<CartProvider>(
-          ^^^^^^^^
-lib/main.dart:139:19: Error: The getter 'Provider' isn't defined for the type 'ProductsScreen'.
- - 'ProductsScreen' is from 'package:my_awesome_app/main.dart' ('lib/main.dart').
-Try correcting the name to the name of an existing getter, or defining a getter or field named 'Provider'.
-                  Provider.of<CartProvider>(context, listen: false).addToCart(product);
-                  ^^^^^^^^
-lib/main.dart:167:13: Error: The method 'Consumer' isn't defined for the type 'CartScreen'.
- - 'CartScreen' is from 'package:my_awesome_app/main.dart' ('lib/main.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'Consumer'.
-      body: Consumer<CartProvider>(
-            ^^^^^^^^
-Unhandled exception:
-Null check operator used on a null value
-#0      IncrementalJavaScriptBundler.compile (package:frontend_server/src/javascript_bundle.dart:336)
-#1      FrontendCompiler.writeJavaScriptBundle (package:frontend_server/frontend_server.dart:922)
-<asynchronous suspension>
-#2      FrontendCompiler.compile (package:frontend_server/frontend_server.dart:728)
-<asynchronous suspension>
-#3      listenAndCompile.<anonymous closure> (package:frontend_server/frontend_server.dart:1449)
-<asynchronous suspension>
-The Dart compiler exited unexpectedly.
-Waiting for connection from debug service on Chrome...              5.3s
-Failed to compile application.
+name: my_awesome_app
+description: A new Flutter project.
+
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  provider: ^6.1.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true
