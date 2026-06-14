@@ -1,21 +1,6 @@
-name: my_awesome_app
-description: A new Flutter project.
-
-publish_to: 'none'
-
-version: 1.0.0+1
-
-environment:
-  sdk: '>=3.0.0 <4.0.0'
-
-dependencies:
-  flutter:
-    sdk: flutter
-  provider: ^6.1.2
-
-dev_dependencies:
-  flutter_test:
-    sdk: flutter
-
-flutter:
-  uses-material-design: true
+Remove-Item : A positional parameter cannot be found that accepts argument '/q'.
+At line:1 char:1
++ rmdir /s /q build
++ ~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidArgument: (:) [Remove-Item], ParameterBindingException
+    + FullyQualifiedErrorId : PositionalParameterNotFound,Microsoft.PowerShell.Commands.RemoveItemCommand
