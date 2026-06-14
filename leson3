@@ -1,6 +1,6 @@
-Remove-Item : A positional parameter cannot be found that accepts argument '/q'.
+Remove-Item : Cannot find path 'D:\FlutterProj\flutter_application_1\my_awesome_app\pubspec.lock' because it does not exist.
 At line:1 char:1
-+ rmdir /s /q build
-+ ~~~~~~~~~~~~~~~~~
-    + CategoryInfo          : InvalidArgument: (:) [Remove-Item], ParameterBindingException
-    + FullyQualifiedErrorId : PositionalParameterNotFound,Microsoft.PowerShell.Commands.RemoveItemCommand
++ Remove-Item -Recurse -Force pubspec.lock
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (D:\FlutterProj\...pp\pubspec.lock:String) [Remove-Item], ItemNotFoundException
+    + FullyQualifiedErrorId : PathNotFound,Microsoft.PowerShell.Commands.RemoveItemCommand
