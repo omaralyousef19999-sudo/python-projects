@@ -1,8 +1,7 @@
-
-Launching lib\main.dart on Windows in debug mode...
-CUSTOMBUILD : error : Couldn't resolve the package 'provider' in 'package:provider/provider.dart'. [D:\FlutterProj\flutter_application_1\my_awesome_app\build\windows\x64\flutter\flutter_assemble.vcxproj]
-lib/main.dart(2,8): error G832450DD: Not found: 'package:provider/provider.dart' [D:\FlutterProj\flutter_application_1\my_awesome_app\build\windows\x64\flutter\flutter_assemble.vcxproj]
-lib/main.dart(7,5): error G311314CC: Method not found: 'ChangeNotifierProvider'. [D:\FlutterProj\flutter_application_1\my_awesome_app\build\windows\x64\flutter\flutter_assemble.vcxproj]
-lib/main.dart(89,11): error GE5CFE876: The method 'Consumer' isn't defined for the type 'ProductsScreen'. [D:\FlutterProj\flutter_application_1\my_awesome_app\build\windows\x64\flutter\flutter_assemble.vcxproj]
-lib/main.dart(139,19): error G4127D1E8: The getter 'Provider' isn't defined for the type 'ProductsScreen'. [D:\FlutterProj\flutter_application_1\my_awesome_app\build\windows\x64\flutter\flutter_assemble.vcxproj]
-lib/main.dart(167,13): error GE5CFE876: The method 'Consumer' isn't defined for the type 'CartScreen'. [D:\FlutterProj\flutter_application_1\my_awesome_app\build\windows\x64\flutter\flutter_assemble.vcxproj]
+[my_app] dart pub get --no-example
+Error on line 90, column 1 of pubspec.yaml: Duplicate mapping key.
+   ╷
+90 │ dependencies:
+   │ ^^^^^^^^^^^^
+   ╵
+exit code 65
