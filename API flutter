@@ -1,0 +1,248 @@
+import 'dart:convert';
+import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+
+void main() {
+  runApp(const NewsApp());
+}
+
+// ========== التطبيق الرئيسي ==========
+class NewsApp extends StatelessWidget {
+  const NewsApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: '📰 أخبار اليوم',
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
+        useMaterial3: true,
+      ),
+      home: const NewsScreen(),
+    );
+  }
+}
+
+// ========== نموذج البيانات (NewsModel) ==========
+class NewsModel {
+  final String title;
+  final String description;
+  final String imageUrl;
+  final String url;
+
+  NewsModel({
+    required this.title,
+    required this.description,
+    required this.imageUrl,
+    required this.url,
+  });
+
+  // دالة لتحويل JSON إلى NewsModel
+  factory NewsModel.fromJson(Map<String, dynamic> json) {
+    return NewsModel(
+      title: json['title'] ?? 'لا يوجد عنوان',
+      description: json['description'] ?? 'لا يوجد وصف',
+      imageUrl: json['urlToImage'] ?? 
+          'https://upload.wikimedia.org/wikipedia/commons/thumb/a/ac/No_image_available.svg/600px-No_image_available.svg.png',
+      url: json['url'] ?? '#',
+    );
+  }
+}
+
+// ========== شاشة عرض الأخبار ==========
+class NewsScreen extends StatefulWidget {
+  const NewsScreen({super.key});
+
+  @override
+  State<NewsScreen> createState() => _NewsScreenState();
+}
+
+class _NewsScreenState extends State<NewsScreen> {
+  List<NewsModel> _newsList = [];
+  bool _isLoading = true;
+  String _errorMessage = '';
+
+  // دالة لجلب البيانات من API
+  Future<void> fetchNews() async {
+    try {
+      // رابط API (أخبار رياضية بالعربية)
+      final url = Uri.parse(
+        'https://newsapi.org/v2/top-headlines?country=eg&category=sports&apiKey=dc9a8c4c48e2451aa08f5cd2c8fa2d8a',
+      );
+
+      final response = await http.get(url);
+
+      if (response.statusCode == 200) {
+        // إذا نجح الطلب
+        final Map<String, dynamic> jsonData = json.decode(response.body);
+        final List<dynamic> articles = jsonData['articles'];
+
+        setState(() {
+          _newsList = articles.map((item) => NewsModel.fromJson(item)).toList();
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = 'حدث خطأ: ${response.statusCode}';
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+        _errorMessage = 'فشل الاتصال بالإنترنت. تأكد من اتصالك.';
+      });
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    fetchNews();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('📰 أخبار اليوم'),
+        backgroundColor: Colors.blue,
+        foregroundColor: Colors.white,
+        actions: [
+          IconButton(
+            onPressed: () {
+              setState(() {
+                _isLoading = true;
+                _errorMessage = '';
+              });
+              fetchNews();
+            },
+            icon: const Icon(Icons.refresh),
+            tooltip: 'تحديث الأخبار',
+          ),
+        ],
+      ),
+      body: _isLoading
+          ? const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text('جاري تحميل الأخبار...'),
+                ],
+              ),
+            )
+          : _errorMessage.isNotEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.error_outline, size: 80, color: Colors.grey[400]),
+                      const SizedBox(height: 16),
+                      Text(
+                        _errorMessage,
+                        style: const TextStyle(fontSize: 18),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 20),
+                      ElevatedButton(
+                        onPressed: () {
+                          setState(() {
+                            _isLoading = true;
+                            _errorMessage = '';
+                          });
+                          fetchNews();
+                        },
+                        child: const Text('إعادة المحاولة'),
+                      ),
+                    ],
+                  ),
+                )
+              : _newsList.isEmpty
+                  ? const Center(
+                      child: Text('لا توجد أخبار حالياً. حاول تحديث القائمة.'),
+                    )
+                  : ListView.builder(
+                      itemCount: _newsList.length,
+                      itemBuilder: (context, index) {
+                        final news = _newsList[index];
+                        return Card(
+                          margin: const EdgeInsets.all(10),
+                          elevation: 3,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(12),
+                            onTap: () {
+                              // فتح رابط الخبر (سنضيفه لاحقاً)
+                              // يمكنك استخدام url_launcher لفتح الرابط
+                            },
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // صورة الخبر
+                                ClipRRect(
+                                  borderRadius: const BorderRadius.only(
+                                    topLeft: Radius.circular(12),
+                                    bottomLeft: Radius.circular(12),
+                                  ),
+                                  child: Image.network(
+                                    news.imageUrl,
+                                    width: 120,
+                                    height: 120,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (context, error, stackTrace) {
+                                      return Container(
+                                        width: 120,
+                                        height: 120,
+                                        color: Colors.grey[300],
+                                        child: const Icon(
+                                          Icons.broken_image,
+                                          size: 50,
+                                          color: Colors.grey,
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ),
+                                // تفاصيل الخبر
+                                Expanded(
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(12.0),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          news.title,
+                                          style: const TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          news.description,
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            color: Colors.grey[600],
+                                          ),
+                                          maxLines: 3,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+    );
+  }
+}
