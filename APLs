@@ -1,4 +1,3 @@
-
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -34,6 +33,7 @@ class WeatherModel {
   final double windSpeed;
   final String description;
   final String iconCode;
+  final DateTime timestamp;
 
   WeatherModel({
     required this.cityName,
@@ -43,9 +43,9 @@ class WeatherModel {
     required this.windSpeed,
     required this.description,
     required this.iconCode,
+    required this.timestamp,
   });
 
-  // دالة لتحويل JSON إلى WeatherModel
   factory WeatherModel.fromJson(Map<String, dynamic> json) {
     final main = json['main'];
     final weather = json['weather'][0];
@@ -53,12 +53,37 @@ class WeatherModel {
 
     return WeatherModel(
       cityName: json['name'] ?? 'مدينة غير معروفة',
-      temperature: (main['temp'] as num).toDouble() - 273.15, // تحويل من كلفن إلى مئوية
+      temperature: (main['temp'] as num).toDouble() - 273.15,
       feelsLike: (main['feels_like'] as num).toDouble() - 273.15,
       humidity: main['humidity'] ?? 0,
       windSpeed: (wind['speed'] as num?)?.toDouble() ?? 0.0,
       description: weather['description'] ?? 'لا يوجد وصف',
       iconCode: weather['icon'] ?? '01d',
+      timestamp: DateTime.now(),
+    );
+  }
+}
+
+// ========== نموذج لتوقعات 5 أيام ==========
+class ForecastModel {
+  final DateTime date;
+  final double temperature;
+  final String iconCode;
+  final String description;
+
+  ForecastModel({
+    required this.date,
+    required this.temperature,
+    required this.iconCode,
+    required this.description,
+  });
+
+  factory ForecastModel.fromJson(Map<String, dynamic> json) {
+    return ForecastModel(
+      date: DateTime.parse(json['dt_txt']),
+      temperature: (json['main']['temp'] as num).toDouble() - 273.15,
+      iconCode: json['weather'][0]['icon'] ?? '01d',
+      description: json['weather'][0]['description'] ?? 'لا يوجد وصف',
     );
   }
 }
@@ -91,10 +116,9 @@ class _CityInputScreenState extends State<CityInputScreen> {
     });
 
     try {
-      // استبدل YOUR_API_KEY بالمفتاح الخاص بك
-      final apiKey = 'YOUR_API_KEY';
+      final apiKey = 'YOUR_API_KEY'; // 🔴 استبدل بمفتاحك
       final url = Uri.parse(
-        'https://api.openweathermap.org/data/2.5/weather?q=$city&appid=$apiKey',
+        'https://api.openweathermap.org/data/2.5/weather?q=$city&appid=$apiKey&lang=ar',
       );
 
       final response = await http.get(url);
@@ -103,12 +127,29 @@ class _CityInputScreenState extends State<CityInputScreen> {
         final Map<String, dynamic> jsonData = json.decode(response.body);
         final weather = WeatherModel.fromJson(jsonData);
 
-        // الانتقال إلى شاشة عرض الطقس مع تمرير البيانات
+        // جلب توقعات 5 أيام
+        final forecastUrl = Uri.parse(
+          'https://api.openweathermap.org/data/2.5/forecast?q=$city&appid=$apiKey&lang=ar',
+        );
+        final forecastResponse = await http.get(forecastUrl);
+        List<ForecastModel> forecast = [];
+        if (forecastResponse.statusCode == 200) {
+          final forecastData = json.decode(forecastResponse.body);
+          final List<dynamic> list = forecastData['list'];
+          // نأخذ توقعات كل 24 ساعة (كل 8 عناصر)
+          for (int i = 0; i < list.length; i += 8) {
+            forecast.add(ForecastModel.fromJson(list[i]));
+          }
+        }
+
         if (mounted) {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => WeatherDisplayScreen(weather: weather),
+              builder: (context) => WeatherDisplayScreen(
+                weather: weather,
+                forecast: forecast,
+              ),
             ),
           );
           _cityController.clear();
@@ -212,6 +253,15 @@ class _CityInputScreenState extends State<CityInputScreen> {
                         ),
                 ),
               ),
+              // ✅ التعديل: زر المدن المفضلة
+              const SizedBox(height: 16),
+              TextButton.icon(
+                onPressed: () {
+                  // سيتم تنفيذه لاحقاً
+                },
+                icon: const Icon(Icons.favorite_border),
+                label: const Text('المدن المفضلة'),
+              ),
             ],
           ),
         ),
@@ -221,12 +271,41 @@ class _CityInputScreenState extends State<CityInputScreen> {
 }
 
 // ========== الشاشة الثانية: عرض الطقس ==========
-class WeatherDisplayScreen extends StatelessWidget {
+class WeatherDisplayScreen extends StatefulWidget {
   final WeatherModel weather;
+  final List<ForecastModel> forecast;
 
-  const WeatherDisplayScreen({super.key, required this.weather});
+  const WeatherDisplayScreen({
+    super.key,
+    required this.weather,
+    this.forecast = const [],
+  });
 
-  // دالة للحصول على أيقونة الطقس المناسبة
+  @override
+  State<WeatherDisplayScreen> createState() => _WeatherDisplayScreenState();
+}
+
+class _WeatherDisplayScreenState extends State<WeatherDisplayScreen>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _animationController;
+  bool _isFavorite = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // ✅ التعديل: حركة الخلفية
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 10),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
+
   IconData _getWeatherIcon(String iconCode) {
     switch (iconCode) {
       case '01d':
@@ -260,14 +339,45 @@ class WeatherDisplayScreen extends StatelessWidget {
     }
   }
 
+  // ✅ التعديل: لون الخلفية حسب درجة الحرارة
+  Color _getBackgroundColor(double temp) {
+    if (temp > 30) return Colors.orange.shade200;
+    if (temp > 20) return Colors.blue.shade200;
+    if (temp > 10) return Colors.blue.shade300;
+    if (temp > 0) return Colors.blue.shade400;
+    return Colors.blue.shade900;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('🌤️ ${weather.cityName}'),
-        backgroundColor: Colors.blue,
+        title: Text('🌤️ ${widget.weather.cityName}'),
+        backgroundColor: _getBackgroundColor(widget.weather.temperature),
         foregroundColor: Colors.white,
         actions: [
+          // ✅ التعديل: زر المفضلة
+          IconButton(
+            onPressed: () {
+              setState(() {
+                _isFavorite = !_isFavorite;
+              });
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    _isFavorite
+                        ? 'تمت إضافة ${widget.weather.cityName} إلى المفضلة'
+                        : 'تمت إزالة ${widget.weather.cityName} من المفضلة',
+                  ),
+                  duration: const Duration(seconds: 2),
+                ),
+              );
+            },
+            icon: Icon(
+              _isFavorite ? Icons.favorite : Icons.favorite_border,
+              color: _isFavorite ? Colors.red : Colors.white,
+            ),
+          ),
           IconButton(
             onPressed: () {
               Navigator.pop(context);
@@ -277,110 +387,216 @@ class WeatherDisplayScreen extends StatelessWidget {
           ),
         ],
       ),
-      body: Container(
+      body: AnimatedContainer(
+        duration: const Duration(milliseconds: 500),
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              Colors.blue.shade200,
-              Colors.blue.shade50,
+              _getBackgroundColor(widget.weather.temperature),
+              Colors.white,
             ],
           ),
         ),
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              const SizedBox(height: 20),
-              // الأيقونة ودرجة الحرارة
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    _getWeatherIcon(weather.iconCode),
-                    size: 80,
-                    color: Colors.blue.shade700,
-                  ),
-                  const SizedBox(width: 16),
-                  Text(
-                    '${weather.temperature.toStringAsFixed(1)}°C',
-                    style: const TextStyle(
-                      fontSize: 48,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.blue,
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // ✅ التعديل: تاريخ ووقت التحديث
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'آخر تحديث: ${widget.weather.timestamp.hour}:${widget.weather.timestamp.minute.toString().padLeft(2, '0')}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade600,
+                      ),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                weather.description,
-                style: TextStyle(
-                  fontSize: 20,
-                  color: Colors.blue.shade700,
+                    // ✅ التعديل: حالة الطقس بالعربي
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.3),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        widget.weather.description,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 32),
-              // بطاقات التفاصيل
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildDetailCard(
-                      icon: Icons.thermostat,
-                      label: 'محسوسة',
-                      value: '${weather.feelsLike.toStringAsFixed(1)}°C',
+                const SizedBox(height: 20),
+                // الأيقونة ودرجة الحرارة
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    AnimatedBuilder(
+                      animation: _animationController,
+                      builder: (context, child) {
+                        return Transform.rotate(
+                          angle: _animationController.value * 0.1,
+                          child: Icon(
+                            _getWeatherIcon(widget.weather.iconCode),
+                            size: 80,
+                            color: Colors.blue.shade700,
+                          ),
+                        );
+                      },
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _buildDetailCard(
-                      icon: Icons.water_drop,
-                      label: 'الرطوبة',
-                      value: '${weather.humidity}%',
+                    const SizedBox(width: 16),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${widget.weather.temperature.toStringAsFixed(1)}°C',
+                          style: const TextStyle(
+                            fontSize: 48,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.blue,
+                          ),
+                        ),
+                        Text(
+                          'محسوسة: ${widget.weather.feelsLike.toStringAsFixed(1)}°C',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildDetailCard(
-                      icon: Icons.air,
-                      label: 'الرياح',
-                      value: '${weather.windSpeed.toStringAsFixed(1)} m/s',
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _buildDetailCard(
-                      icon: Icons.location_city,
-                      label: 'المدينة',
-                      value: weather.cityName,
-                    ),
-                  ),
-                ],
-              ),
-              const Spacer(),
-              // زر العودة
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: () {
-                    Navigator.pop(context);
-                  },
-                  icon: const Icon(Icons.arrow_back),
-                  label: const Text('البحث عن مدينة أخرى'),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.all(16),
-                    side: BorderSide(color: Colors.blue.shade300),
-                  ),
+                  ],
                 ),
-              ),
-            ],
+                const SizedBox(height: 24),
+                // بطاقات التفاصيل
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildDetailCard(
+                        icon: Icons.water_drop,
+                        label: 'الرطوبة',
+                        value: '${widget.weather.humidity}%',
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _buildDetailCard(
+                        icon: Icons.air,
+                        label: 'الرياح',
+                        value: '${widget.weather.windSpeed.toStringAsFixed(1)} m/s',
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                // ✅ التعديل: توقعات 5 أيام
+                if (widget.forecast.isNotEmpty) ...[
+                  const Align(
+                    alignment: Alignment.centerRight,
+                    child: Text(
+                      'توقعات 5 أيام:',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    height: 100,
+                    child: ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: widget.forecast.length,
+                      itemBuilder: (context, index) {
+                        final forecast = widget.forecast[index];
+                        return Container(
+                          width: 80,
+                          margin: const EdgeInsets.only(right: 8),
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.5),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                '${forecast.date.day}/${forecast.date.month}',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              Icon(
+                                _getWeatherIcon(forecast.iconCode),
+                                size: 30,
+                                color: Colors.blue.shade700,
+                              ),
+                              Text(
+                                '${forecast.temperature.toStringAsFixed(0)}°C',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+                const Spacer(),
+                // زر العودة
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          Navigator.pop(context);
+                        },
+                        icon: const Icon(Icons.arrow_back),
+                        label: const Text('بحث عن مدينة أخرى'),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.all(16),
+                          side: BorderSide(color: Colors.blue.shade300),
+                        ),
+                      ),
+                    ),
+                    // ✅ التعديل: زر مشاركة الطقس
+                    const SizedBox(width: 12),
+                    CircleAvatar(
+                      backgroundColor: Colors.blue.shade100,
+                      child: IconButton(
+                        onPressed: () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('📤 تم نسخ معلومات الطقس'),
+                              duration: Duration(seconds: 2),
+                            ),
+                          );
+                        },
+                        icon: Icon(
+                          Icons.share,
+                          color: Colors.blue.shade700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
