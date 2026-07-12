@@ -1093,6 +1093,8 @@ class MainController extends GetxController {
 // 6. التشغيل الرئيسي
 // ============================================================
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  Get.put(MainController());
   runApp(MyApp());
 }
 
@@ -2291,7 +2293,7 @@ class ProgressScreen extends StatelessWidget {
           Text(icon, style: TextStyle(fontSize: 24)),
           SizedBox(height: 4),
           Text(value, style: TextStyle(color: color, fontSize: 24, fontWeight: FontWeight.bold)),
-          Text(label, style: TextStyle(color: AppColors.metallicGray, fontSize: 12, textAlign: TextAlign.center)),
+          Text(label,textAlign: TextAlign.center, style: TextStyle(color: AppColors.metallicGray, fontSize: 12, )),
         ],
       ),
     );
