@@ -1,0 +1,715 @@
+
+Launching lib\main.dart on Chrome in debug mode...
+Error: Couldn't resolve the package 'get' in 'package:get/get.dart'.
+Error: Couldn't resolve the package 'shared_preferences' in 'package:shared_preferences/shared_preferences.dart'.
+Error: Couldn't resolve the package 'flutter_tts' in 'package:flutter_tts/flutter_tts.dart'.
+Error: Couldn't resolve the package 'flutter_local_notifications' in 'package:flutter_local_notifications/flutter_local_notifications.dart'.
+Error: Couldn't resolve the package 'http' in 'package:http/http.dart'.
+lib/main.dart:3:8: Error: Not found: 'package:get/get.dart'
+import 'package:get/get.dart';
+       ^
+lib/main.dart:4:8: Error: Not found: 'package:shared_preferences/shared_preferences.dart'
+import 'package:shared_preferences/shared_preferences.dart';
+       ^
+lib/main.dart:5:8: Error: Not found: 'package:flutter_tts/flutter_tts.dart'
+import 'package:flutter_tts/flutter_tts.dart';
+       ^
+lib/main.dart:6:8: Error: Not found: 'package:flutter_local_notifications/flutter_local_notifications.dart'
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+       ^
+lib/main.dart:7:8: Error: Not found: 'package:http/http.dart'
+import 'package:http/http.dart' as http;
+       ^
+lib/main.dart:263:30: Error: Type 'GetxController' not found.
+class MainController extends GetxController {
+                             ^^^^^^^^^^^^^^
+lib/main.dart:301:8: Error: Type 'FlutterTts' not found.
+  late FlutterTts flutterTts;
+       ^^^^^^^^^^
+lib/main.dart:332:3: Error: Type 'FlutterLocalNotificationsPlugin' not found.
+  FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
+  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+lib/main.dart:265:26: Error: The getter 'obs' isn't defined for the type 'bool'.
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'obs'.
+  var isLoggedIn = false.obs;
+                         ^^^
+lib/main.dart:266:21: Error: Method not found: 'Rxn'.
+  var currentUser = Rxn<User>();
+                    ^^^
+lib/main.dart:267:25: Error: The getter 'obs' isn't defined for the type 'bool'.
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'obs'.
+  var isLoading = false.obs;
+                        ^^^
+lib/main.dart:268:23: Error: The getter 'obs' isn't defined for the type 'int'.
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'obs'.
+  var currentPage = 0.obs;
+                      ^^^
+lib/main.dart:271:32: Error: The getter 'obs' isn't defined for the type 'List<Exercise>'.
+ - 'List' is from 'dart:core'.
+ - 'Exercise' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'obs'.
+  var exercises = <Exercise>[].obs;
+                               ^^^
+lib/main.dart:272:40: Error: The getter 'obs' isn't defined for the type 'List<Exercise>'.
+ - 'List' is from 'dart:core'.
+ - 'Exercise' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'obs'.
+  var filteredExercises = <Exercise>[].obs;
+                                       ^^^
+lib/main.dart:273:43: Error: The getter 'obs' isn't defined for the type 'List<Exercise>'.
+ - 'List' is from 'dart:core'.
+ - 'Exercise' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'obs'.
+  var recommendedExercises = <Exercise>[].obs;
+                                          ^^^
+lib/main.dart:276:24: Error: The getter 'obs' isn't defined for the type 'List<Meal>'.
+ - 'List' is from 'dart:core'.
+ - 'Meal' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'obs'.
+  var meals = <Meal>[].obs;
+                       ^^^
+lib/main.dart:277:32: Error: The getter 'obs' isn't defined for the type 'List<Meal>'.
+ - 'List' is from 'dart:core'.
+ - 'Meal' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'obs'.
+  var filteredMeals = <Meal>[].obs;
+                               ^^^
+lib/main.dart:280:24: Error: The getter 'obs' isn't defined for the type 'String'.
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'obs'.
+  var searchQuery = ''.obs;
+                       ^^^
+lib/main.dart:281:30: Error: The getter 'obs' isn't defined for the type 'String'.
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'obs'.
+  var selectedLevel = 'الكل'.obs;
+                             ^^^
+lib/main.dart:282:29: Error: The getter 'obs' isn't defined for the type 'String'.
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'obs'.
+  var selectedType = 'الكل'.obs;
+                            ^^^
+lib/main.dart:283:33: Error: The getter 'obs' isn't defined for the type 'String'.
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'obs'.
+  var selectedBodyPart = 'الكل'.obs;
+                                ^^^
+lib/main.dart:284:28: Error: The getter 'obs' isn't defined for the type 'double'.
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'obs'.
+  var durationRange = 30.0.obs;
+                           ^^^
+lib/main.dart:285:24: Error: The getter 'obs' isn't defined for the type 'int'.
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'obs'.
+  var ratingFilter = 0.obs;
+                       ^^^
+lib/main.dart:288:28: Error: The getter 'obs' isn't defined for the type 'String'.
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'obs'.
+  var mealSearchQuery = ''.obs;
+                           ^^^
+lib/main.dart:289:33: Error: The getter 'obs' isn't defined for the type 'String'.
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'obs'.
+  var selectedMealType = 'الكل'.obs;
+                                ^^^
+lib/main.dart:292:22: Error: The getter 'obs' isn't defined for the type 'int'.
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'obs'.
+  var todaySteps = 0.obs;
+                     ^^^
+lib/main.dart:293:25: Error: The getter 'obs' isn't defined for the type 'int'.
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'obs'.
+  var todayCalories = 0.obs;
+                        ^^^
+lib/main.dart:294:22: Error: The getter 'obs' isn't defined for the type 'int'.
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'obs'.
+  var todayWater = 0.obs;
+                     ^^^
+lib/main.dart:295:32: Error: The getter 'obs' isn't defined for the type 'int'.
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'obs'.
+  var todayExerciseMinutes = 0.obs;
+                               ^^^
+lib/main.dart:298:47: Error: The getter 'obs' isn't defined for the type 'List<Map<String, String>>'.
+ - 'List' is from 'dart:core'.
+ - 'Map' is from 'dart:core'.
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'obs'.
+  var notifications = <Map<String, String>>[].obs;
+                                              ^^^
+lib/main.dart:302:26: Error: The getter 'obs' isn't defined for the type 'bool'.
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'obs'.
+  var isSpeaking = false.obs;
+                         ^^^
+lib/main.dart:305:44: Error: The getter 'obs' isn't defined for the type 'List<Map<String, String>>'.
+ - 'List' is from 'dart:core'.
+ - 'Map' is from 'dart:core'.
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'obs'.
+  var aiMessages = <Map<String, String>>[].obs;
+                                           ^^^
+lib/main.dart:306:25: Error: The getter 'obs' isn't defined for the type 'bool'.
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'obs'.
+  var aiLoading = false.obs;
+                        ^^^
+lib/main.dart:1127:30: Error: The getter 'obs' isn't defined for the type 'String'.
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'obs'.
+  var selectedGender = 'ذكر'.obs;
+                             ^^^
+lib/main.dart:1128:31: Error: The getter 'obs' isn't defined for the type 'String'.
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'obs'.
+  var selectedLevel = 'مبتدئ'.obs;
+                              ^^^
+lib/main.dart:1129:35: Error: The getter 'obs' isn't defined for the type 'String'.
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'obs'.
+  var selectedGoal = 'لياقة عامة'.obs;
+                                  ^^^
+lib/main.dart:301:8: Error: 'FlutterTts' isn't a type.
+  late FlutterTts flutterTts;
+       ^^^^^^^^^^
+lib/main.dart:332:3: Error: 'FlutterLocalNotificationsPlugin' isn't a type.
+  FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
+  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+lib/main.dart:332:69: Error: Method not found: 'FlutterLocalNotificationsPlugin'.
+  FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
+                                                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+lib/main.dart:337:11: Error: Superclass has no method named 'onInit'.
+    super.onInit();
+          ^^^^^^
+lib/main.dart:348:18: Error: The method 'FlutterTts' isn't defined for the type 'MainController'.
+ - 'MainController' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'FlutterTts'.
+    flutterTts = FlutterTts();
+                 ^^^^^^^^^^
+lib/main.dart:367:11: Error: 'AndroidInitializationSettings' isn't a type.
+    const AndroidInitializationSettings initializationSettingsAndroid =
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+lib/main.dart:368:9: Error: Not a constant expression.
+        AndroidInitializationSettings('@mipmap/ic_launcher');
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+lib/main.dart:369:11: Error: 'DarwinInitializationSettings' isn't a type.
+    const DarwinInitializationSettings initializationSettingsIOS =
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+lib/main.dart:370:9: Error: Not a constant expression.
+        DarwinInitializationSettings();
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+lib/main.dart:371:11: Error: 'InitializationSettings' isn't a type.
+    const InitializationSettings initializationSettings = InitializationSettings(
+          ^^^^^^^^^^^^^^^^^^^^^^
+lib/main.dart:371:59: Error: Not a constant expression.
+    const InitializationSettings initializationSettings = InitializationSettings(
+                                                          ^^^^^^^^^^^^^^^^^^^^^^
+lib/main.dart:381:7: Error: 'SharedPreferences' isn't a type.
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      ^^^^^^^^^^^^^^^^^
+lib/main.dart:381:39: Error: The getter 'SharedPreferences' isn't defined for the type 'MainController'.
+ - 'MainController' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'SharedPreferences'.
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+                                      ^^^^^^^^^^^^^^^^^
+lib/main.dart:397:7: Error: 'SharedPreferences' isn't a type.
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      ^^^^^^^^^^^^^^^^^
+lib/main.dart:397:39: Error: The getter 'SharedPreferences' isn't defined for the type 'MainController'.
+ - 'MainController' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'SharedPreferences'.
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+                                      ^^^^^^^^^^^^^^^^^
+lib/main.dart:425:7: Error: The getter 'Get' isn't defined for the type 'MainController'.
+ - 'MainController' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'Get'.
+      Get.snackbar('خطأ', e.toString(), backgroundColor: AppColors.dangerRed);
+      ^^^
+lib/main.dart:433:7: Error: 'SharedPreferences' isn't a type.
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      ^^^^^^^^^^^^^^^^^
+lib/main.dart:433:39: Error: The getter 'SharedPreferences' isn't defined for the type 'MainController'.
+ - 'MainController' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'SharedPreferences'.
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+                                      ^^^^^^^^^^^^^^^^^
+lib/main.dart:470:7: Error: The getter 'Get' isn't defined for the type 'MainController'.
+ - 'MainController' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'Get'.
+      Get.snackbar('خطأ', e.toString(), backgroundColor: AppColors.dangerRed);
+      ^^^
+lib/main.dart:477:7: Error: 'SharedPreferences' isn't a type.
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      ^^^^^^^^^^^^^^^^^
+lib/main.dart:477:39: Error: The getter 'SharedPreferences' isn't defined for the type 'MainController'.
+ - 'MainController' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'SharedPreferences'.
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+                                      ^^^^^^^^^^^^^^^^^
+lib/main.dart:483:13: Error: The getter 'Get' isn't defined for the type 'MainController'.
+ - 'MainController' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'Get'.
+            Get.snackbar('نجاح', 'تم إرسال رابط استرجاع كلمة المرور إلى بريدك', backgroundColor: AppColors.successGreen);
+            ^^^
+lib/main.dart:488:7: Error: The getter 'Get' isn't defined for the type 'MainController'.
+ - 'MainController' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'Get'.
+      Get.snackbar('خطأ', 'البريد الإلكتروني غير موجود', backgroundColor: AppColors.dangerRed);
+      ^^^
+lib/main.dart:491:7: Error: The getter 'Get' isn't defined for the type 'MainController'.
+ - 'MainController' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'Get'.
+      Get.snackbar('خطأ', e.toString(), backgroundColor: AppColors.dangerRed);
+      ^^^
+lib/main.dart:497:5: Error: 'SharedPreferences' isn't a type.
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    ^^^^^^^^^^^^^^^^^
+lib/main.dart:497:37: Error: The getter 'SharedPreferences' isn't defined for the type 'MainController'.
+ - 'MainController' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'SharedPreferences'.
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+                                    ^^^^^^^^^^^^^^^^^
+lib/main.dart:501:5: Error: The getter 'Get' isn't defined for the type 'MainController'.
+ - 'MainController' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'Get'.
+    Get.offAllNamed('/login');
+    ^^^
+lib/main.dart:515:7: Error: 'SharedPreferences' isn't a type.
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      ^^^^^^^^^^^^^^^^^
+lib/main.dart:515:39: Error: The getter 'SharedPreferences' isn't defined for the type 'MainController'.
+ - 'MainController' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'SharedPreferences'.
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+                                      ^^^^^^^^^^^^^^^^^
+lib/main.dart:531:7: Error: The getter 'Get' isn't defined for the type 'MainController'.
+ - 'MainController' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'Get'.
+      Get.snackbar('نجاح', 'تم تحديث البيانات بنجاح', backgroundColor: AppColors.successGreen);
+      ^^^
+lib/main.dart:716:7: Error: The getter 'Get' isn't defined for the type 'MainController'.
+ - 'MainController' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'Get'.
+      Get.snackbar('🎉 أحسنت!', 'تم إكمال ${exercise.name}', backgroundColor: AppColors.successGreen);
+      ^^^
+lib/main.dart:733:7: Error: The getter 'Get' isn't defined for the type 'MainController'.
+ - 'MainController' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'Get'.
+      Get.snackbar('🍽️ تم التسجيل', 'تم إضافة ${meal.name}', backgroundColor: AppColors.electricBlue);
+      ^^^
+lib/main.dart:739:7: Error: 'SharedPreferences' isn't a type.
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      ^^^^^^^^^^^^^^^^^
+lib/main.dart:739:39: Error: The getter 'SharedPreferences' isn't defined for the type 'MainController'.
+ - 'MainController' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'SharedPreferences'.
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+                                      ^^^^^^^^^^^^^^^^^
+lib/main.dart:841:11: Error: 'AndroidNotificationDetails' isn't a type.
+    const AndroidNotificationDetails androidPlatformChannelSpecifics =
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^
+lib/main.dart:845:19: Error: Not a constant expression.
+      importance: Importance.max,
+                  ^^^^^^^^^^
+lib/main.dart:846:17: Error: Not a constant expression.
+      priority: Priority.high,
+                ^^^^^^^^
+lib/main.dart:842:9: Error: Not a constant expression.
+        AndroidNotificationDetails(
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+lib/main.dart:848:11: Error: 'NotificationDetails' isn't a type.
+    const NotificationDetails platformChannelSpecifics =
+          ^^^^^^^^^^^^^^^^^^^
+lib/main.dart:849:9: Error: Not a constant expression.
+        NotificationDetails(android: androidPlatformChannelSpecifics);
+        ^^^^^^^^^^^^^^^^^^^
+lib/main.dart:896:9: Error: The method 'GetPage' isn't defined for the type 'MyApp'.
+ - 'MyApp' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'GetPage'.
+        GetPage(name: '/', page: () => SplashScreen()),
+        ^^^^^^^
+lib/main.dart:897:9: Error: The method 'GetPage' isn't defined for the type 'MyApp'.
+ - 'MyApp' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'GetPage'.
+        GetPage(name: '/login', page: () => LoginScreen()),
+        ^^^^^^^
+lib/main.dart:898:9: Error: The method 'GetPage' isn't defined for the type 'MyApp'.
+ - 'MyApp' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'GetPage'.
+        GetPage(name: '/register', page: () => RegisterScreen()),
+        ^^^^^^^
+lib/main.dart:899:9: Error: The method 'GetPage' isn't defined for the type 'MyApp'.
+ - 'MyApp' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'GetPage'.
+        GetPage(name: '/forgot-password', page: () => ForgotPasswordScreen()),
+        ^^^^^^^
+lib/main.dart:900:9: Error: The method 'GetPage' isn't defined for the type 'MyApp'.
+ - 'MyApp' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'GetPage'.
+        GetPage(name: '/home', page: () => HomeScreen()),
+        ^^^^^^^
+lib/main.dart:887:12: Error: The method 'GetMaterialApp' isn't defined for the type 'MyApp'.
+ - 'MyApp' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'GetMaterialApp'.
+    return GetMaterialApp(
+           ^^^^^^^^^^^^^^
+lib/main.dart:915:37: Error: Undefined name 'Get'.
+  final MainController controller = Get.put(MainController());
+                                    ^^^
+lib/main.dart:922:9: Error: The getter 'Get' isn't defined for the type '_SplashScreenState'.
+ - '_SplashScreenState' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'Get'.
+        Get.offAllNamed('/home');
+        ^^^
+lib/main.dart:924:9: Error: The getter 'Get' isn't defined for the type '_SplashScreenState'.
+ - '_SplashScreenState' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'Get'.
+        Get.offAllNamed('/login');
+        ^^^
+lib/main.dart:969:37: Error: Undefined name 'Get'.
+  final MainController controller = Get.find();
+                                    ^^^
+lib/main.dart:1041:36: Error: The getter 'Get' isn't defined for the type 'LoginScreen'.
+ - 'LoginScreen' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'Get'.
+                  onPressed: () => Get.toNamed('/forgot-password'),
+                                   ^^^
+lib/main.dart:1063:31: Error: The getter 'Get' isn't defined for the type 'LoginScreen'.
+ - 'LoginScreen' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'Get'.
+                              Get.offAllNamed('/home');
+                              ^^^
+lib/main.dart:1050:15: Error: The method 'Obx' isn't defined for the type 'LoginScreen'.
+ - 'LoginScreen' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'Obx'.
+              Obx(() {
+              ^^^
+lib/main.dart:1095:38: Error: The getter 'Get' isn't defined for the type 'LoginScreen'.
+ - 'LoginScreen' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'Get'.
+                    onPressed: () => Get.toNamed('/register'),
+                                     ^^^
+lib/main.dart:1118:37: Error: Undefined name 'Get'.
+  final MainController controller = Get.find();
+                                    ^^^
+lib/main.dart:1140:28: Error: The getter 'Get' isn't defined for the type 'RegisterScreen'.
+ - 'RegisterScreen' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'Get'.
+          onPressed: () => Get.back(),
+                           ^^^
+lib/main.dart:1276:28: Error: The method 'Obx' isn't defined for the type 'RegisterScreen'.
+ - 'RegisterScreen' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'Obx'.
+                    child: Obx(() => GestureDetector(
+                           ^^^
+lib/main.dart:1295:28: Error: The method 'Obx' isn't defined for the type 'RegisterScreen'.
+ - 'RegisterScreen' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'Obx'.
+                    child: Obx(() => GestureDetector(
+                           ^^^
+lib/main.dart:1320:26: Error: The method 'Obx' isn't defined for the type 'RegisterScreen'.
+ - 'RegisterScreen' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'Obx'.
+                  return Obx(() => GestureDetector(
+                         ^^^
+lib/main.dart:1336:20: Error: The argument type 'List<dynamic>' can't be assigned to the parameter type 'List<Widget>'.
+ - 'List' is from 'dart:core'.
+ - 'Widget' is from 'package:flutter/src/widgets/framework.dart' ('/C:/flutter/flutter/packages/flutter/lib/src/widgets/framework.dart').
+                }).toList(),
+                   ^
+lib/main.dart:1344:26: Error: The method 'Obx' isn't defined for the type 'RegisterScreen'.
+ - 'RegisterScreen' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'Obx'.
+                  return Obx(() => GestureDetector(
+                         ^^^
+lib/main.dart:1360:20: Error: The argument type 'List<dynamic>' can't be assigned to the parameter type 'List<Widget>'.
+ - 'List' is from 'dart:core'.
+ - 'Widget' is from 'package:flutter/src/widgets/framework.dart' ('/C:/flutter/flutter/packages/flutter/lib/src/widgets/framework.dart').
+                }).toList(),
+                   ^
+lib/main.dart:1373:31: Error: The getter 'Get' isn't defined for the type 'RegisterScreen'.
+ - 'RegisterScreen' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'Get'.
+                              Get.snackbar('خطأ', 'كلمة المرور غير متطابقة', backgroundColor: AppColors.dangerRed);
+                              ^^^
+lib/main.dart:1391:31: Error: The getter 'Get' isn't defined for the type 'RegisterScreen'.
+ - 'RegisterScreen' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'Get'.
+                              Get.offAllNamed('/home');
+                              ^^^
+lib/main.dart:1364:15: Error: The method 'Obx' isn't defined for the type 'RegisterScreen'.
+ - 'RegisterScreen' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'Obx'.
+              Obx(() {
+              ^^^
+lib/main.dart:1425:37: Error: Undefined name 'Get'.
+  final MainController controller = Get.find();
+                                    ^^^
+lib/main.dart:1437:28: Error: The getter 'Get' isn't defined for the type 'ForgotPasswordScreen'.
+ - 'ForgotPasswordScreen' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'Get'.
+          onPressed: () => Get.back(),
+                           ^^^
+lib/main.dart:1475:19: Error: The getter 'Get' isn't defined for the type 'ForgotPasswordScreen'.
+ - 'ForgotPasswordScreen' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'Get'.
+                  Get.back();
+                  ^^^
+lib/main.dart:1504:37: Error: Undefined name 'Get'.
+  final MainController controller = Get.find();
+                                    ^^^
+lib/main.dart:1531:15: Error: The getter 'Get' isn't defined for the type 'HomeScreen'.
+ - 'HomeScreen' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'Get'.
+              Get.defaultDialog(
+              ^^^
+lib/main.dart:1542:19: Error: The getter 'Get' isn't defined for the type 'HomeScreen'.
+ - 'HomeScreen' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'Get'.
+                  Get.back();
+                  ^^^
+lib/main.dart:1549:13: Error: The method 'Obx' isn't defined for the type 'HomeScreen'.
+ - 'HomeScreen' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'Obx'.
+      body: Obx(() {
+            ^^^
+lib/main.dart:1561:28: Error: The method 'Obx' isn't defined for the type 'HomeScreen'.
+ - 'HomeScreen' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'Obx'.
+      bottomNavigationBar: Obx(() {
+                           ^^^
+lib/main.dart:1605:11: Error: The method 'Obx' isn't defined for the type 'HomeContent'.
+ - 'HomeContent' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'Obx'.
+          Obx(() {
+          ^^^
+lib/main.dart:1633:26: Error: The method 'Obx' isn't defined for the type 'HomeContent'.
+ - 'HomeContent' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'Obx'.
+                  value: Obx(() => Text(
+                         ^^^
+lib/main.dart:1645:26: Error: The method 'Obx' isn't defined for the type 'HomeContent'.
+ - 'HomeContent' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'Obx'.
+                  value: Obx(() => Text(
+                         ^^^
+lib/main.dart:1661:26: Error: The method 'Obx' isn't defined for the type 'HomeContent'.
+ - 'HomeContent' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'Obx'.
+                  value: Obx(() => Text(
+                         ^^^
+lib/main.dart:1673:26: Error: The method 'Obx' isn't defined for the type 'HomeContent'.
+ - 'HomeContent' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'Obx'.
+                  value: Obx(() => Text(
+                         ^^^
+lib/main.dart:1684:11: Error: The method 'Obx' isn't defined for the type 'HomeContent'.
+ - 'HomeContent' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'Obx'.
+          Obx(() {
+          ^^^
+lib/main.dart:1790:29: Error: The getter 'Get' isn't defined for the type 'HomeContent'.
+ - 'HomeContent' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'Get'.
+                            Get.bottomSheet(
+                            ^^^
+lib/main.dart:1755:11: Error: The method 'Obx' isn't defined for the type 'HomeContent'.
+ - 'HomeContent' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'Obx'.
+          Obx(() {
+          ^^^
+lib/main.dart:1823:17: Error: The getter 'Get' isn't defined for the type 'HomeContent'.
+ - 'HomeContent' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'Get'.
+                Get.snackbar('🔔 تم', 'تم جدولة التذكيرات اليومية', backgroundColor: AppColors.successGreen);
+                ^^^
+lib/main.dart:1913:11: Error: The method 'Obx' isn't defined for the type 'ExercisesScreen'.
+ - 'ExercisesScreen' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'Obx'.
+          Obx(() {
+          ^^^
+lib/main.dart:1958:21: Error: The getter 'Get' isn't defined for the type 'ExercisesScreen'.
+ - 'ExercisesScreen' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'Get'.
+                    Get.snackbar('🧹 تم المسح', 'تم إلغاء جميع الفلاتر', backgroundColor: AppColors.metallicGray);
+                    ^^^
+lib/main.dart:1945:11: Error: The method 'Obx' isn't defined for the type 'ExercisesScreen'.
+ - 'ExercisesScreen' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'Obx'.
+          Obx(() {
+          ^^^
+lib/main.dart:1969:20: Error: The method 'Obx' isn't defined for the type 'ExercisesScreen'.
+ - 'ExercisesScreen' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'Obx'.
+            child: Obx(() {
+                   ^^^
+lib/main.dart:2020:9: Error: The getter 'Get' isn't defined for the type 'ExercisesScreen'.
+ - 'ExercisesScreen' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'Get'.
+        Get.bottomSheet(
+        ^^^
+lib/main.dart:2105:5: Error: The getter 'Get' isn't defined for the type 'ExercisesScreen'.
+ - 'ExercisesScreen' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'Get'.
+    Get.bottomSheet(
+    ^^^
+lib/main.dart:2126:26: Error: The method 'Obx' isn't defined for the type 'ExercisesScreen'.
+ - 'ExercisesScreen' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'Obx'.
+                  return Obx(() => GestureDetector(
+                         ^^^
+lib/main.dart:2140:20: Error: The argument type 'List<dynamic>' can't be assigned to the parameter type 'List<Widget>'.
+ - 'List' is from 'dart:core'.
+ - 'Widget' is from 'package:flutter/src/widgets/framework.dart' ('/C:/flutter/flutter/packages/flutter/lib/src/widgets/framework.dart').
+                }).toList(),
+                   ^
+lib/main.dart:2150:26: Error: The method 'Obx' isn't defined for the type 'ExercisesScreen'.
+ - 'ExercisesScreen' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'Obx'.
+                  return Obx(() => GestureDetector(
+                         ^^^
+lib/main.dart:2164:20: Error: The argument type 'List<dynamic>' can't be assigned to the parameter type 'List<Widget>'.
+ - 'List' is from 'dart:core'.
+ - 'Widget' is from 'package:flutter/src/widgets/framework.dart' ('/C:/flutter/flutter/packages/flutter/lib/src/widgets/framework.dart').
+                }).toList(),
+                   ^
+lib/main.dart:2170:15: Error: The method 'Obx' isn't defined for the type 'ExercisesScreen'.
+ - 'ExercisesScreen' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'Obx'.
+              Obx(() => Slider(
+              ^^^
+lib/main.dart:2186:36: Error: The getter 'Get' isn't defined for the type 'ExercisesScreen'.
+ - 'ExercisesScreen' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'Get'.
+                  onPressed: () => Get.back(),
+                                   ^^^
+lib/main.dart:2240:22: Error: The method 'Obx' isn't defined for the type 'NutritionScreen'.
+ - 'NutritionScreen' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'Obx'.
+              return Obx(() => GestureDetector(
+                     ^^^
+lib/main.dart:2254:16: Error: The argument type 'List<dynamic>' can't be assigned to the parameter type 'List<Widget>'.
+ - 'List' is from 'dart:core'.
+ - 'Widget' is from 'package:flutter/src/widgets/framework.dart' ('/C:/flutter/flutter/packages/flutter/lib/src/widgets/framework.dart').
+            }).toList(),
+               ^
+lib/main.dart:2259:11: Error: The method 'Obx' isn't defined for the type 'NutritionScreen'.
+ - 'NutritionScreen' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'Obx'.
+          Obx(() {
+          ^^^
+lib/main.dart:2274:20: Error: The method 'Obx' isn't defined for the type 'NutritionScreen'.
+ - 'NutritionScreen' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'Obx'.
+            child: Obx(() {
+                   ^^^
+lib/main.dart:2426:21: Error: The getter 'Get' isn't defined for the type 'ProfileScreen'.
+ - 'ProfileScreen' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'Get'.
+                    Get.defaultDialog(
+                    ^^^
+lib/main.dart:2437:25: Error: The getter 'Get' isn't defined for the type 'ProfileScreen'.
+ - 'ProfileScreen' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'Get'.
+                        Get.back();
+                        ^^^
+lib/main.dart:2367:12: Error: The method 'Obx' isn't defined for the type 'ProfileScreen'.
+ - 'ProfileScreen' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'Obx'.
+    return Obx(() {
+           ^^^
+lib/main.dart:2486:43: Error: The getter 'obs' isn't defined for the type 'String'.
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'obs'.
+    var selectedLevel = user.fitnessLevel.obs;
+                                          ^^^
+lib/main.dart:2487:34: Error: The getter 'obs' isn't defined for the type 'String'.
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'obs'.
+    var selectedGoal = user.goal.obs;
+                                 ^^^
+lib/main.dart:2489:5: Error: The getter 'Get' isn't defined for the type 'ProfileScreen'.
+ - 'ProfileScreen' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'Get'.
+    Get.bottomSheet(
+    ^^^
+lib/main.dart:2560:26: Error: The method 'Obx' isn't defined for the type 'ProfileScreen'.
+ - 'ProfileScreen' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'Obx'.
+                  return Obx(() => GestureDetector(
+                         ^^^
+lib/main.dart:2571:20: Error: The argument type 'List<dynamic>' can't be assigned to the parameter type 'List<Widget>'.
+ - 'List' is from 'dart:core'.
+ - 'Widget' is from 'package:flutter/src/widgets/framework.dart' ('/C:/flutter/flutter/packages/flutter/lib/src/widgets/framework.dart').
+                }).toList(),
+                   ^
+lib/main.dart:2579:26: Error: The method 'Obx' isn't defined for the type 'ProfileScreen'.
+ - 'ProfileScreen' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'Obx'.
+                  return Obx(() => GestureDetector(
+                         ^^^
+lib/main.dart:2590:20: Error: The argument type 'List<dynamic>' can't be assigned to the parameter type 'List<Widget>'.
+ - 'List' is from 'dart:core'.
+ - 'Widget' is from 'package:flutter/src/widgets/framework.dart' ('/C:/flutter/flutter/packages/flutter/lib/src/widgets/framework.dart').
+                }).toList(),
+                   ^
+lib/main.dart:2607:21: Error: The getter 'Get' isn't defined for the type 'ProfileScreen'.
+ - 'ProfileScreen' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'Get'.
+                    Get.back();
+                    ^^^
+lib/main.dart:2670:20: Error: The method 'Obx' isn't defined for the type 'AIChatScreen'.
+ - 'AIChatScreen' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'Obx'.
+            child: Obx(() {
+                   ^^^
+lib/main.dart:2850:23: Error: The getter 'Get' isn't defined for the type 'ExerciseDetailSheet'.
+ - 'ExerciseDetailSheet' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'Get'.
+                      Get.back();
+                      ^^^
+lib/main.dart:2864:23: Error: The getter 'Get' isn't defined for the type 'ExerciseDetailSheet'.
+ - 'ExerciseDetailSheet' is from 'package:my_app/main.dart' ('lib/main.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'Get'.
+                      Get.back();
+                      ^^^
+Unhandled exception:
+Unsupported operation: Unsupported invalid type InvalidType(<invalid>) (InvalidType). Encountered while compiling file:///C:/Users/Owner/Desktop/flutter/my_app/lib/main.dart, which contains the type: InvalidType(<invalid>).
+#0      LibraryCompiler._typeCompilationError (package:dev_compiler/src/kernel/compiler_new.dart:4480)
+#1      LibraryCompiler._emitType (package:dev_compiler/src/kernel/compiler_new.dart:4445)
+#2      LibraryCompiler._emitCast (package:dev_compiler/src/kernel/compiler_new.dart:8676)
+#3      LibraryCompiler.visitInstanceGet (package:dev_compiler/src/kernel/compiler_new.dart:6214)
+#4      InstanceGet.accept (package:kernel/src/ast/expressions.dart:586)
+#5      LibraryCompiler._visitExpression (package:dev_compiler/src/kernel/compiler_new.dart:5147)
+#6      LibraryCompiler._emitHotReloadChecksConditional (package:dev_compiler/src/kernel/compiler_new.dart:7759)
+#7      LibraryCompiler.visitInstanceGet (package:dev_compiler/src/kernel/compiler_new.dart:6207)
+#8      InstanceGet.accept (package:kernel/src/ast/expressions.dart:586)
+#9      LibraryCompiler._visitExpression (package:dev_compiler/src/kernel/compiler_new.dart:5147)
+#10     LibraryCompiler._emitDynamicInvocation (package:dev_compiler/src/kernel/compiler_new.dart:6787)
+#11     LibraryCompiler.visitDynamicInvocation (package:dev_compiler/src/kernel/compiler_new.dart:6536)
+#12     DynamicInvocation.accept (package:kernel/src/ast/expressions.dart:1602)
+#13     LibraryCompiler._visitExpression (package:dev_compiler/src/kernel/compiler_new.dart:5147)
+#14     LibraryCompiler.visitAwaitExpression (package:dev_compiler/src/kernel/compiler_new.dart:8870)
+#15     AwaitExpression.accept (package:kernel/src/ast/expressions.dart:4628)
+#16     LibraryCompiler._visitExpression (package:dev_compiler/src/kernel/compiler_new.dart:5147)
+#17     LibraryCompiler.visitExpressionStatement (package:dev_compiler/src/kernel/compiler_new.dart:5235)
+#18     ExpressionStatement.accept (package:kernel/src/ast/statements.dart:50)
+#19     LibraryCompiler._visitStatement (package:dev_compiler/src/kernel/compiler_new.dart:5044)
+#20     MappedIterable.elementAt (dart:_internal/iterable.dart:402)
+#21     ListIterator.moveNext (dart:_internal/iterable.dart:371)
+#22     new _GrowableList._ofEfficientLengthIterable (dart:core-patch/growable_array.dart:194)
+#23     new _GrowableList.of (dart:core-patch/growable_array.dart:154)
+#24     new List.of (dart:core-patch/array_patch.dart:39)
+#25     SetBase.toList (dart:collection/set.dart:119)
+#26     LibraryCompiler.visitBlock (package:dev_compiler/src/kernel/compiler_new.dart:5257)
+#27     Block.accept (package:kernel/src/ast/statements.dart:106)
+#28     LibraryCompiler._visitStatement (package:dev_compiler/src/kernel/compiler_new.dart:5044)
+#29     LibraryCompiler._emitFunctionScopedBody (package:dev_compiler/src/kernel/compiler_new.dart:5081)
+#30     LibraryCompiler._emitFunction.<anonymous closure> (package:dev_compiler/src/kernel/compiler_new.dart:4667)
+#31     LibraryCompiler._withLetScope (package:dev_compiler/src/kernel/compiler_new.dart:3661)
+#32     LibraryCompiler._withCurrentFunction (package:dev_compiler/src/kernel/compiler_new.dart:4841)
+#33     LibraryCompiler._emitFunction (package:dev_compiler/src/kernel/compiler_new.dart:4659)
+#34     LibraryCompiler._emitMethodDeclaration.<anonymous closure> (package:dev_compiler/src/kernel/compiler_new.dart:2941)
+#35     LibraryCompiler._withMethodDeclarationContext (package:dev_compiler/src/kernel/compiler_new.dart:4866)
+#36     LibraryCompiler._emitMethodDeclaration (package:dev_compiler/src/kernel/compiler_new.dart:2939)
+#37     LibraryCompiler._emitClassProperties (package:dev_compiler/src/kernel/compiler_new.dart:2880)
+#38     LibraryCompiler._emitClassDeclaration (package:dev_compiler/src/kernel/compiler_new.dart:1488)
+#39     LibraryCompiler._emitClass (package:dev_compiler/src/kernel/compiler_new.dart:1426)
+#40     List.forEach (dart:core-patch/growable_array.dart:428)
+#41     LibraryCompiler._emitLibrary (package:dev_compiler/src/kernel/compiler_new.dart:1348)
+#42     LibraryCompiler.emitLibrary (package:dev_compiler/src/kernel/compiler_new.dart:962)
+#43     LibraryBundleCompiler.emitModule (package:dev_compiler/src/kernel/compiler_new.dart:165)
+#44     IncrementalJavaScriptBundler.compile (package:frontend_server/src/javascript_bundle.dart:324)
+#45     FrontendCompiler.writeJavaScriptBundle (package:frontend_server/frontend_server.dart:922)
+<asynchronous suspension>
+#46     FrontendCompiler.compile (package:frontend_server/frontend_server.dart:728)
+<asynchronous suspension>
+#47     listenAndCompile.<anonymous closure> (package:frontend_server/frontend_server.dart:1449)
+<asynchronous suspension>
+The Dart compiler exited unexpectedly.
+Failed to compile application.
+
+Exited (1).
