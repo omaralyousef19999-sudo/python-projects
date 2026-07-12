@@ -878,6 +878,8 @@ class MainController extends GetxController {
 // 6. التشغيل الرئيسي
 // ============================================================
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  Get.put(MainController());
   runApp(MyApp());
 }
 
