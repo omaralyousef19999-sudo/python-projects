@@ -1,0 +1,4237 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:get/get.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_tts/flutter_tts.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'dart:developer' as developer;
+
+// ============================================================
+// 1. الألوان
+// ============================================================
+class AppColors {
+  static const Color primaryBlack = Color(0xFF0A0A0A);
+  static const Color neonGreen = Color(0xFF39FF14);
+  static const Color hotOrange = Color(0xFFFF6B00);
+  static const Color electricBlue = Color(0xFF00D4FF);
+  static const Color neonPink = Color(0xFFFF0080);
+  static const Color metallicGray = Color(0xFF2A2A2A);
+  static const Color whiteTransparent = Color(0xFFF5F5F5);
+  static const Color darkCard = Color(0xFF1A1A1A);
+  static const Color successGreen = Color(0xFF00E676);
+  static const Color warningYellow = Color(0xFFFFD600);
+  static const Color dangerRed = Color(0xFFFF1744);
+  static const Color morningBlue = Color(0xFF4A90D9);
+  static const Color eveningOrange = Color(0xFFFF6B35);
+}
+
+// ============================================================
+// 2. نموذج المستخدم
+// ============================================================
+class User {
+  String id;
+  String name;
+  String email;
+  String password;
+  String gender;
+  int age;
+  double height;
+  double weight;
+  String fitnessLevel;
+  String goal;
+  int dailySteps;
+  double dailyCaloriesConsumed;
+  List<Map<String, dynamic>> exerciseHistory;
+  List<Map<String, dynamic>> mealHistory;
+  String lastLoginTime;
+
+  User({
+    required this.id,
+    required this.name,
+    required this.email,
+    required this.password,
+    required this.gender,
+    required this.age,
+    required this.height,
+    required this.weight,
+    this.fitnessLevel = 'مبتدئ',
+    this.goal = 'لياقة عامة',
+    this.dailySteps = 0,
+    this.dailyCaloriesConsumed = 0,
+    this.exerciseHistory = const [],
+    this.mealHistory = const [],
+    this.lastLoginTime = '',
+  });
+
+  double get bmi {
+    double heightInMeters = height / 100;
+    return weight / (heightInMeters * heightInMeters);
+  }
+
+  String get bmiCategory {
+    double value = bmi;
+    if (value < 18.5) return 'نحيف';
+    if (value < 25) return 'طبيعي';
+    if (value < 30) return 'زائد';
+    return 'سمنة';
+  }
+
+  double get bmr {
+    double bmrValue = (10 * weight) + (6.25 * height) - (5 * age);
+    if (gender == 'ذكر') {
+      bmrValue += 5;
+    } else {
+      bmrValue -= 161;
+    }
+    return bmrValue;
+  }
+
+  double dailyCalories(String activityLevel) {
+    double factor;
+    if (activityLevel == 'قليل') {
+      factor = 1.2;
+    } else if (activityLevel == 'خفيف') {
+      factor = 1.375;
+    } else if (activityLevel == 'متوسط') {
+      factor = 1.55;
+    } else if (activityLevel == 'نشط') {
+      factor = 1.725;
+    } else {
+      factor = 1.9;
+    }
+    return bmr * factor;
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'email': email,
+      'password': password,
+      'gender': gender,
+      'age': age,
+      'height': height,
+      'weight': weight,
+      'fitnessLevel': fitnessLevel,
+      'goal': goal,
+      'dailySteps': dailySteps,
+      'dailyCaloriesConsumed': dailyCaloriesConsumed,
+      'exerciseHistory': exerciseHistory,
+      'mealHistory': mealHistory,
+      'lastLoginTime': lastLoginTime,
+    };
+  }
+
+  factory User.fromJson(Map<String, dynamic> json) {
+    return User(
+      id: json['id'],
+      name: json['name'],
+      email: json['email'],
+      password: json['password'],
+      gender: json['gender'],
+      age: json['age'],
+      height: json['height'],
+      weight: json['weight'],
+      fitnessLevel: json['fitnessLevel'] ?? 'مبتدئ',
+      goal: json['goal'] ?? 'لياقة عامة',
+      dailySteps: json['dailySteps'] ?? 0,
+      dailyCaloriesConsumed: json['dailyCaloriesConsumed'] ?? 0,
+      exerciseHistory: json['exerciseHistory']?.cast<Map<String, dynamic>>() ?? [],
+      mealHistory: json['mealHistory']?.cast<Map<String, dynamic>>() ?? [],
+      lastLoginTime: json['lastLoginTime'] ?? '',
+    );
+  }
+}
+
+// ============================================================
+// 3. نموذج التمرين
+// ============================================================
+class Exercise {
+  String id;
+  String name;
+  String type;
+  String level;
+  int duration;
+  int rating;
+  String bodyPart;
+  String imageUrl;
+  int caloriesPerMinute;
+  List<String> steps;
+  bool isCompleted;
+
+  Exercise({
+    required this.id,
+    required this.name,
+    required this.type,
+    required this.level,
+    required this.duration,
+    required this.rating,
+    required this.bodyPart,
+    this.imageUrl = '',
+    this.caloriesPerMinute = 5,
+    this.steps = const [],
+    this.isCompleted = false,
+  });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'type': type,
+      'level': level,
+      'duration': duration,
+      'rating': rating,
+      'bodyPart': bodyPart,
+      'imageUrl': imageUrl,
+      'caloriesPerMinute': caloriesPerMinute,
+      'steps': steps,
+      'isCompleted': isCompleted,
+    };
+  }
+
+  factory Exercise.fromJson(Map<String, dynamic> json) {
+    return Exercise(
+      id: json['id'],
+      name: json['name'],
+      type: json['type'],
+      level: json['level'],
+      duration: json['duration'],
+      rating: json['rating'],
+      bodyPart: json['bodyPart'],
+      imageUrl: json['imageUrl'] ?? '',
+      caloriesPerMinute: json['caloriesPerMinute'] ?? 5,
+      steps: json['steps']?.cast<String>() ?? [],
+      isCompleted: json['isCompleted'] ?? false,
+    );
+  }
+}
+
+// ============================================================
+// 4. نموذج الوجبة
+// ============================================================
+class Meal {
+  String id;
+  String name;
+  String type;
+  double calories;
+  double protein;
+  double carbs;
+  double fat;
+  String description;
+  bool isConsumed;
+
+  Meal({
+    required this.id,
+    required this.name,
+    required this.type,
+    required this.calories,
+    this.protein = 0,
+    this.carbs = 0,
+    this.fat = 0,
+    this.description = '',
+    this.isConsumed = false,
+  });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'type': type,
+      'calories': calories,
+      'protein': protein,
+      'carbs': carbs,
+      'fat': fat,
+      'description': description,
+      'isConsumed': isConsumed,
+    };
+  }
+
+  factory Meal.fromJson(Map<String, dynamic> json) {
+    return Meal(
+      id: json['id'],
+      name: json['name'],
+      type: json['type'],
+      calories: json['calories'],
+      protein: json['protein'] ?? 0,
+      carbs: json['carbs'] ?? 0,
+      fat: json['fat'] ?? 0,
+      description: json['description'] ?? '',
+      isConsumed: json['isConsumed'] ?? false,
+    );
+  }
+}
+
+// ============================================================
+// 5. الـ Controller الرئيسي
+// ============================================================
+class MainController extends GetxController {
+  // ========== الحالات الأساسية ==========
+  var isLoggedIn = false.obs;
+  var currentUser = Rxn<User>();
+  var isLoading = false.obs;
+  var currentPage = 0.obs;
+  
+  // ========== الوضع الليلي والصباحي ==========
+  var isNightMode = false.obs;
+  var isMorningMode = false.obs;
+  var currentTheme = 'morning'.obs;
+  var greetingMessage = ''.obs;
+  var currentBackgroundColor = AppColors.primaryBlack.obs;
+  var currentCardColor = AppColors.darkCard.obs;
+  var currentAccentColor = AppColors.neonGreen.obs;
+  
+  // ========== اللغة ==========
+  var currentLanguage = 'ar'.obs;
+  
+  // ========== بيانات التمارين ==========
+  var exercises = <Exercise>[].obs;
+  var filteredExercises = <Exercise>[].obs;
+  var recommendedExercises = <Exercise>[].obs;
+
+  // ========== بيانات الوجبات ==========
+  var meals = <Meal>[].obs;
+  var filteredMeals = <Meal>[].obs;
+
+  // ========== فلاتر التمارين ==========
+  var searchQuery = ''.obs;
+  var selectedLevel = 'الكل'.obs;
+  var selectedType = 'الكل'.obs;
+  var selectedBodyPart = 'الكل'.obs;
+  var durationRange = 30.0.obs;
+  var ratingFilter = 0.obs;
+
+  // ========== فلاتر الوجبات ==========
+  var mealSearchQuery = ''.obs;
+  var selectedMealType = 'الكل'.obs;
+
+  // ========== التتبع اليومي ==========
+  var todaySteps = 0.obs;
+  var todayCalories = 0.obs;
+  var todayWater = 0.obs;
+  var todayExerciseMinutes = 0.obs;
+
+  // ========== الإشعارات ==========
+  var notifications = <Map<String, String>>[].obs;
+
+  // ========== الصوت ==========
+  late FlutterTts flutterTts;
+  var isSpeaking = false.obs;
+
+  // ========== AI ==========
+  var aiMessages = <Map<String, String>>[].obs;
+  var aiLoading = false.obs;
+  var userAIContext = <String, dynamic>{}.obs;
+
+  // ========== مؤقت التمرين ==========
+  var isWorkoutActive = false.obs;
+  var workoutTimer = 0.obs;
+  var workoutProgress = 0.0.obs;
+  var workoutMinutes = 0.obs;
+  var workoutSeconds = 0.obs;
+  var workoutTotalSeconds = 0.obs;
+  var workoutElapsedSeconds = 0.obs;
+
+  // ========== بيانات ثابتة ==========
+  final List<Map<String, dynamic>> allExercisesData = [
+    {'id': '1', 'name': 'جري سريع', 'type': 'كارديو', 'level': 'مبتدئ', 'duration': 25, 'rating': 4, 'bodyPart': 'الأرجل', 'caloriesPerMinute': 8, 'steps': ['إحماء 5 دقائق', 'جري 15 دقيقة', 'تهدئة 5 دقائق']},
+    {'id': '2', 'name': 'ضغط صدر', 'type': 'قوة', 'level': 'محترف', 'duration': 20, 'rating': 5, 'bodyPart': 'الصدر', 'caloriesPerMinute': 6, 'steps': ['إحماء 3 دقائق', 'ضغط صدر 3 مجموعات', 'تمارين إضافية']},
+    {'id': '3', 'name': 'تمارين استرخاء', 'type': 'يوغا', 'level': 'مبتدئ', 'duration': 30, 'rating': 3, 'bodyPart': 'الظهر', 'caloriesPerMinute': 3, 'steps': ['تنفس عميق', 'تمارين تمدد', 'استرخاء']},
+    {'id': '4', 'name': 'تمارين HIIT', 'type': 'HIIT', 'level': 'أسطورة', 'duration': 15, 'rating': 5, 'bodyPart': 'الكامل', 'caloriesPerMinute': 12, 'steps': ['إحماء', '8 جولات HIIT', 'تهدئة']},
+    {'id': '5', 'name': 'تمارين بطن', 'type': 'قوة', 'level': 'متوسط', 'duration': 20, 'rating': 4, 'bodyPart': 'البطن', 'caloriesPerMinute': 5, 'steps': ['تمارين البطن العليا', 'تمارين البطن السفلية', 'تمارين جانبية']},
+    {'id': '6', 'name': 'تمارين كتف', 'type': 'مرونة', 'level': 'مبتدئ', 'duration': 15, 'rating': 3, 'bodyPart': 'الكتفين', 'caloriesPerMinute': 4, 'steps': ['تمارين دوران', 'تمارين رفع', 'تمارين تمدد']},
+    {'id': '7', 'name': 'ركض متقطع', 'type': 'كارديو', 'level': 'محترف', 'duration': 40, 'rating': 5, 'bodyPart': 'الأرجل', 'caloriesPerMinute': 10, 'steps': ['إحماء', 'ركض سريع', 'ركض بطيء', 'تكرار']},
+    {'id': '8', 'name': 'يوغا متقدمة', 'type': 'يوغا', 'level': 'أسطورة', 'duration': 45, 'rating': 4, 'bodyPart': 'الظهر', 'caloriesPerMinute': 4, 'steps': ['تمارين تنفس', 'تمارين توازن', 'تمارين مرونة']},
+  ];
+
+  final List<Map<String, dynamic>> allMealsData = [
+    {'id': '1', 'name': 'شوفان مع فواكه', 'type': 'فطور', 'calories': 350, 'protein': 12, 'carbs': 45, 'fat': 8, 'description': 'شوفان مع موز وتوت وعسل'},
+    {'id': '2', 'name': 'دجاج مشوي مع خضار', 'type': 'غداء', 'calories': 450, 'protein': 40, 'carbs': 30, 'fat': 15, 'description': 'صدر دجاج مع بروكلي وجزر'},
+    {'id': '3', 'name': 'سمك مع سلطة', 'type': 'عشاء', 'calories': 380, 'protein': 35, 'carbs': 20, 'fat': 18, 'description': 'سمك مشوي مع سلطة خضراء'},
+    {'id': '4', 'name': 'مكسرات وزبادي', 'type': 'سناك', 'calories': 200, 'protein': 8, 'carbs': 12, 'fat': 14, 'description': 'زبادي يوناني مع لوز وجوز'},
+    {'id': '5', 'name': 'أومليت بالخضار', 'type': 'فطور', 'calories': 300, 'protein': 20, 'carbs': 10, 'fat': 20, 'description': 'بيض مع فلفل وبصل وطماطم'},
+    {'id': '6', 'name': 'معكرونة كاملة', 'type': 'غداء', 'calories': 400, 'protein': 15, 'carbs': 60, 'fat': 10, 'description': 'معكرونة مع صلصة الطماطم والخضار'},
+  ];
+
+  // ========== الإشعارات المحلية ==========
+  FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
+
+  // ========== دورة الحياة ==========
+  @override
+  void onInit() {
+    super.onInit();
+    _initServices();
+    _loadExercises();
+    _loadMeals();
+    _checkAuthStatus();
+    _initNotifications();
+    _initTTS();
+    loadLanguage();
+    loadThemeMode();
+  }
+
+  // ========== الخدمات ==========
+  void _initServices() async {
+    flutterTts = FlutterTts();
+    await flutterTts.setLanguage('ar');
+    await flutterTts.setSpeechRate(0.5);
+    await flutterTts.setPitch(1.0);
+  }
+
+  void _initTTS() {
+    flutterTts.setStartHandler(() {
+      isSpeaking.value = true;
+    });
+    flutterTts.setCompletionHandler(() {
+      isSpeaking.value = false;
+    });
+    flutterTts.setErrorHandler((msg) {
+      isSpeaking.value = false;
+      developer.log('TTS Error: $msg');
+    });
+  }
+
+  void _initNotifications() async {
+    const AndroidInitializationSettings initializationSettingsAndroid =
+        AndroidInitializationSettings('@mipmap/ic_launcher');
+    const DarwinInitializationSettings initializationSettingsIOS =
+        DarwinInitializationSettings();
+    const InitializationSettings initializationSettings = InitializationSettings(
+      android: initializationSettingsAndroid,
+      iOS: initializationSettingsIOS,
+    );
+    await flutterLocalNotificationsPlugin.initialize(initializationSettings);
+  }
+
+  // ========== إدارة اللغة ==========
+  void changeLanguage(String langCode) {
+    currentLanguage.value = langCode;
+    Get.updateLocale(Locale(langCode));
+    SharedPreferences.getInstance().then((prefs) {
+      prefs.setString('language', langCode);
+    });
+    updateThemeBasedOnTime();
+  }
+
+  void loadLanguage() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? lang = prefs.getString('language');
+    if (lang != null) {
+      currentLanguage.value = lang;
+      Get.updateLocale(Locale(lang));
+    }
+  }
+
+  bool isArabic() {
+    return currentLanguage.value == 'ar';
+  }
+
+  // ========== إدارة الوضع الليلي والصباحي ==========
+  void updateThemeBasedOnTime() {
+    var hour = DateTime.now().hour;
+    
+    if (hour >= 5 && hour < 12) {
+      // وضع الصباح
+      currentTheme.value = 'morning';
+      isMorningMode.value = true;
+      isNightMode.value = false;
+      greetingMessage.value = isArabic() ? '🌅 صباح الخير' : '🌅 Good Morning';
+      currentBackgroundColor.value = Color(0xFF1A2A3A);
+      currentCardColor.value = Color(0xFF2A3A4A);
+      currentAccentColor.value = Color(0xFFFFB74D);
+    } else if (hour >= 12 && hour < 18) {
+      // وضع المساء
+      currentTheme.value = 'evening';
+      isMorningMode.value = false;
+      isNightMode.value = false;
+      greetingMessage.value = isArabic() ? '🌤️ مساء الخير' : '🌤️ Good Evening';
+      currentBackgroundColor.value = Color(0xFF2A1A0A);
+      currentCardColor.value = Color(0xFF3A2A1A);
+      currentAccentColor.value = Color(0xFFFF6B00);
+    } else {
+      // وضع الليل
+      currentTheme.value = 'night';
+      isMorningMode.value = false;
+      isNightMode.value = true;
+      greetingMessage.value = isArabic() ? '🌙 مساء النور' : '🌙 Good Night';
+      currentBackgroundColor.value = Color(0xFF0A0A1A);
+      currentCardColor.value = Color(0xFF1A1A2A);
+      currentAccentColor.value = Color(0xFF7C4DFF);
+    }
+    
+    SharedPreferences.getInstance().then((prefs) {
+      prefs.setString('theme_mode', currentTheme.value);
+    });
+  }
+
+  void setThemeMode(String mode) {
+    currentTheme.value = mode;
+    
+    switch(mode) {
+      case 'morning':
+        isMorningMode.value = true;
+        isNightMode.value = false;
+        greetingMessage.value = isArabic() ? '🌅 صباح الخير' : '🌅 Good Morning';
+        currentBackgroundColor.value = Color(0xFF1A2A3A);
+        currentCardColor.value = Color(0xFF2A3A4A);
+        currentAccentColor.value = Color(0xFFFFB74D);
+        break;
+      case 'evening':
+        isMorningMode.value = false;
+        isNightMode.value = false;
+        greetingMessage.value = isArabic() ? '🌤️ مساء الخير' : '🌤️ Good Evening';
+        currentBackgroundColor.value = Color(0xFF2A1A0A);
+        currentCardColor.value = Color(0xFF3A2A1A);
+        currentAccentColor.value = Color(0xFFFF6B00);
+        break;
+      case 'night':
+        isMorningMode.value = false;
+        isNightMode.value = true;
+        greetingMessage.value = isArabic() ? '🌙 مساء النور' : '🌙 Good Night';
+        currentBackgroundColor.value = Color(0xFF0A0A1A);
+        currentCardColor.value = Color(0xFF1A1A2A);
+        currentAccentColor.value = Color(0xFF7C4DFF);
+        break;
+    }
+    
+    SharedPreferences.getInstance().then((prefs) {
+      prefs.setString('theme_mode', mode);
+    });
+  }
+
+  void loadThemeMode() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? theme = prefs.getString('theme_mode');
+    if (theme != null) {
+      setThemeMode(theme);
+    } else {
+      updateThemeBasedOnTime();
+    }
+  }
+
+  // ========== المصادقة ==========
+  void _checkAuthStatus() async {
+    try {
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      String? userJson = prefs.getString('currentUser');
+      if (userJson != null) {
+        Map<String, dynamic> userData = jsonDecode(userJson);
+        currentUser.value = User.fromJson(userData);
+        isLoggedIn.value = true;
+        _loadUserData();
+        _loadUserAIContext();
+      }
+    } catch (e) {
+      developer.log('خطأ في التحقق من الحالة: $e');
+    }
+  }
+
+  Future<bool> login(String email, String password) async {
+    isLoading.value = true;
+    try {
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      String? usersJson = prefs.getString('users');
+      
+      if (usersJson == null) {
+        isLoading.value = false;
+        Get.snackbar(
+          isArabic() ? 'خطأ' : 'Error',
+          isArabic() ? 'لا يوجد مستخدمين مسجلين' : 'No registered users',
+          backgroundColor: AppColors.dangerRed,
+        );
+        return false;
+      }
+
+      List<dynamic> usersList = jsonDecode(usersJson);
+      
+      User? foundUser;
+      for (var userData in usersList) {
+        if (userData['email'] == email && userData['password'] == password) {
+          foundUser = User.fromJson(userData);
+          break;
+        }
+      }
+
+      if (foundUser == null) {
+        isLoading.value = false;
+        Get.snackbar(
+          isArabic() ? 'خطأ' : 'Error',
+          isArabic() ? '❌ البريد الإلكتروني أو كلمة المرور غير صحيحة' : '❌ Invalid email or password',
+          backgroundColor: AppColors.dangerRed,
+          duration: Duration(seconds: 3),
+        );
+        return false;
+      }
+
+      foundUser.lastLoginTime = DateTime.now().toString();
+      
+      for (int i = 0; i < usersList.length; i++) {
+        if (usersList[i]['id'] == foundUser!.id) {
+          usersList[i] = foundUser.toJson();
+          break;
+        }
+      }
+      
+      await prefs.setString('users', jsonEncode(usersList));
+      await prefs.setString('currentUser', jsonEncode(foundUser.toJson()));
+      
+      currentUser.value = foundUser;
+      isLoggedIn.value = true;
+      _loadUserData();
+      _loadUserAIContext();
+      
+      isLoading.value = false;
+      Get.snackbar(
+        isArabic() ? '🎉 مرحباً' : '🎉 Welcome',
+        isArabic() ? 'أهلاً بك ${foundUser.name}' : 'Welcome ${foundUser.name}',
+        backgroundColor: AppColors.successGreen,
+        duration: Duration(seconds: 2),
+      );
+      return true;
+    } catch (e) {
+      isLoading.value = false;
+      Get.snackbar(
+        isArabic() ? 'خطأ' : 'Error',
+        isArabic() ? 'حدث خطأ أثناء تسجيل الدخول: ${e.toString()}' : 'Error during login: ${e.toString()}',
+        backgroundColor: AppColors.dangerRed,
+        duration: Duration(seconds: 3),
+      );
+      return false;
+    }
+  }
+
+  Future<bool> register(Map<String, dynamic> userData) async {
+    isLoading.value = true;
+    try {
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      String? usersJson = prefs.getString('users');
+      List<User> users = [];
+      if (usersJson != null) {
+        List<dynamic> usersList = jsonDecode(usersJson);
+        users = usersList.map((u) => User.fromJson(u)).toList();
+      }
+
+      for (var user in users) {
+        if (user.email == userData['email']) {
+          isLoading.value = false;
+          Get.snackbar(
+            isArabic() ? 'خطأ' : 'Error',
+            isArabic() ? '❌ البريد الإلكتروني مستخدم بالفعل' : '❌ Email already in use',
+            backgroundColor: AppColors.dangerRed,
+            duration: Duration(seconds: 3),
+          );
+          return false;
+        }
+      }
+
+      User newUser = User(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        name: userData['name'],
+        email: userData['email'],
+        password: userData['password'],
+        gender: userData['gender'],
+        age: userData['age'],
+        height: userData['height'],
+        weight: userData['weight'],
+        fitnessLevel: userData['fitnessLevel'] ?? 'مبتدئ',
+        goal: userData['goal'] ?? 'لياقة عامة',
+        lastLoginTime: DateTime.now().toString(),
+      );
+
+      users.add(newUser);
+      await prefs.setString('users', jsonEncode(users.map((u) => u.toJson()).toList()));
+      await prefs.setString('currentUser', jsonEncode(newUser.toJson()));
+      
+      currentUser.value = newUser;
+      isLoggedIn.value = true;
+      _loadUserData();
+      
+      isLoading.value = false;
+      Get.snackbar(
+        isArabic() ? '🎉 تهانينا' : '🎉 Congratulations',
+        isArabic() ? 'تم إنشاء حسابك بنجاح!' : 'Account created successfully!',
+        backgroundColor: AppColors.successGreen,
+        duration: Duration(seconds: 2),
+      );
+      return true;
+    } catch (e) {
+      isLoading.value = false;
+      Get.snackbar(
+        isArabic() ? 'خطأ' : 'Error',
+        isArabic() ? 'حدث خطأ أثناء التسجيل: ${e.toString()}' : 'Error during registration: ${e.toString()}',
+        backgroundColor: AppColors.dangerRed,
+        duration: Duration(seconds: 3),
+      );
+      return false;
+    }
+  }
+
+  Future<bool> resetPassword(String email) async {
+    try {
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      String? usersJson = prefs.getString('users');
+      if (usersJson != null) {
+        List<dynamic> usersList = jsonDecode(usersJson);
+        for (var userData in usersList) {
+          if (userData['email'] == email) {
+            Get.snackbar(
+              isArabic() ? '✅ نجاح' : '✅ Success',
+              isArabic() ? 'تم إرسال رابط استرجاع كلمة المرور إلى بريدك' : 'Password reset link sent to your email',
+              backgroundColor: AppColors.successGreen,
+              duration: Duration(seconds: 3),
+            );
+            return true;
+          }
+        }
+      }
+      Get.snackbar(
+        isArabic() ? 'خطأ' : 'Error',
+        isArabic() ? '❌ البريد الإلكتروني غير موجود' : '❌ Email not found',
+        backgroundColor: AppColors.dangerRed,
+        duration: Duration(seconds: 3),
+      );
+      return false;
+    } catch (e) {
+      Get.snackbar(
+        isArabic() ? 'خطأ' : 'Error',
+        e.toString(),
+        backgroundColor: AppColors.dangerRed,
+      );
+      return false;
+    }
+  }
+
+  void logout() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.remove('currentUser');
+    isLoggedIn.value = false;
+    currentUser.value = null;
+    aiMessages.clear();
+    userAIContext.clear();
+    Get.offAllNamed('/login');
+  }
+
+  void updateUserProfile(Map<String, dynamic> data) async {
+    if (currentUser.value != null) {
+      User updated = currentUser.value!;
+      if (data['name'] != null) updated.name = data['name'];
+      if (data['age'] != null) updated.age = data['age'];
+      if (data['height'] != null) updated.height = data['height'];
+      if (data['weight'] != null) updated.weight = data['weight'];
+      if (data['fitnessLevel'] != null) updated.fitnessLevel = data['fitnessLevel'];
+      if (data['goal'] != null) updated.goal = data['goal'];
+
+      currentUser.value = updated;
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      await prefs.setString('currentUser', jsonEncode(updated.toJson()));
+
+      String? usersJson = prefs.getString('users');
+      if (usersJson != null) {
+        List<dynamic> usersList = jsonDecode(usersJson);
+        for (int i = 0; i < usersList.length; i++) {
+          if (usersList[i]['id'] == updated.id) {
+            usersList[i] = updated.toJson();
+            break;
+          }
+        }
+        await prefs.setString('users', jsonEncode(usersList));
+      }
+
+      Get.snackbar(
+        isArabic() ? '✅ نجاح' : '✅ Success',
+        isArabic() ? 'تم تحديث البيانات بنجاح' : 'Profile updated successfully',
+        backgroundColor: AppColors.successGreen,
+        duration: Duration(seconds: 2),
+      );
+    }
+  }
+
+  // ========== تحميل البيانات ==========
+  void _loadExercises() {
+    List<Exercise> loaded = [];
+    for (var data in allExercisesData) {
+      loaded.add(Exercise.fromJson(data));
+    }
+    exercises.value = loaded;
+    filteredExercises.value = loaded;
+    _generateRecommendations();
+  }
+
+  void _loadMeals() {
+    List<Meal> loaded = [];
+    for (var data in allMealsData) {
+      loaded.add(Meal.fromJson(data));
+    }
+    meals.value = loaded;
+    filteredMeals.value = loaded;
+  }
+
+  void _loadUserData() {
+    if (currentUser.value != null) {
+      todaySteps.value = currentUser.value!.dailySteps;
+      todayCalories.value = currentUser.value!.dailyCaloriesConsumed.toInt();
+      _loadUserAIContext();
+    }
+  }
+
+  void _loadUserAIContext() {
+    if (currentUser.value != null) {
+      String userId = currentUser.value!.id;
+      SharedPreferences.getInstance().then((prefs) {
+        String? contextJson = prefs.getString('ai_context_$userId');
+        if (contextJson != null) {
+          try {
+            userAIContext.value = jsonDecode(contextJson);
+          } catch (e) {
+            userAIContext.value = {};
+          }
+        }
+        String? messagesJson = prefs.getString('ai_messages_$userId');
+        if (messagesJson != null) {
+          try {
+            List<dynamic> messagesList = jsonDecode(messagesJson);
+            aiMessages.value = messagesList.cast<Map<String, String>>();
+          } catch (e) {
+            aiMessages.value = [];
+          }
+        }
+      });
+    }
+  }
+
+  void _saveAIContext() {
+    if (currentUser.value != null) {
+      String userId = currentUser.value!.id;
+      SharedPreferences.getInstance().then((prefs) {
+        prefs.setString('ai_context_$userId', jsonEncode(userAIContext.value));
+        prefs.setString('ai_messages_$userId', jsonEncode(aiMessages.value));
+      });
+    }
+  }
+
+  void _generateRecommendations() {
+    if (currentUser.value == null) {
+      recommendedExercises.value = exercises.take(3).toList();
+      return;
+    }
+
+    String goal = currentUser.value!.goal;
+    String level = currentUser.value!.fitnessLevel;
+    String? bodyPartNeeded;
+
+    if (goal.contains('عضلات')) {
+      bodyPartNeeded = 'الصدر';
+    } else if (goal.contains('وزن')) {
+      bodyPartNeeded = 'الأرجل';
+    } else {
+      bodyPartNeeded = 'الكامل';
+    }
+
+    List<Exercise> recommended = [];
+    for (var exercise in exercises) {
+      if (exercise.level == level || exercise.level == 'مبتدئ') {
+        if (exercise.bodyPart == bodyPartNeeded || exercise.bodyPart == 'الكامل') {
+          recommended.add(exercise);
+        }
+      }
+    }
+
+    if (recommended.length < 3) {
+      recommended = exercises.take(3).toList();
+    }
+    recommendedExercises.value = recommended.take(3).toList();
+  }
+
+  // ========== فلاتر التمارين ==========
+  void applyExerciseFilters() {
+    List<Exercise> results = [];
+    for (var exercise in exercises) {
+      bool matchesSearch = true;
+      bool matchesLevel = true;
+      bool matchesType = true;
+      bool matchesBodyPart = true;
+      bool matchesDuration = true;
+      bool matchesRating = true;
+
+      if (searchQuery.value.isNotEmpty) {
+        if (!exercise.name.contains(searchQuery.value)) {
+          matchesSearch = false;
+        }
+      }
+
+      if (selectedLevel.value != 'الكل') {
+        if (exercise.level != selectedLevel.value) {
+          matchesLevel = false;
+        }
+      }
+
+      if (selectedType.value != 'الكل') {
+        if (exercise.type != selectedType.value) {
+          matchesType = false;
+        }
+      }
+
+      if (selectedBodyPart.value != 'الكل') {
+        if (exercise.bodyPart != selectedBodyPart.value) {
+          matchesBodyPart = false;
+        }
+      }
+
+      if (exercise.duration > durationRange.value) {
+        matchesDuration = false;
+      }
+
+      if (ratingFilter.value > 0) {
+        if (exercise.rating < ratingFilter.value) {
+          matchesRating = false;
+        }
+      }
+
+      if (matchesSearch && matchesLevel && matchesType && matchesBodyPart && matchesDuration && matchesRating) {
+        results.add(exercise);
+      }
+    }
+    filteredExercises.value = results;
+  }
+
+  void clearExerciseFilters() {
+    searchQuery.value = '';
+    selectedLevel.value = 'الكل';
+    selectedType.value = 'الكل';
+    selectedBodyPart.value = 'الكل';
+    durationRange.value = 30;
+    ratingFilter.value = 0;
+    applyExerciseFilters();
+  }
+
+  // ========== فلاتر الوجبات ==========
+  void applyMealFilters() {
+    List<Meal> results = [];
+    for (var meal in meals) {
+      bool matchesSearch = true;
+      bool matchesType = true;
+
+      if (mealSearchQuery.value.isNotEmpty) {
+        if (!meal.name.contains(mealSearchQuery.value)) {
+          matchesSearch = false;
+        }
+      }
+
+      if (selectedMealType.value != 'الكل') {
+        if (meal.type != selectedMealType.value) {
+          matchesType = false;
+        }
+      }
+
+      if (matchesSearch && matchesType) {
+        results.add(meal);
+      }
+    }
+    filteredMeals.value = results;
+  }
+
+  // ========== التتبع اليومي ==========
+  void updateSteps(int steps) {
+    todaySteps.value = steps;
+    if (currentUser.value != null) {
+      currentUser.value!.dailySteps = steps;
+      _saveUserData();
+    }
+  }
+
+  void updateCalories(int calories) {
+    todayCalories.value = calories;
+    if (currentUser.value != null) {
+      currentUser.value!.dailyCaloriesConsumed = calories.toDouble();
+      _saveUserData();
+    }
+  }
+
+  void updateWater(int glasses) {
+    todayWater.value = glasses;
+  }
+
+  void addExerciseToHistory(Exercise exercise) {
+    if (currentUser.value != null) {
+      Map<String, dynamic> entry = {
+        'exerciseId': exercise.id,
+        'name': exercise.name,
+        'date': DateTime.now().toString(),
+        'duration': exercise.duration,
+        'caloriesBurned': exercise.duration * exercise.caloriesPerMinute,
+      };
+      currentUser.value!.exerciseHistory.add(entry);
+      todayExerciseMinutes.value += exercise.duration;
+      _saveUserData();
+      
+      for (var e in exercises) {
+        if (e.id == exercise.id) {
+          e.isCompleted = true;
+          break;
+        }
+      }
+      
+      Get.snackbar(
+        isArabic() ? '🎉 أحسنت!' : '🎉 Great job!',
+        isArabic() ? 'تم إكمال ${exercise.name}' : 'Completed ${exercise.name}',
+        backgroundColor: AppColors.successGreen,
+        duration: Duration(seconds: 2),
+      );
+    }
+  }
+
+  void addMealToHistory(Meal meal) {
+    if (currentUser.value != null) {
+      Map<String, dynamic> entry = {
+        'mealId': meal.id,
+        'name': meal.name,
+        'date': DateTime.now().toString(),
+        'calories': meal.calories,
+      };
+      currentUser.value!.mealHistory.add(entry);
+      todayCalories.value += meal.calories.toInt();
+      currentUser.value!.dailyCaloriesConsumed = todayCalories.value.toDouble();
+      
+      for (var m in meals) {
+        if (m.id == meal.id) {
+          m.isConsumed = true;
+          break;
+        }
+      }
+      
+      _saveUserData();
+      Get.snackbar(
+        isArabic() ? '🍽️ تم التسجيل' : '🍽️ Recorded',
+        isArabic() ? 'تم إضافة ${meal.name}' : 'Added ${meal.name}',
+        backgroundColor: AppColors.electricBlue,
+        duration: Duration(seconds: 2),
+      );
+    }
+  }
+
+  void _saveUserData() async {
+    if (currentUser.value != null) {
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      await prefs.setString('currentUser', jsonEncode(currentUser.value!.toJson()));
+
+      String? usersJson = prefs.getString('users');
+      if (usersJson != null) {
+        List<dynamic> usersList = jsonDecode(usersJson);
+        for (int i = 0; i < usersList.length; i++) {
+          if (usersList[i]['id'] == currentUser.value!.id) {
+            usersList[i] = currentUser.value!.toJson();
+            break;
+          }
+        }
+        await prefs.setString('users', jsonEncode(usersList));
+      }
+    }
+  }
+
+  // ========== حساب السعرات ==========
+  int calculateCaloriesBurned(Exercise exercise) {
+    if (currentUser.value == null) return exercise.duration * exercise.caloriesPerMinute;
+    double weight = currentUser.value!.weight;
+    double met = 0;
+
+    if (exercise.type == 'كارديو') {
+      met = 6.0;
+    } else if (exercise.type == 'قوة') {
+      met = 5.0;
+    } else if (exercise.type == 'HIIT') {
+      met = 8.0;
+    } else if (exercise.type == 'يوغا') {
+      met = 2.5;
+    } else {
+      met = 3.0;
+    }
+
+    return ((met * 3.5 * weight) / 200 * exercise.duration).toInt();
+  }
+
+  // ========== المدرب الصوتي ==========
+  Future<void> speakCommand(String command) async {
+    try {
+      if (isSpeaking.value) {
+        await flutterTts.stop();
+      }
+      await flutterTts.speak(command);
+    } catch (e) {
+      developer.log('خطأ في الصوت: $e');
+    }
+  }
+
+  // ========== مؤقت التمرين ==========
+  void startWorkout(Exercise exercise) async {
+    if (isWorkoutActive.value) {
+      Get.snackbar(
+        isArabic() ? 'تنبيه' : 'Warning',
+        isArabic() ? 'يوجد تمرين قيد التنفيذ' : 'A workout is already in progress',
+        backgroundColor: AppColors.warningYellow,
+        duration: Duration(seconds: 2),
+      );
+      return;
+    }
+
+    isWorkoutActive.value = true;
+    workoutTotalSeconds.value = exercise.duration;
+    workoutTimer.value = exercise.duration;
+    workoutElapsedSeconds.value = 0;
+    workoutProgress.value = 0.0;
+    
+    workoutMinutes.value = exercise.duration ~/ 60;
+    workoutSeconds.value = exercise.duration % 60;
+    
+    Get.back();
+    
+    Get.dialog(
+      Dialog(
+        backgroundColor: currentBackgroundColor.value,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        child: Container(
+          padding: EdgeInsets.all(24),
+          width: double.infinity,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: _getTypeColor(exercise.type).withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  _getTypeIcon(exercise.type),
+                  color: _getTypeColor(exercise.type),
+                  size: 40,
+                ),
+              ),
+              SizedBox(height: 16),
+              Text(
+                exercise.name,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              Text(
+                isArabic() ? '🏋️ جاري التمرين' : '🏋️ Workout in Progress',
+                style: TextStyle(
+                  color: AppColors.electricBlue,
+                  fontSize: 16,
+                ),
+              ),
+              SizedBox(height: 24),
+              Obx(() {
+                int mins = workoutMinutes.value;
+                int secs = workoutSeconds.value;
+                return Column(
+                  children: [
+                    Container(
+                      padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: currentCardColor.value,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: workoutTimer.value < 10 
+                            ? AppColors.dangerRed 
+                            : currentAccentColor.value,
+                          width: 2,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.baseline,
+                        textBaseline: TextBaseline.alphabetic,
+                        children: [
+                          Text(
+                            mins.toString().padLeft(2, '0'),
+                            style: TextStyle(
+                              color: workoutTimer.value < 10 
+                                ? AppColors.dangerRed 
+                                : Colors.white,
+                              fontSize: 72,
+                              fontWeight: FontWeight.bold,
+                              fontFamily: 'monospace',
+                            ),
+                          ),
+                          Text(
+                            ':',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 60,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Text(
+                            secs.toString().padLeft(2, '0'),
+                            style: TextStyle(
+                              color: workoutTimer.value < 10 
+                                ? AppColors.dangerRed 
+                                : Colors.white,
+                              fontSize: 72,
+                              fontWeight: FontWeight.bold,
+                              fontFamily: 'monospace',
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      workoutTimer.value < 10 
+                        ? (isArabic() ? '⚡ الوقت يقترب من الانتهاء!' : '⚡ Almost done!')
+                        : (isArabic() ? '💪 استمر، أنت قوي!' : '💪 Keep going, you\'re strong!'),
+                      style: TextStyle(
+                        color: workoutTimer.value < 10 
+                          ? AppColors.dangerRed 
+                          : AppColors.warningYellow,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                );
+              }),
+              SizedBox(height: 16),
+              Obx(() => Column(
+                children: [
+                  Container(
+                    width: double.infinity,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: AppColors.metallicGray,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: FractionallySizedBox(
+                      widthFactor: workoutProgress.value,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              currentAccentColor.value,
+                              AppColors.electricBlue,
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        workoutProgress.value > 0 
+                          ? '${(workoutProgress.value * 100).toInt()}%'
+                          : '0%',
+                        style: TextStyle(
+                          color: AppColors.metallicGray,
+                          fontSize: 12,
+                        ),
+                      ),
+                      Text(
+                        isArabic() ? 'متبقي: ${workoutTimer.value}ث' : 'Remaining: ${workoutTimer.value}s',
+                        style: TextStyle(
+                          color: AppColors.metallicGray,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              )),
+              SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        _stopWorkout(exercise);
+                        Get.back();
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.dangerRed,
+                        padding: EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                      child: Text(
+                        isArabic() ? '⏹️ إيقاف' : '⏹️ Stop',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        _completeWorkout(exercise);
+                        Get.back();
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.successGreen,
+                        padding: EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                      child: Text(
+                        isArabic() ? '✅ إنهاء' : '✅ Finish',
+                        style: TextStyle(
+                          color: Colors.black,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+      barrierDismissible: false,
+    );
+
+    await speakCommand(isArabic() ? 'بدأ التمرين: ${exercise.name}' : 'Starting workout: ${exercise.name}');
+    await Future.delayed(Duration(seconds: 2));
+    
+    int totalDuration = exercise.duration;
+    int elapsed = 0;
+    
+    for (int i = totalDuration; i > 0; i--) {
+      if (!isWorkoutActive.value) break;
+      
+      workoutTimer.value = i;
+      workoutElapsedSeconds.value = elapsed;
+      workoutMinutes.value = i ~/ 60;
+      workoutSeconds.value = i % 60;
+      workoutProgress.value = (totalDuration - i) / totalDuration;
+      
+      if (i % 30 == 0 && i > 0) {
+        if (i == totalDuration) {
+          await speakCommand(isArabic() ? 'ابدأ!' : 'Start!');
+        } else if (i % 60 == 0) {
+          await speakCommand(isArabic() ? 'ممتاز، استمر!' : 'Excellent, keep going!');
+        } else {
+          await speakCommand(isArabic() ? 'أنت رائع!' : 'You\'re doing great!');
+        }
+      }
+      
+      if (i <= 10 && i > 0) {
+        await speakCommand(i.toString());
+      }
+      
+      elapsed++;
+      await Future.delayed(Duration(seconds: 1));
+    }
+    
+    if (isWorkoutActive.value && workoutTimer.value <= 0) {
+      await speakCommand(isArabic() ? 'أحسنت! أكملت التمرين!' : 'Great job! You completed the workout!');
+      _completeWorkout(exercise);
+      Get.back();
+    }
+  }
+
+  void _stopWorkout(Exercise exercise) {
+    isWorkoutActive.value = false;
+    workoutTimer.value = 0;
+    workoutProgress.value = 0.0;
+    workoutMinutes.value = 0;
+    workoutSeconds.value = 0;
+    workoutElapsedSeconds.value = 0;
+    
+    speakCommand(isArabic() ? 'تم إيقاف التمرين' : 'Workout stopped');
+    Get.snackbar(
+      isArabic() ? '⏹️ تم الإيقاف' : '⏹️ Stopped',
+      isArabic() ? 'تم إيقاف التمرين' : 'Workout stopped',
+      backgroundColor: AppColors.hotOrange,
+      duration: Duration(seconds: 2),
+    );
+  }
+
+  void _completeWorkout(Exercise exercise) {
+    isWorkoutActive.value = false;
+    workoutTimer.value = 0;
+    workoutProgress.value = 0.0;
+    workoutMinutes.value = 0;
+    workoutSeconds.value = 0;
+    workoutElapsedSeconds.value = 0;
+    
+    addExerciseToHistory(exercise);
+    
+    for (var e in exercises) {
+      if (e.id == exercise.id) {
+        e.isCompleted = true;
+        break;
+      }
+    }
+    
+    speakCommand(isArabic() ? 'أحسنت، أكملت التمرين بنجاح!' : 'Great job, you completed the workout!');
+    Get.snackbar(
+      isArabic() ? '🎉 أحسنت!' : '🎉 Great job!',
+      isArabic() ? 'تم إكمال ${exercise.name} بنجاح' : 'Completed ${exercise.name} successfully',
+      backgroundColor: AppColors.successGreen,
+      duration: Duration(seconds: 3),
+    );
+  }
+
+  Color _getTypeColor(String type) {
+    if (type == 'كارديو') return AppColors.hotOrange;
+    if (type == 'قوة') return AppColors.neonGreen;
+    if (type == 'HIIT') return AppColors.neonPink;
+    if (type == 'يوغا') return AppColors.electricBlue;
+    return AppColors.metallicGray;
+  }
+
+  IconData _getTypeIcon(String type) {
+    if (type == 'كارديو') return Icons.favorite;
+    if (type == 'قوة') return Icons.fitness_center;
+    if (type == 'HIIT') return Icons.flash_on;
+    if (type == 'يوغا') return Icons.self_improvement;
+    return Icons.sports;
+  }
+
+  // ========== المساعد الذكي (AI) ==========
+  Future<void> askAI(String question) async {
+    if (currentUser.value == null) {
+      Get.snackbar(
+        isArabic() ? 'خطأ' : 'Error',
+        isArabic() ? 'يرجى تسجيل الدخول أولاً' : 'Please login first',
+        backgroundColor: AppColors.dangerRed,
+      );
+      return;
+    }
+
+    aiLoading.value = true;
+    aiMessages.add({'sender': 'user', 'message': question});
+    _saveAIContext();
+
+    try {
+      String response = _getPersonalizedAIResponse(question);
+      await Future.delayed(Duration(milliseconds: 800));
+      aiMessages.add({'sender': 'ai', 'message': response});
+      aiLoading.value = false;
+      _saveAIContext();
+      await speakCommand(response);
+    } catch (e) {
+      aiMessages.add({'sender': 'ai', 'message': isArabic() ? 'عذراً، حدث خطأ. حاول مرة أخرى.' : 'Sorry, an error occurred. Try again.'});
+      aiLoading.value = false;
+      _saveAIContext();
+    }
+  }
+
+  String _getPersonalizedAIResponse(String question) {
+    if (currentUser.value == null) {
+      return isArabic() ? 'مرحباً! سجل الدخول أولاً للحصول على نصائح مخصصة.' : 'Hello! Login first to get personalized advice.';
+    }
+
+    User user = currentUser.value!;
+    String q = question.toLowerCase();
+    
+    String userContext = 'مستخدم يدعى ${user.name}، عمره ${user.age} سنة، ';
+    userContext += 'مستوى لياقته ${user.fitnessLevel}، هدفه ${user.goal}، ';
+    userContext += 'وزنه ${user.weight} كغ، طوله ${user.height} سم.';
+    
+    userAIContext.value['last_question'] = question;
+    userAIContext.value['user_context'] = userContext;
+    _saveAIContext();
+
+    if (q.contains('تمرين') || q.contains('رياضة')) {
+      return isArabic() 
+        ? 'مرحباً ${user.name}! بناءً على هدفك (${user.goal}) ومستواك (${user.fitnessLevel})، أنصحك بتمارين HIIT لمدة 20 دقيقة، فهي ممتازة لحرق الدهون وبناء اللياقة.'
+        : 'Hello ${user.name}! Based on your goal (${user.goal}) and level (${user.fitnessLevel}), I recommend HIIT exercises for 20 minutes, they are great for burning fat and building fitness.';
+    } else if (q.contains('غذاء') || q.contains('أكل') || q.contains('طعام')) {
+      double proteinNeeded = user.weight * 1.6;
+      return isArabic()
+        ? '${user.name}، بناءً على وزنك (${user.weight} كغ) تحتاج حوالي ${proteinNeeded.toInt()} غرام بروتين يومياً. تناول الدجاج والسمك مع الخضار الورقية والحبوب الكاملة.'
+        : '${user.name}, based on your weight (${user.weight} kg) you need about ${proteinNeeded.toInt()} grams of protein daily. Eat chicken and fish with leafy vegetables and whole grains.';
+    } else if (q.contains('نوم')) {
+      return isArabic()
+        ? 'احرص على النوم 7-8 ساعات يومياً لتحسين الأداء الرياضي وبناء العضلات. جرب النوم في نفس الوقت كل يوم.'
+        : 'Aim for 7-8 hours of sleep daily to improve athletic performance and build muscle. Try to sleep at the same time every day.';
+    } else if (q.contains('ماء')) {
+      double waterNeeded = user.weight * 0.033;
+      return isArabic()
+        ? 'بناءً على وزنك، تحتاج شرب ${waterNeeded.toStringAsFixed(1)} لتر من الماء يومياً، وزعها على مدار اليوم.'
+        : 'Based on your weight, you need to drink ${waterNeeded.toStringAsFixed(1)} liters of water daily, spread throughout the day.';
+    } else if (q.contains('وزن')) {
+      double bmr = user.bmr;
+      double caloriesNeeded = user.dailyCalories('متوسط');
+      return isArabic()
+        ? '${user.name}، معدل الأيض الأساسي لديك هو ${bmr.toInt()} سعر، وتحتاج حوالي ${caloriesNeeded.toInt()} سعر يومياً للحفاظ على وزنك. لإنقاص الوزن، قلل السعرات بـ 300-500 سعر يومياً.'
+        : '${user.name}, your BMR is ${bmr.toInt()} calories, and you need about ${caloriesNeeded.toInt()} calories daily to maintain your weight. To lose weight, reduce calories by 300-500 calories daily.';
+    } else if (q.contains('عضلات')) {
+      return isArabic()
+        ? 'للبناء العضلات، ركز على تمارين المقاومة 3-4 مرات أسبوعياً مع زيادة البروتين في نظامك الغذائي إلى ${(user.weight * 1.8).toInt()} غرام يومياً.'
+        : 'To build muscle, focus on resistance exercises 3-4 times a week with increased protein in your diet to ${(user.weight * 1.8).toInt()} grams daily.';
+    } else if (q.contains('تقدم') || q.contains('تحسن')) {
+      int exercisesDone = user.exerciseHistory.length;
+      return isArabic()
+        ? '${user.name}، لقد أنجزت $exercisesDone تمريناً حتى الآن! استمر بنفس المستوى وستحقق أهدافك قريباً 💪'
+        : '${user.name}, you have completed $exercisesDone exercises so far! Keep up the same level and you will achieve your goals soon 💪';
+    } else {
+      return isArabic()
+        ? 'مرحباً ${user.name}! أنا مساعدك الذكي للصحة واللياقة. اسألني عن التمارين، التغذية، النوم، التقدم، أو أي سؤال صحي آخر.'
+        : 'Hello ${user.name}! I am your smart health and fitness assistant. Ask me about exercises, nutrition, sleep, progress, or any other health question.';
+    }
+  }
+
+  // ========== الإشعارات ==========
+  Future<void> sendLocalNotification(String title, String body) async {
+    const AndroidNotificationDetails androidPlatformChannelSpecifics =
+        AndroidNotificationDetails(
+      'fitness_channel',
+      'قناة اللياقة',
+      importance: Importance.max,
+      priority: Priority.high,
+    );
+    const NotificationDetails platformChannelSpecifics =
+        NotificationDetails(android: androidPlatformChannelSpecifics);
+
+    await flutterLocalNotificationsPlugin.show(
+      0,
+      title,
+      body,
+      platformChannelSpecifics,
+    );
+  }
+
+  void scheduleDailyReminders() async {
+    await sendLocalNotification(
+      isArabic() ? '🏋️ وقت التمرين!' : '🏋️ Workout Time!',
+      isArabic() ? 'حان وقت تمارينك اليومية، استعد للحركة!' : 'Time for your daily workout, get ready to move!'
+    );
+    await Future.delayed(Duration(seconds: 2));
+    await sendLocalNotification(
+      isArabic() ? '💧 اشرب الماء!' : '💧 Drink Water!',
+      isArabic() ? 'تذكر شرب كوب من الماء للحفاظ على الترطيب.' : 'Remember to drink a glass of water to stay hydrated.'
+    );
+    await Future.delayed(Duration(seconds: 2));
+    await sendLocalNotification(
+      isArabic() ? '🍽️ وقت الوجبة!' : '🍽️ Meal Time!',
+      isArabic() ? 'تناول وجبة صحية متوازنة الآن.' : 'Eat a healthy balanced meal now.'
+    );
+  }
+
+  // ========== مساعدة التنقل ==========
+  void changePage(int index) {
+    currentPage.value = index;
+  }
+}
+
+// ============================================================
+// 6. التشغيل الرئيسي
+// ============================================================
+void main() {
+  runApp(MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return GetMaterialApp(
+      title: 'Fitness Tracker',
+      debugShowCheckedModeBanner: false,
+      locale: Get.locale ?? Locale('ar'),
+      fallbackLocale: Locale('ar'),
+      theme: ThemeData(
+        scaffoldBackgroundColor: AppColors.primaryBlack,
+        fontFamily: 'Roboto',
+      ),
+      initialRoute: '/',
+      getPages: [
+        GetPage(name: '/', page: () => SplashScreen()),
+        GetPage(name: '/login', page: () => LoginScreen()),
+        GetPage(name: '/register', page: () => RegisterScreen()),
+        GetPage(name: '/forgot-password', page: () => ForgotPasswordScreen()),
+        GetPage(name: '/home', page: () => HomeScreen()),
+      ],
+    );
+  }
+}
+
+// ============================================================
+// 7. شاشة البداية
+// ============================================================
+class SplashScreen extends StatefulWidget {
+  @override
+  _SplashScreenState createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen> {
+  final MainController controller = Get.put(MainController());
+
+  @override
+  void initState() {
+    super.initState();
+    Future.delayed(Duration(seconds: 2), () {
+      if (controller.isLoggedIn.value) {
+        Get.offAllNamed('/home');
+      } else {
+        Get.offAllNamed('/login');
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.primaryBlack,
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.fitness_center, color: AppColors.neonGreen, size: 100),
+            SizedBox(height: 20),
+            Text(
+              '💪 FIT TRACKER',
+              style: TextStyle(
+                color: AppColors.whiteTransparent,
+                fontSize: 32,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 4,
+              ),
+            ),
+            SizedBox(height: 10),
+            Text(
+              'تطبيق اللياقة الذكي المتكامل',
+              style: TextStyle(
+                color: AppColors.metallicGray,
+                fontSize: 16,
+              ),
+            ),
+            SizedBox(height: 30),
+            CircularProgressIndicator(color: AppColors.neonGreen),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================================
+// 8. شاشة تسجيل الدخول
+// ============================================================
+class LoginScreen extends StatelessWidget {
+  final MainController controller = Get.find();
+  final TextEditingController emailController = TextEditingController();
+  final TextEditingController passwordController = TextEditingController();
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() => Scaffold(
+      backgroundColor: controller.currentBackgroundColor.value,
+      body: SafeArea(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.fitness_center, color: controller.currentAccentColor.value, size: 80),
+              SizedBox(height: 20),
+              Text(
+                '💪 FIT TRACKER',
+                style: TextStyle(
+                  color: AppColors.whiteTransparent,
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 3,
+                ),
+              ),
+              Text(
+                controller.isArabic() ? 'تطبيق اللياقة الذكي' : 'Smart Fitness App',
+                style: TextStyle(
+                  color: AppColors.metallicGray,
+                  fontSize: 16,
+                ),
+              ),
+              SizedBox(height: 50),
+
+              TextField(
+                controller: emailController,
+                style: TextStyle(color: AppColors.whiteTransparent),
+                decoration: InputDecoration(
+                  labelText: controller.isArabic() ? 'البريد الإلكتروني' : 'Email',
+                  labelStyle: TextStyle(color: AppColors.metallicGray),
+                  prefixIcon: Icon(Icons.email, color: controller.currentAccentColor.value),
+                  filled: true,
+                  fillColor: controller.currentCardColor.value,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+              SizedBox(height: 16),
+
+              TextField(
+                controller: passwordController,
+                obscureText: true,
+                style: TextStyle(color: AppColors.whiteTransparent),
+                decoration: InputDecoration(
+                  labelText: controller.isArabic() ? 'كلمة المرور' : 'Password',
+                  labelStyle: TextStyle(color: AppColors.metallicGray),
+                  prefixIcon: Icon(Icons.lock, color: controller.currentAccentColor.value),
+                  filled: true,
+                  fillColor: controller.currentCardColor.value,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+              SizedBox(height: 10),
+
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton(
+                  onPressed: () => Get.toNamed('/forgot-password'),
+                  child: Text(
+                    controller.isArabic() ? 'نسيت كلمة المرور؟' : 'Forgot Password?',
+                    style: TextStyle(color: AppColors.hotOrange),
+                  ),
+                ),
+              ),
+              SizedBox(height: 20),
+
+              Obx(() {
+                return SizedBox(
+                  width: double.infinity,
+                  height: 56,
+                  child: ElevatedButton(
+                    onPressed: controller.isLoading.value
+                        ? null
+                        : () async {
+                            bool success = await controller.login(
+                              emailController.text,
+                              passwordController.text,
+                            );
+                            if (success) {
+                              Get.offAllNamed('/home');
+                            }
+                          },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: controller.currentAccentColor.value,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                    child: controller.isLoading.value
+                        ? CircularProgressIndicator(color: AppColors.primaryBlack)
+                        : Text(
+                            controller.isArabic() ? '🚀 تسجيل الدخول' : '🚀 Login',
+                            style: TextStyle(
+                              color: AppColors.primaryBlack,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
+                            ),
+                          ),
+                  ),
+                );
+              }),
+              SizedBox(height: 20),
+
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    controller.isArabic() ? 'ليس لديك حساب؟' : 'Don\'t have an account?',
+                    style: TextStyle(color: AppColors.metallicGray),
+                  ),
+                  TextButton(
+                    onPressed: () => Get.toNamed('/register'),
+                    child: Text(
+                      controller.isArabic() ? 'سجل الآن' : 'Register',
+                      style: TextStyle(
+                        color: controller.currentAccentColor.value,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    ));
+  }
+}
+
+// ============================================================
+// 9. شاشة التسجيل
+// ============================================================
+class RegisterScreen extends StatelessWidget {
+  final MainController controller = Get.find();
+  final TextEditingController nameController = TextEditingController();
+  final TextEditingController emailController = TextEditingController();
+  final TextEditingController passwordController = TextEditingController();
+  final TextEditingController confirmPasswordController = TextEditingController();
+  final TextEditingController ageController = TextEditingController();
+  final TextEditingController heightController = TextEditingController();
+  final TextEditingController weightController = TextEditingController();
+
+  var selectedGender = 'ذكر'.obs;
+  var selectedLevel = 'مبتدئ'.obs;
+  var selectedGoal = 'لياقة عامة'.obs;
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() => Scaffold(
+      backgroundColor: controller.currentBackgroundColor.value,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        title: Text(
+          controller.isArabic() ? 'إنشاء حساب' : 'Create Account',
+          style: TextStyle(color: Colors.white)
+        ),
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Get.back(),
+        ),
+      ),
+      body: Padding(
+        padding: EdgeInsets.all(16),
+        child: SingleChildScrollView(
+          child: Column(
+            children: [
+              TextField(
+                controller: nameController,
+                style: TextStyle(color: AppColors.whiteTransparent),
+                decoration: InputDecoration(
+                  labelText: controller.isArabic() ? 'الاسم الكامل' : 'Full Name',
+                  labelStyle: TextStyle(color: AppColors.metallicGray),
+                  prefixIcon: Icon(Icons.person, color: controller.currentAccentColor.value),
+                  filled: true,
+                  fillColor: controller.currentCardColor.value,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+              SizedBox(height: 12),
+
+              TextField(
+                controller: emailController,
+                style: TextStyle(color: AppColors.whiteTransparent),
+                decoration: InputDecoration(
+                  labelText: controller.isArabic() ? 'البريد الإلكتروني' : 'Email',
+                  labelStyle: TextStyle(color: AppColors.metallicGray),
+                  prefixIcon: Icon(Icons.email, color: controller.currentAccentColor.value),
+                  filled: true,
+                  fillColor: controller.currentCardColor.value,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+              SizedBox(height: 12),
+
+              TextField(
+                controller: passwordController,
+                obscureText: true,
+                style: TextStyle(color: AppColors.whiteTransparent),
+                decoration: InputDecoration(
+                  labelText: controller.isArabic() ? 'كلمة المرور (6 أحرف على الأقل)' : 'Password (min 6 characters)',
+                  labelStyle: TextStyle(color: AppColors.metallicGray),
+                  prefixIcon: Icon(Icons.lock, color: controller.currentAccentColor.value),
+                  filled: true,
+                  fillColor: controller.currentCardColor.value,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+              SizedBox(height: 12),
+
+              TextField(
+                controller: confirmPasswordController,
+                obscureText: true,
+                style: TextStyle(color: AppColors.whiteTransparent),
+                decoration: InputDecoration(
+                  labelText: controller.isArabic() ? 'تأكيد كلمة المرور' : 'Confirm Password',
+                  labelStyle: TextStyle(color: AppColors.metallicGray),
+                  prefixIcon: Icon(Icons.lock_outline, color: controller.currentAccentColor.value),
+                  filled: true,
+                  fillColor: controller.currentCardColor.value,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+              SizedBox(height: 12),
+
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: ageController,
+                      keyboardType: TextInputType.number,
+                      style: TextStyle(color: AppColors.whiteTransparent),
+                      decoration: InputDecoration(
+                        labelText: controller.isArabic() ? 'العمر' : 'Age',
+                        labelStyle: TextStyle(color: AppColors.metallicGray),
+                        prefixIcon: Icon(Icons.cake, color: controller.currentAccentColor.value),
+                        filled: true,
+                        fillColor: controller.currentCardColor.value,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: TextField(
+                      controller: heightController,
+                      keyboardType: TextInputType.number,
+                      style: TextStyle(color: AppColors.whiteTransparent),
+                      decoration: InputDecoration(
+                        labelText: controller.isArabic() ? 'الطول (سم)' : 'Height (cm)',
+                        labelStyle: TextStyle(color: AppColors.metallicGray),
+                        prefixIcon: Icon(Icons.height, color: controller.currentAccentColor.value),
+                        filled: true,
+                        fillColor: controller.currentCardColor.value,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(height: 12),
+              
+              TextField(
+                controller: weightController,
+                keyboardType: TextInputType.number,
+                style: TextStyle(color: AppColors.whiteTransparent),
+                decoration: InputDecoration(
+                  labelText: controller.isArabic() ? 'الوزن (كغ)' : 'Weight (kg)',
+                  labelStyle: TextStyle(color: AppColors.metallicGray),
+                  prefixIcon: Icon(Icons.fitness_center, color: controller.currentAccentColor.value),
+                  filled: true,
+                  fillColor: controller.currentCardColor.value,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+              SizedBox(height: 12),
+
+              Row(
+                children: [
+                  Expanded(
+                    child: Obx(() => GestureDetector(
+                      onTap: () => selectedGender.value = 'ذكر',
+                      child: Container(
+                        padding: EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: selectedGender.value == 'ذكر' ? controller.currentAccentColor.value.withOpacity(0.2) : controller.currentCardColor.value,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: selectedGender.value == 'ذكر' ? controller.currentAccentColor.value : AppColors.metallicGray,
+                          ),
+                        ),
+                        child: Center(
+                          child: Text(
+                            controller.isArabic() ? 'ذكر' : 'Male',
+                            style: TextStyle(color: Colors.white)
+                          ),
+                        ),
+                      ),
+                    )),
+                  ),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Obx(() => GestureDetector(
+                      onTap: () => selectedGender.value = 'أنثى',
+                      child: Container(
+                        padding: EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: selectedGender.value == 'أنثى' ? AppColors.neonPink.withOpacity(0.2) : controller.currentCardColor.value,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: selectedGender.value == 'أنثى' ? AppColors.neonPink : AppColors.metallicGray,
+                          ),
+                        ),
+                        child: Center(
+                          child: Text(
+                            controller.isArabic() ? 'أنثى' : 'Female',
+                            style: TextStyle(color: Colors.white)
+                          ),
+                        ),
+                      ),
+                    )),
+                  ),
+                ],
+              ),
+              SizedBox(height: 12),
+
+              Wrap(
+                spacing: 8,
+                children: ['مبتدئ', 'متوسط', 'محترف', 'أسطورة'].map((level) {
+                  return Obx(() => GestureDetector(
+                    onTap: () => selectedLevel.value = level,
+                    child: Container(
+                      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: selectedLevel.value == level ? controller.currentAccentColor.value : controller.currentCardColor.value,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        level,
+                        style: TextStyle(
+                          color: selectedLevel.value == level ? AppColors.primaryBlack : Colors.white,
+                        ),
+                      ),
+                    ),
+                  ));
+                }).toList(),
+              ),
+              SizedBox(height: 12),
+
+              Wrap(
+                spacing: 8,
+                children: ['خسارة وزن', 'بناء عضلات', 'لياقة عامة'].map((goal) {
+                  return Obx(() => GestureDetector(
+                    onTap: () => selectedGoal.value = goal,
+                    child: Container(
+                      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: selectedGoal.value == goal ? AppColors.hotOrange : controller.currentCardColor.value,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        goal,
+                        style: TextStyle(
+                          color: selectedGoal.value == goal ? Colors.white : Colors.white.withOpacity(0.7),
+                        ),
+                      ),
+                    ),
+                  ));
+                }).toList(),
+              ),
+              SizedBox(height: 20),
+
+              Obx(() {
+                return SizedBox(
+                  width: double.infinity,
+                  height: 56,
+                  child: ElevatedButton(
+                    onPressed: controller.isLoading.value
+                        ? null
+                        : () async {
+                            if (nameController.text.isEmpty) {
+                              Get.snackbar(
+                                controller.isArabic() ? 'خطأ' : 'Error',
+                                controller.isArabic() ? 'الرجاء إدخال الاسم' : 'Please enter your name',
+                                backgroundColor: AppColors.dangerRed
+                              );
+                              return;
+                            }
+                            if (emailController.text.isEmpty || !emailController.text.contains('@')) {
+                              Get.snackbar(
+                                controller.isArabic() ? 'خطأ' : 'Error',
+                                controller.isArabic() ? 'الرجاء إدخال بريد إلكتروني صحيح' : 'Please enter a valid email',
+                                backgroundColor: AppColors.dangerRed
+                              );
+                              return;
+                            }
+                            if (passwordController.text.length < 6) {
+                              Get.snackbar(
+                                controller.isArabic() ? 'خطأ' : 'Error',
+                                controller.isArabic() ? 'كلمة المرور يجب أن تكون 6 أحرف على الأقل' : 'Password must be at least 6 characters',
+                                backgroundColor: AppColors.dangerRed
+                              );
+                              return;
+                            }
+                            if (passwordController.text != confirmPasswordController.text) {
+                              Get.snackbar(
+                                controller.isArabic() ? 'خطأ' : 'Error',
+                                controller.isArabic() ? 'كلمة المرور غير متطابقة' : 'Passwords do not match',
+                                backgroundColor: AppColors.dangerRed
+                              );
+                              return;
+                            }
+                            if (ageController.text.isEmpty || int.tryParse(ageController.text) == null) {
+                              Get.snackbar(
+                                controller.isArabic() ? 'خطأ' : 'Error',
+                                controller.isArabic() ? 'الرجاء إدخال عمر صحيح' : 'Please enter a valid age',
+                                backgroundColor: AppColors.dangerRed
+                              );
+                              return;
+                            }
+                            if (heightController.text.isEmpty || double.tryParse(heightController.text) == null) {
+                              Get.snackbar(
+                                controller.isArabic() ? 'خطأ' : 'Error',
+                                controller.isArabic() ? 'الرجاء إدخال طول صحيح' : 'Please enter a valid height',
+                                backgroundColor: AppColors.dangerRed
+                              );
+                              return;
+                            }
+                            if (weightController.text.isEmpty || double.tryParse(weightController.text) == null) {
+                              Get.snackbar(
+                                controller.isArabic() ? 'خطأ' : 'Error',
+                                controller.isArabic() ? 'الرجاء إدخال وزن صحيح' : 'Please enter a valid weight',
+                                backgroundColor: AppColors.dangerRed
+                              );
+                              return;
+                            }
+
+                            Map<String, dynamic> userData = {
+                              'name': nameController.text,
+                              'email': emailController.text,
+                              'password': passwordController.text,
+                              'gender': selectedGender.value,
+                              'age': int.parse(ageController.text),
+                              'height': double.parse(heightController.text),
+                              'weight': double.parse(weightController.text),
+                              'fitnessLevel': selectedLevel.value,
+                              'goal': selectedGoal.value,
+                            };
+
+                            bool success = await controller.register(userData);
+                            if (success) {
+                              Get.offAllNamed('/home');
+                            }
+                          },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: controller.currentAccentColor.value,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                    child: controller.isLoading.value
+                        ? CircularProgressIndicator(color: AppColors.primaryBlack)
+                        : Text(
+                            controller.isArabic() ? 'إنشاء حساب' : 'Create Account',
+                            style: TextStyle(
+                              color: AppColors.primaryBlack,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
+                            ),
+                          ),
+                  ),
+                );
+              }),
+            ],
+          ),
+        ),
+      ),
+    ));
+  }
+}
+
+// ============================================================
+// 10. شاشة استرجاع كلمة المرور
+// ============================================================
+class ForgotPasswordScreen extends StatelessWidget {
+  final MainController controller = Get.find();
+  final TextEditingController emailController = TextEditingController();
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() => Scaffold(
+      backgroundColor: controller.currentBackgroundColor.value,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        title: Text(
+          controller.isArabic() ? 'استرجاع كلمة المرور' : 'Reset Password',
+          style: TextStyle(color: Colors.white)
+        ),
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Get.back(),
+        ),
+      ),
+      body: Padding(
+        padding: EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.lock_reset, color: controller.currentAccentColor.value, size: 80),
+            SizedBox(height: 20),
+            Text(
+              controller.isArabic() 
+                ? 'أدخل بريدك الإلكتروني وسنرسل لك رابط استرجاع'
+                : 'Enter your email and we will send you a reset link',
+              style: TextStyle(color: AppColors.whiteTransparent),
+              textAlign: TextAlign.center,
+            ),
+            SizedBox(height: 30),
+            TextField(
+              controller: emailController,
+              style: TextStyle(color: AppColors.whiteTransparent),
+              decoration: InputDecoration(
+                labelText: controller.isArabic() ? 'البريد الإلكتروني' : 'Email',
+                labelStyle: TextStyle(color: AppColors.metallicGray),
+                prefixIcon: Icon(Icons.email, color: controller.currentAccentColor.value),
+                filled: true,
+                fillColor: controller.currentCardColor.value,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+            SizedBox(height: 30),
+            SizedBox(
+              width: double.infinity,
+              height: 56,
+              child: ElevatedButton(
+                onPressed: () {
+                  if (emailController.text.isEmpty) {
+                    Get.snackbar(
+                      controller.isArabic() ? 'خطأ' : 'Error',
+                      controller.isArabic() ? 'الرجاء إدخال البريد الإلكتروني' : 'Please enter your email',
+                      backgroundColor: AppColors.dangerRed
+                    );
+                    return;
+                  }
+                  controller.resetPassword(emailController.text);
+                  Get.back();
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.hotOrange,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+                child: Text(
+                  controller.isArabic() ? 'إرسال رابط الاسترجاع' : 'Send Reset Link',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ));
+  }
+}
+
+// ============================================================
+// 11. الشاشة الرئيسية
+// ============================================================
+class HomeScreen extends StatelessWidget {
+  final MainController controller = Get.find();
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() => Scaffold(
+      backgroundColor: controller.currentBackgroundColor.value,
+      appBar: AppBar(
+        backgroundColor: controller.currentCardColor.value,
+        elevation: 0,
+        title: Row(
+          children: [
+            Icon(Icons.fitness_center, color: controller.currentAccentColor.value),
+            SizedBox(width: 10),
+            Text(
+              'FIT TRACKER',
+              style: TextStyle(
+                color: AppColors.whiteTransparent,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 2,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          // زر تبديل اللغة
+          PopupMenuButton<String>(
+            icon: Icon(Icons.language, color: controller.currentAccentColor.value),
+            onSelected: (value) {
+              controller.changeLanguage(value);
+            },
+            itemBuilder: (context) => [
+              PopupMenuItem(
+                value: 'ar',
+                child: Row(
+                  children: [
+                    Text('🇸🇦'),
+                    SizedBox(width: 8),
+                    Text('العربية'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: 'en',
+                child: Row(
+                  children: [
+                    Text('🇬🇧'),
+                    SizedBox(width: 8),
+                    Text('English'),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          // زر تبديل الوضع
+          PopupMenuButton<String>(
+            icon: Icon(
+              controller.isNightMode.value 
+                ? Icons.nightlight_round 
+                : controller.isMorningMode.value 
+                  ? Icons.wb_sunny 
+                  : Icons.bedtime,
+              color: controller.currentAccentColor.value,
+            ),
+            onSelected: (value) {
+              if (value == 'auto') {
+                controller.updateThemeBasedOnTime();
+              } else {
+                controller.setThemeMode(value);
+              }
+            },
+            itemBuilder: (context) => [
+              PopupMenuItem(
+                value: 'auto',
+                child: Row(
+                  children: [
+                    Icon(Icons.auto_awesome, color: AppColors.electricBlue),
+                    SizedBox(width: 8),
+                    Text(controller.isArabic() ? '🌓 تلقائي' : '🌓 Auto'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: 'morning',
+                child: Row(
+                  children: [
+                    Icon(Icons.wb_sunny, color: Color(0xFFFFB74D)),
+                    SizedBox(width: 8),
+                    Text(controller.isArabic() ? '🌅 صباحي' : '🌅 Morning'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: 'evening',
+                child: Row(
+                  children: [
+                    Icon(Icons.wb_twilight, color: Color(0xFFFF6B00)),
+                    SizedBox(width: 8),
+                    Text(controller.isArabic() ? '🌤️ مسائي' : '🌤️ Evening'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: 'night',
+                child: Row(
+                  children: [
+                    Icon(Icons.nightlight_round, color: Color(0xFF7C4DFF)),
+                    SizedBox(width: 8),
+                    Text(controller.isArabic() ? '🌙 ليلي' : '🌙 Night'),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          IconButton(
+            icon: Icon(Icons.logout, color: AppColors.metallicGray),
+            onPressed: () {
+              Get.defaultDialog(
+                title: controller.isArabic() ? 'تسجيل الخروج' : 'Logout',
+                middleText: controller.isArabic() 
+                  ? 'هل أنت متأكد من رغبتك في تسجيل الخروج؟' 
+                  : 'Are you sure you want to logout?',
+                backgroundColor: controller.currentCardColor.value,
+                titleStyle: TextStyle(color: Colors.white),
+                middleTextStyle: TextStyle(color: Colors.white),
+                textConfirm: controller.isArabic() ? 'نعم' : 'Yes',
+                textCancel: controller.isArabic() ? 'إلغاء' : 'Cancel',
+                confirmTextColor: Colors.white,
+                onConfirm: () {
+                  controller.logout();
+                  Get.back();
+                },
+              );
+            },
+          ),
+        ],
+      ),
+      body: IndexedStack(
+        index: controller.currentPage.value,
+        children: [
+          HomeContent(controller: controller),
+          ExercisesScreen(controller: controller),
+          NutritionScreen(controller: controller),
+          ProfileScreen(controller: controller),
+          AIChatScreen(controller: controller),
+        ],
+      ),
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          border: Border(
+            top: BorderSide(color: AppColors.metallicGray, width: 1),
+          ),
+        ),
+        child: BottomNavigationBar(
+          backgroundColor: controller.currentCardColor.value,
+          selectedItemColor: controller.currentAccentColor.value,
+          unselectedItemColor: AppColors.metallicGray,
+          currentIndex: controller.currentPage.value,
+          onTap: controller.changePage,
+          type: BottomNavigationBarType.fixed,
+          items: [
+            BottomNavigationBarItem(
+              icon: Icon(Icons.home), 
+              label: controller.isArabic() ? 'الرئيسية' : 'Home'
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.fitness_center), 
+              label: controller.isArabic() ? 'تمارين' : 'Exercises'
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.restaurant), 
+              label: controller.isArabic() ? 'غذاء' : 'Nutrition'
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.person), 
+              label: controller.isArabic() ? 'ملفي' : 'Profile'
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.chat), 
+              label: controller.isArabic() ? 'AI' : 'AI'
+            ),
+          ],
+        ),
+      ),
+    ));
+  }
+}
+
+// ============================================================
+// 12. محتوى الصفحة الرئيسية
+// ============================================================
+class HomeContent extends StatelessWidget {
+  final MainController controller;
+
+  const HomeContent({Key? key, required this.controller}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() => SingleChildScrollView(
+      padding: EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  controller.currentAccentColor.value.withOpacity(0.2),
+                  controller.currentBackgroundColor.value,
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: controller.currentAccentColor.value.withOpacity(0.3),
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      controller.isNightMode.value 
+                        ? Icons.nightlight_round 
+                        : controller.isMorningMode.value 
+                          ? Icons.wb_sunny 
+                          : Icons.wb_twilight,
+                      color: controller.currentAccentColor.value,
+                      size: 30,
+                    ),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${controller.greetingMessage.value} ${controller.currentUser.value?.name ?? (controller.isArabic() ? "مستخدم" : "User")}! 👋',
+                            style: TextStyle(
+                              color: controller.currentAccentColor.value,
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            controller.isNightMode.value 
+                              ? (controller.isArabic() 
+                                ? '🌙 وقت الاسترخاء والراحة' 
+                                : '🌙 Time to relax and rest')
+                              : controller.isMorningMode.value
+                                ? (controller.isArabic() 
+                                  ? '☀️ وقت النشاط والحيوية' 
+                                  : '☀️ Time for activity and energy')
+                                : (controller.isArabic() 
+                                  ? '🌤️ وقت المساء والاسترخاء' 
+                                  : '🌤️ Evening time to unwind'),
+                            style: TextStyle(
+                              color: AppColors.whiteTransparent.withOpacity(0.7),
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 12),
+                Text(
+                  controller.isArabic() ? 'جاهز لتحقيق أهدافك اليوم؟' : 'Ready to achieve your goals today?',
+                  style: TextStyle(
+                    color: AppColors.whiteTransparent,
+                    fontSize: 16,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          
+          SizedBox(height: 24),
+
+          Row(
+            children: [
+              Expanded(
+                child: _buildStatCard(
+                  icon: Icons.local_fire_department,
+                  color: controller.currentAccentColor.value,
+                  label: controller.isArabic() ? 'سعرات' : 'Calories',
+                  value: Obx(() => Text(
+                    '${controller.todayCalories.value}',
+                    style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                  )),
+                ),
+              ),
+              SizedBox(width: 12),
+              Expanded(
+                child: _buildStatCard(
+                  icon: Icons.directions_walk,
+                  color: controller.isNightMode.value ? Color(0xFF7C4DFF) : Color(0xFF00D4FF),
+                  label: controller.isArabic() ? 'خطوات' : 'Steps',
+                  value: Obx(() => Text(
+                    '${controller.todaySteps.value}',
+                    style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                  )),
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _buildStatCard(
+                  icon: Icons.opacity,
+                  color: controller.isMorningMode.value ? Color(0xFF4FC3F7) : Color(0xFF00D4FF),
+                  label: controller.isArabic() ? 'ماء' : 'Water',
+                  value: Obx(() => Text(
+                    '${controller.todayWater.value} ${controller.isArabic() ? 'كأس' : 'cups'}',
+                    style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                  )),
+                ),
+              ),
+              SizedBox(width: 12),
+              Expanded(
+                child: _buildStatCard(
+                  icon: Icons.timer,
+                  color: controller.isNightMode.value ? Color(0xFFB39DDB) : Color(0xFFFF0080),
+                  label: controller.isArabic() ? 'تمرين' : 'Workout',
+                  value: Obx(() => Text(
+                    '${controller.todayExerciseMinutes.value} ${controller.isArabic() ? 'د' : 'min'}',
+                    style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                  )),
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 24),
+
+          Obx(() {
+            if (controller.currentUser.value != null) {
+              User user = controller.currentUser.value!;
+              return Container(
+                padding: EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: controller.currentCardColor.value,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: controller.currentAccentColor.value.withOpacity(0.3)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '📊 ${controller.isArabic() ? 'مؤشر كتلة الجسم' : 'BMI'}',
+                      style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
+                    SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            children: [
+                              Text(
+                                user.bmi.toStringAsFixed(1),
+                                style: TextStyle(
+                                  color: _getBMIColor(user.bmiCategory),
+                                  fontSize: 28,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              Text(
+                                controller.isArabic() ? user.bmiCategory : _getBMICategoryEnglish(user.bmiCategory),
+                                style: TextStyle(
+                                  color: _getBMIColor(user.bmiCategory),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Expanded(
+                          child: Column(
+                            children: [
+                              Text(
+                                '${user.bmr.toInt()} ${controller.isArabic() ? 'سعر/يوم' : 'cal/day'}',
+                                style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                              ),
+                              Text(
+                                controller.isArabic() ? 'معدل الأيض' : 'BMR',
+                                style: TextStyle(color: AppColors.metallicGray),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              );
+            }
+            return Container();
+          }),
+          SizedBox(height: 24),
+
+          Text(
+            '💪 ${controller.isArabic() ? 'تمارين مقترحة لك' : 'Recommended for you'}',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          SizedBox(height: 12),
+          Obx(() {
+            return SizedBox(
+              height: 150,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: controller.recommendedExercises.length,
+                itemBuilder: (context, index) {
+                  Exercise exercise = controller.recommendedExercises[index];
+                  return Container(
+                    width: 150,
+                    margin: EdgeInsets.only(right: 12),
+                    padding: EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: controller.currentCardColor.value,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: exercise.isCompleted ? AppColors.successGreen : controller.currentAccentColor.value.withOpacity(0.3),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          exercise.name,
+                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          '${exercise.duration} ${controller.isArabic() ? 'د' : 'min'} • ⭐${exercise.rating}',
+                          style: TextStyle(color: AppColors.metallicGray, fontSize: 12),
+                        ),
+                        SizedBox(height: 8),
+                        GestureDetector(
+                          onTap: () {
+                            Get.bottomSheet(
+                              ExerciseDetailSheet(exercise: exercise, controller: controller),
+                              backgroundColor: controller.currentBackgroundColor.value,
+                              isScrollControlled: true,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                              ),
+                            );
+                          },
+                          child: Container(
+                            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: exercise.isCompleted ? AppColors.metallicGray : controller.currentAccentColor.value,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              exercise.isCompleted 
+                                ? (controller.isArabic() ? '✅ تم' : '✅ Done') 
+                                : (controller.isArabic() ? 'ابدأ' : 'Start'),
+                              style: TextStyle(
+                                color: exercise.isCompleted ? Colors.white : Colors.black, 
+                                fontWeight: FontWeight.bold, 
+                                fontSize: 12
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            );
+          }),
+          SizedBox(height: 24),
+
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () {
+                    controller.scheduleDailyReminders();
+                    Get.snackbar(
+                      '🔔 ${controller.isArabic() ? 'تم' : 'Done'}',
+                      controller.isArabic() ? 'تم جدولة التذكيرات اليومية' : 'Daily reminders scheduled',
+                      backgroundColor: AppColors.successGreen,
+                      duration: Duration(seconds: 2),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: controller.currentAccentColor.value,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  child: Text(
+                    '🔔 ${controller.isArabic() ? 'جدولة التذكيرات' : 'Schedule Reminders'}',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
+              ),
+              SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () {
+                    Get.to(() => ProgressScreen(controller: controller));
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: controller.isNightMode.value ? Color(0xFF7C4DFF) : Color(0xFFFF0080),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  child: Text(
+                    '📊 ${controller.isArabic() ? 'التقدم' : 'Progress'}',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    ));
+  }
+
+  Widget _buildStatCard({required IconData icon, required Color color, required String label, required Widget value}) {
+    return Container(
+      padding: EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: controller.currentCardColor.value,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.metallicGray),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: color, size: 28),
+          SizedBox(height: 4),
+          value,
+          Text(label, style: TextStyle(color: AppColors.metallicGray, fontSize: 12)),
+        ],
+      ),
+    );
+  }
+
+  Color _getBMIColor(String category) {
+    if (category == 'نحيف') return AppColors.warningYellow;
+    if (category == 'طبيعي') return AppColors.successGreen;
+    if (category == 'زائد') return AppColors.hotOrange;
+    return AppColors.dangerRed;
+  }
+
+  String _getBMICategoryEnglish(String category) {
+    if (category == 'نحيف') return 'Underweight';
+    if (category == 'طبيعي') return 'Normal';
+    if (category == 'زائد') return 'Overweight';
+    return 'Obese';
+  }
+}
+
+// ============================================================
+// 13. شاشة التقدم
+// ============================================================
+class ProgressScreen extends StatelessWidget {
+  final MainController controller;
+
+  const ProgressScreen({Key? key, required this.controller}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() => Scaffold(
+      backgroundColor: controller.currentBackgroundColor.value,
+      appBar: AppBar(
+        backgroundColor: controller.currentCardColor.value,
+        title: Text(
+          '📊 ${controller.isArabic() ? 'تقدمك' : 'Your Progress'}',
+          style: TextStyle(color: Colors.white)
+        ),
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Get.back(),
+        ),
+      ),
+      body: Obx(() {
+        if (controller.currentUser.value == null) {
+          return Center(child: Text(
+            controller.isArabic() ? 'يرجى تسجيل الدخول' : 'Please login',
+            style: TextStyle(color: Colors.white)
+          ));
+        }
+
+        User user = controller.currentUser.value!;
+        int totalExercises = user.exerciseHistory.length;
+        int totalMeals = user.mealHistory.length;
+        int totalCaloriesBurned = user.exerciseHistory.fold(0, (sum, e) => sum + (e['caloriesBurned'] as int? ?? 0));
+
+        return Padding(
+          padding: EdgeInsets.all(16),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildProgressCard(
+                      '🏋️',
+                      '$totalExercises',
+                      controller.isArabic() ? 'تمرين مكتمل' : 'Exercises Done',
+                      AppColors.neonGreen,
+                    ),
+                  ),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: _buildProgressCard(
+                      '🍽️',
+                      '$totalMeals',
+                      controller.isArabic() ? 'وجبة مسجلة' : 'Meals Recorded',
+                      AppColors.electricBlue,
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildProgressCard(
+                      '🔥',
+                      '$totalCaloriesBurned',
+                      controller.isArabic() ? 'سعر محروق' : 'Calories Burned',
+                      AppColors.hotOrange,
+                    ),
+                  ),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: _buildProgressCard(
+                      '📅',
+                      '${DateTime.now().difference(DateTime.parse(user.lastLoginTime.isEmpty ? DateTime.now().toString() : user.lastLoginTime)).inDays}',
+                      controller.isArabic() ? 'يوم منذ التسجيل' : 'Days Since Join',
+                      AppColors.neonPink,
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(height: 24),
+
+              Text(
+                '📋 ${controller.isArabic() ? 'سجل التمارين' : 'Exercise History'}',
+                style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)
+              ),
+              SizedBox(height: 8),
+              Expanded(
+                child: user.exerciseHistory.isEmpty
+                  ? Center(child: Text(
+                    controller.isArabic() ? 'لا توجد تمارين مسجلة' : 'No exercises recorded',
+                    style: TextStyle(color: AppColors.metallicGray)
+                  ))
+                  : ListView.builder(
+                    itemCount: user.exerciseHistory.length,
+                    itemBuilder: (context, index) {
+                      var entry = user.exerciseHistory[index];
+                      return ListTile(
+                        leading: Icon(Icons.fitness_center, color: controller.currentAccentColor.value),
+                        title: Text(entry['name'] ?? 'تمرين', style: TextStyle(color: Colors.white)),
+                        subtitle: Text(
+                          '${entry['duration']} ${controller.isArabic() ? 'دقيقة' : 'min'} • ${entry['caloriesBurned']} ${controller.isArabic() ? 'سعرة' : 'cal'}',
+                          style: TextStyle(color: AppColors.metallicGray),
+                        ),
+                        trailing: Text(
+                          _formatDate(entry['date'] ?? ''),
+                          style: TextStyle(color: AppColors.metallicGray, fontSize: 12),
+                        ),
+                      );
+                    },
+                  ),
+              ),
+            ],
+          ),
+        );
+      }),
+    ));
+  }
+
+  Widget _buildProgressCard(String icon, String value, String label, Color color) {
+    return Container(
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: controller.currentCardColor.value,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.metallicGray),
+      ),
+      child: Column(
+        children: [
+          Text(icon, style: TextStyle(fontSize: 24)),
+          SizedBox(height: 4),
+          Text(
+            value,
+            style: TextStyle(
+              color: color,
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          Text(
+            label,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: AppColors.metallicGray,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatDate(String dateString) {
+    try {
+      DateTime date = DateTime.parse(dateString);
+      return '${date.day}/${date.month}/${date.year}';
+    } catch (e) {
+      return '';
+    }
+  }
+}
+
+// ============================================================
+// 14. شاشة التمارين
+// ============================================================
+class ExercisesScreen extends StatelessWidget {
+  final MainController controller;
+
+  const ExercisesScreen({Key? key, required this.controller}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() => Padding(
+      padding: EdgeInsets.all(16),
+      child: Column(
+        children: [
+          TextField(
+            style: TextStyle(color: AppColors.whiteTransparent),
+            decoration: InputDecoration(
+              hintText: controller.isArabic() ? '🔍 ابحث عن تمرين...' : '🔍 Search for exercise...',
+              hintStyle: TextStyle(color: AppColors.metallicGray),
+              filled: true,
+              fillColor: controller.currentCardColor.value,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(30),
+                borderSide: BorderSide.none,
+              ),
+              prefixIcon: Icon(Icons.search, color: controller.currentAccentColor.value),
+              suffixIcon: IconButton(
+                icon: Icon(Icons.filter_list, color: AppColors.metallicGray),
+                onPressed: () {
+                  _showFilterDialog(context);
+                },
+              ),
+            ),
+            onChanged: (value) {
+              controller.searchQuery.value = value;
+              controller.applyExerciseFilters();
+            },
+          ),
+          SizedBox(height: 12),
+
+          Obx(() {
+            return SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _buildFilterChip(controller.isArabic() ? 'الكل' : 'All', controller.selectedLevel.value == 'الكل', () {
+                    controller.selectedLevel.value = 'الكل';
+                    controller.applyExerciseFilters();
+                  }),
+                  _buildFilterChip('مبتدئ', controller.selectedLevel.value == 'مبتدئ', () {
+                    controller.selectedLevel.value = 'مبتدئ';
+                    controller.applyExerciseFilters();
+                  }),
+                  _buildFilterChip('متوسط', controller.selectedLevel.value == 'متوسط', () {
+                    controller.selectedLevel.value = 'متوسط';
+                    controller.applyExerciseFilters();
+                  }),
+                  _buildFilterChip('محترف', controller.selectedLevel.value == 'محترف', () {
+                    controller.selectedLevel.value = 'محترف';
+                    controller.applyExerciseFilters();
+                  }),
+                  _buildFilterChip('أسطورة', controller.selectedLevel.value == 'أسطورة', () {
+                    controller.selectedLevel.value = 'أسطورة';
+                    controller.applyExerciseFilters();
+                  }),
+                ],
+              ),
+            );
+          }),
+          SizedBox(height: 12),
+
+          Obx(() {
+            return Row(
+              children: [
+                Icon(Icons.fitness_center, color: AppColors.hotOrange, size: 20),
+                SizedBox(width: 8),
+                Text(
+                  '${controller.filteredExercises.length} ${controller.isArabic() ? 'تمرين' : 'Exercises'}',
+                  style: TextStyle(color: AppColors.whiteTransparent),
+                ),
+                Spacer(),
+                GestureDetector(
+                  onTap: () {
+                    controller.clearExerciseFilters();
+                    Get.snackbar(
+                      '🧹 ${controller.isArabic() ? 'تم المسح' : 'Cleared'}',
+                      controller.isArabic() ? 'تم إلغاء جميع الفلاتر' : 'All filters cleared',
+                      backgroundColor: AppColors.metallicGray,
+                      duration: Duration(seconds: 2),
+                    );
+                  },
+                  child: Text('🗑️ ${controller.isArabic() ? 'مسح' : 'Clear'}', style: TextStyle(color: AppColors.metallicGray)),
+                ),
+              ],
+            );
+          }),
+          SizedBox(height: 12),
+
+          Expanded(
+            child: Obx(() {
+              if (controller.filteredExercises.isEmpty) {
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.sentiment_dissatisfied, color: AppColors.metallicGray, size: 60),
+                      SizedBox(height: 16),
+                      Text(
+                        controller.isArabic() ? 'لا توجد تمارين مطابقة' : 'No matching exercises',
+                        style: TextStyle(color: AppColors.metallicGray)
+                      ),
+                    ],
+                  ),
+                );
+              }
+              return ListView.builder(
+                itemCount: controller.filteredExercises.length,
+                itemBuilder: (context, index) {
+                  Exercise exercise = controller.filteredExercises[index];
+                  return _buildExerciseCard(exercise);
+                },
+              );
+            }),
+          ),
+        ],
+      ),
+    ));
+  }
+
+  Widget _buildFilterChip(String label, bool selected, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: EdgeInsets.only(right: 8),
+        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? controller.currentAccentColor.value : controller.currentCardColor.value,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: selected ? AppColors.primaryBlack : AppColors.whiteTransparent,
+            fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildExerciseCard(Exercise exercise) {
+    bool isCompleted = exercise.isCompleted;
+    return GestureDetector(
+      onTap: () {
+        Get.bottomSheet(
+          ExerciseDetailSheet(exercise: exercise, controller: controller),
+          backgroundColor: controller.currentBackgroundColor.value,
+          isScrollControlled: true,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+        );
+      },
+      child: Container(
+        margin: EdgeInsets.only(bottom: 12),
+        padding: EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isCompleted ? controller.currentCardColor.value.withOpacity(0.5) : controller.currentCardColor.value,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isCompleted ? AppColors.successGreen : AppColors.metallicGray,
+            width: 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: _getTypeColor(exercise.type).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(_getTypeIcon(exercise.type), color: _getTypeColor(exercise.type)),
+            ),
+            SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          exercise.name,
+                          style: TextStyle(
+                            color: isCompleted ? AppColors.metallicGray : Colors.white,
+                            fontWeight: FontWeight.bold,
+                            decoration: isCompleted ? TextDecoration.lineThrough : null,
+                          ),
+                        ),
+                      ),
+                      if (isCompleted)
+                        Icon(Icons.check_circle, color: AppColors.successGreen, size: 16),
+                    ],
+                  ),
+                  SizedBox(height: 4),
+                  Row(
+                    children: [
+                      _buildTag(exercise.level, AppColors.electricBlue),
+                      SizedBox(width: 8),
+                      _buildTag('${exercise.duration}${controller.isArabic() ? 'د' : 'min'}', AppColors.hotOrange),
+                      SizedBox(width: 8),
+                      _buildTag('⭐${exercise.rating}', AppColors.neonPink),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.arrow_forward_ios, color: AppColors.metallicGray, size: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTag(String text, Color color) {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.bold),
+      ),
+    );
+  }
+
+  Color _getTypeColor(String type) {
+    if (type == 'كارديو') return AppColors.hotOrange;
+    if (type == 'قوة') return AppColors.neonGreen;
+    if (type == 'HIIT') return AppColors.neonPink;
+    if (type == 'يوغا') return AppColors.electricBlue;
+    return AppColors.metallicGray;
+  }
+
+  IconData _getTypeIcon(String type) {
+    if (type == 'كارديو') return Icons.favorite;
+    if (type == 'قوة') return Icons.fitness_center;
+    if (type == 'HIIT') return Icons.flash_on;
+    if (type == 'يوغا') return Icons.self_improvement;
+    return Icons.sports;
+  }
+
+  void _showFilterDialog(BuildContext context) {
+    Get.bottomSheet(
+      Container(
+        padding: EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: controller.currentBackgroundColor.value,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '🎯 ${controller.isArabic() ? 'فلتر متقدم' : 'Advanced Filter'}',
+                style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)
+              ),
+              SizedBox(height: 16),
+
+              Text(
+                controller.isArabic() ? 'نوع التمرين' : 'Exercise Type',
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)
+              ),
+              SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                children: (controller.isArabic() 
+                  ? ['الكل', 'كارديو', 'قوة', 'HIIT', 'يوغا', 'مرونة']
+                  : ['All', 'Cardio', 'Strength', 'HIIT', 'Yoga', 'Flexibility']
+                ).map((type) {
+                  return Obx(() => GestureDetector(
+                    onTap: () {
+                      controller.selectedType.value = type;
+                      controller.applyExerciseFilters();
+                    },
+                    child: Container(
+                      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: controller.selectedType.value == type ? controller.currentAccentColor.value : controller.currentCardColor.value,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Text(type, style: TextStyle(color: controller.selectedType.value == type ? Colors.black : Colors.white)),
+                    ),
+                  ));
+                }).toList(),
+              ),
+              SizedBox(height: 16),
+
+              Text(
+                controller.isArabic() ? 'الجزء المستهدف' : 'Target Area',
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)
+              ),
+              SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                children: (controller.isArabic()
+                  ? ['الكل', 'الصدر', 'الظهر', 'الأرجل', 'الكتفين', 'البطن', 'الكامل']
+                  : ['All', 'Chest', 'Back', 'Legs', 'Shoulders', 'Abs', 'Full Body']
+                ).map((part) {
+                  return Obx(() => GestureDetector(
+                    onTap: () {
+                      controller.selectedBodyPart.value = part;
+                      controller.applyExerciseFilters();
+                    },
+                    child: Container(
+                      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: controller.selectedBodyPart.value == part ? controller.currentAccentColor.value : controller.currentCardColor.value,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Text(part, style: TextStyle(color: controller.selectedBodyPart.value == part ? Colors.black : Colors.white)),
+                    ),
+                  ));
+                }).toList(),
+              ),
+              SizedBox(height: 16),
+
+              Text(
+                '${controller.isArabic() ? 'المدة القصوى' : 'Max Duration'}: ${controller.durationRange.value.toInt()} ${controller.isArabic() ? 'دقيقة' : 'min'}',
+                style: TextStyle(color: Colors.white)
+              ),
+              Obx(() => Slider(
+                value: controller.durationRange.value,
+                min: 5,
+                max: 60,
+                divisions: 11,
+                activeColor: controller.currentAccentColor.value,
+                onChanged: (value) {
+                  controller.durationRange.value = value;
+                  controller.applyExerciseFilters();
+                },
+              )),
+
+              SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => Get.back(),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: controller.currentAccentColor.value,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  ),
+                  child: Text(
+                    controller.isArabic() ? 'تطبيق ✅' : 'Apply ✅',
+                    style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================================
+// 15. شاشة التغذية
+// ============================================================
+class NutritionScreen extends StatelessWidget {
+  final MainController controller;
+
+  const NutritionScreen({Key? key, required this.controller}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() => Padding(
+      padding: EdgeInsets.all(16),
+      child: Column(
+        children: [
+          TextField(
+            style: TextStyle(color: AppColors.whiteTransparent),
+            decoration: InputDecoration(
+              hintText: controller.isArabic() ? '🔍 ابحث عن وجبة...' : '🔍 Search for meal...',
+              hintStyle: TextStyle(color: AppColors.metallicGray),
+              filled: true,
+              fillColor: controller.currentCardColor.value,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(30),
+                borderSide: BorderSide.none,
+              ),
+              prefixIcon: Icon(Icons.search, color: controller.currentAccentColor.value),
+            ),
+            onChanged: (value) {
+              controller.mealSearchQuery.value = value;
+              controller.applyMealFilters();
+            },
+          ),
+          SizedBox(height: 12),
+
+          Wrap(
+            spacing: 8,
+            children: (controller.isArabic()
+              ? ['الكل', 'فطور', 'غداء', 'عشاء', 'سناك']
+              : ['All', 'Breakfast', 'Lunch', 'Dinner', 'Snack']
+            ).map((type) {
+              return Obx(() => GestureDetector(
+                onTap: () {
+                  controller.selectedMealType.value = type;
+                  controller.applyMealFilters();
+                },
+                child: Container(
+                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: controller.selectedMealType.value == type ? controller.currentAccentColor.value : controller.currentCardColor.value,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Text(type, style: TextStyle(color: controller.selectedMealType.value == type ? Colors.black : Colors.white)),
+                ),
+              ));
+            }).toList(),
+          ),
+          SizedBox(height: 12),
+
+          Obx(() {
+            return Row(
+              children: [
+                Icon(Icons.restaurant, color: AppColors.hotOrange),
+                SizedBox(width: 8),
+                Text(
+                  '${controller.filteredMeals.length} ${controller.isArabic() ? 'وجبة' : 'Meals'}',
+                  style: TextStyle(color: Colors.white)
+                ),
+                Spacer(),
+                Text(
+                  '${controller.todayCalories.value} ${controller.isArabic() ? 'سعر/اليوم' : 'cal/day'}',
+                  style: TextStyle(color: controller.currentAccentColor.value)
+                ),
+              ],
+            );
+          }),
+          SizedBox(height: 12),
+
+          Expanded(
+            child: Obx(() {
+              if (controller.filteredMeals.isEmpty) {
+                return Center(child: Text(
+                  controller.isArabic() ? 'لا توجد وجبات مطابقة' : 'No matching meals',
+                  style: TextStyle(color: AppColors.metallicGray)
+                ));
+              }
+              return ListView.builder(
+                itemCount: controller.filteredMeals.length,
+                itemBuilder: (context, index) {
+                  Meal meal = controller.filteredMeals[index];
+                  bool isConsumed = meal.isConsumed;
+                  return _buildMealCard(meal, isConsumed);
+                },
+              );
+            }),
+          ),
+        ],
+      ),
+    ));
+  }
+
+  Widget _buildMealCard(Meal meal, bool isConsumed) {
+    return Container(
+      margin: EdgeInsets.only(bottom: 12),
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isConsumed ? controller.currentCardColor.value.withOpacity(0.5) : controller.currentCardColor.value,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isConsumed ? AppColors.successGreen : AppColors.metallicGray,
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: _getMealTypeColor(meal.type).withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(_getMealTypeIcon(meal.type), color: _getMealTypeColor(meal.type)),
+          ),
+          SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        meal.name,
+                        style: TextStyle(
+                          color: isConsumed ? AppColors.metallicGray : Colors.white,
+                          fontWeight: FontWeight.bold,
+                          decoration: isConsumed ? TextDecoration.lineThrough : null,
+                        ),
+                      ),
+                    ),
+                    if (isConsumed)
+                      Icon(Icons.check_circle, color: AppColors.successGreen, size: 16),
+                  ],
+                ),
+                Text('${meal.calories.toInt()} ${controller.isArabic() ? 'سعر' : 'cal'} • P:${meal.protein}g C:${meal.carbs}g F:${meal.fat}g',
+                    style: TextStyle(color: AppColors.metallicGray, fontSize: 12)),
+                if (meal.description.isNotEmpty)
+                  Text(meal.description, style: TextStyle(color: AppColors.metallicGray, fontSize: 11)),
+              ],
+            ),
+          ),
+          if (!isConsumed)
+            GestureDetector(
+              onTap: () {
+                controller.addMealToHistory(meal);
+              },
+              child: Container(
+                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: controller.currentAccentColor.value,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  controller.isArabic() ? 'أضف' : 'Add',
+                  style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Color _getMealTypeColor(String type) {
+    if (type == 'فطور' || type == 'Breakfast') return AppColors.warningYellow;
+    if (type == 'غداء' || type == 'Lunch') return AppColors.hotOrange;
+    if (type == 'عشاء' || type == 'Dinner') return AppColors.electricBlue;
+    return AppColors.neonPink;
+  }
+
+  IconData _getMealTypeIcon(String type) {
+    if (type == 'فطور' || type == 'Breakfast') return Icons.free_breakfast;
+    if (type == 'غداء' || type == 'Lunch') return Icons.lunch_dining;
+    if (type == 'عشاء' || type == 'Dinner') return Icons.dinner_dining;
+    return Icons.cake;
+  }
+}
+
+// ============================================================
+// 16. شاشة الملف الشخصي
+// ============================================================
+class ProfileScreen extends StatelessWidget {
+  final MainController controller;
+
+  const ProfileScreen({Key? key, required this.controller}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      if (controller.currentUser.value == null) {
+        return Center(child: Text(
+          controller.isArabic() ? 'يرجى تسجيل الدخول' : 'Please login',
+          style: TextStyle(color: Colors.white)
+        ));
+      }
+
+      User user = controller.currentUser.value!;
+      return Padding(
+        padding: EdgeInsets.all(16),
+        child: SingleChildScrollView(
+          child: Column(
+            children: [
+              CircleAvatar(
+                radius: 50,
+                backgroundColor: controller.currentCardColor.value,
+                child: Icon(Icons.person, size: 50, color: controller.currentAccentColor.value),
+              ),
+              SizedBox(height: 12),
+              Text(user.name, style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+              Text(user.email, style: TextStyle(color: AppColors.metallicGray)),
+              SizedBox(height: 24),
+
+              _buildInfoCard(
+                '📊 ${controller.isArabic() ? 'معلوماتك الشخصية' : 'Personal Info'}',
+                [
+                  '${controller.isArabic() ? 'الجنس' : 'Gender'}: ${controller.isArabic() ? user.gender : (user.gender == 'ذكر' ? 'Male' : 'Female')}',
+                  '${controller.isArabic() ? 'العمر' : 'Age'}: ${user.age} ${controller.isArabic() ? 'سنة' : 'years'}',
+                  '${controller.isArabic() ? 'الطول' : 'Height'}: ${user.height} cm',
+                  '${controller.isArabic() ? 'الوزن' : 'Weight'}: ${user.weight} kg',
+                  '${controller.isArabic() ? 'المستوى' : 'Level'}: ${user.fitnessLevel}',
+                  '${controller.isArabic() ? 'الهدف' : 'Goal'}: ${user.goal}',
+                ],
+              ),
+              SizedBox(height: 16),
+
+              _buildInfoCard(
+                '📈 ${controller.isArabic() ? 'القياسات الحيوية' : 'Biometrics'}',
+                [
+                  '${controller.isArabic() ? 'مؤشر كتلة الجسم (BMI)' : 'BMI'}: ${user.bmi.toStringAsFixed(1)} (${controller.isArabic() ? user.bmiCategory : _getBMICategoryEnglish(user.bmiCategory)})',
+                  '${controller.isArabic() ? 'معدل الأيض الأساسي (BMR)' : 'BMR'}: ${user.bmr.toInt()} ${controller.isArabic() ? 'سعر/يوم' : 'cal/day'}',
+                ],
+              ),
+              SizedBox(height: 16),
+
+              _buildInfoCard(
+                '📋 ${controller.isArabic() ? 'الإحصائيات' : 'Statistics'}',
+                [
+                  '${controller.isArabic() ? 'عدد التمارين المكتملة' : 'Completed Exercises'}: ${user.exerciseHistory.length}',
+                  '${controller.isArabic() ? 'عدد الوجبات المسجلة' : 'Recorded Meals'}: ${user.mealHistory.length}',
+                  '${controller.isArabic() ? 'آخر تسجيل دخول' : 'Last Login'}: ${user.lastLoginTime.isNotEmpty ? _formatDate(user.lastLoginTime) : (controller.isArabic() ? 'غير معروف' : 'Unknown')}',
+                ],
+              ),
+              SizedBox(height: 16),
+
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    _showEditProfileDialog(context);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: controller.currentAccentColor.value,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  ),
+                  child: Text(
+                    '✏️ ${controller.isArabic() ? 'تعديل البيانات' : 'Edit Profile'}',
+                    style: TextStyle(color: Colors.white)
+                  ),
+                ),
+              ),
+              SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Get.to(() => ProgressScreen(controller: controller));
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: controller.isNightMode.value ? Color(0xFF7C4DFF) : Color(0xFFFF0080),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  ),
+                  child: Text(
+                    '📊 ${controller.isArabic() ? 'عرض التقدم' : 'View Progress'}',
+                    style: TextStyle(color: Colors.white)
+                  ),
+                ),
+              ),
+              SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Get.defaultDialog(
+                      title: controller.isArabic() ? 'تسجيل الخروج' : 'Logout',
+                      middleText: controller.isArabic() ? 'هل أنت متأكد؟' : 'Are you sure?',
+                      backgroundColor: controller.currentCardColor.value,
+                      titleStyle: TextStyle(color: Colors.white),
+                      middleTextStyle: TextStyle(color: Colors.white),
+                      textConfirm: controller.isArabic() ? 'نعم' : 'Yes',
+                      textCancel: controller.isArabic() ? 'إلغاء' : 'Cancel',
+                      confirmTextColor: Colors.white,
+                      onConfirm: () {
+                        controller.logout();
+                        Get.back();
+                      },
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.dangerRed,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  ),
+                  child: Text(
+                    '🚪 ${controller.isArabic() ? 'تسجيل الخروج' : 'Logout'}',
+                    style: TextStyle(color: Colors.white)
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    });
+  }
+
+  Widget _buildInfoCard(String title, List<String> items) {
+    return Container(
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: controller.currentCardColor.value,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.metallicGray),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          SizedBox(height: 8),
+          ...items.map((item) => Padding(
+            padding: EdgeInsets.symmetric(vertical: 4),
+            child: Text('• $item', style: TextStyle(color: AppColors.whiteTransparent.withOpacity(0.8))),
+          )).toList(),
+        ],
+      ),
+    );
+  }
+
+  String _formatDate(String dateString) {
+    try {
+      DateTime date = DateTime.parse(dateString);
+      return '${date.day}/${date.month}/${date.year}';
+    } catch (e) {
+      return dateString;
+    }
+  }
+
+  String _getBMICategoryEnglish(String category) {
+    if (category == 'نحيف') return 'Underweight';
+    if (category == 'طبيعي') return 'Normal';
+    if (category == 'زائد') return 'Overweight';
+    return 'Obese';
+  }
+
+  void _showEditProfileDialog(BuildContext context) {
+    if (controller.currentUser.value == null) return;
+    User user = controller.currentUser.value!;
+
+    TextEditingController nameController = TextEditingController(text: user.name);
+    TextEditingController ageController = TextEditingController(text: user.age.toString());
+    TextEditingController heightController = TextEditingController(text: user.height.toString());
+    TextEditingController weightController = TextEditingController(text: user.weight.toString());
+
+    var selectedLevel = user.fitnessLevel.obs;
+    var selectedGoal = user.goal.obs;
+
+    Get.bottomSheet(
+      Container(
+        padding: EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: controller.currentBackgroundColor.value,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '✏️ ${controller.isArabic() ? 'تعديل البيانات' : 'Edit Profile'}',
+                style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)
+              ),
+              SizedBox(height: 16),
+
+              TextField(
+                controller: nameController,
+                style: TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  labelText: controller.isArabic() ? 'الاسم' : 'Name',
+                  labelStyle: TextStyle(color: AppColors.metallicGray),
+                  filled: true,
+                  fillColor: controller.currentCardColor.value,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                ),
+              ),
+              SizedBox(height: 12),
+              TextField(
+                controller: ageController,
+                keyboardType: TextInputType.number,
+                style: TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  labelText: controller.isArabic() ? 'العمر' : 'Age',
+                  labelStyle: TextStyle(color: AppColors.metallicGray),
+                  filled: true,
+                  fillColor: controller.currentCardColor.value,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                ),
+              ),
+              SizedBox(height: 12),
+              TextField(
+                controller: heightController,
+                keyboardType: TextInputType.number,
+                style: TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  labelText: controller.isArabic() ? 'الطول (سم)' : 'Height (cm)',
+                  labelStyle: TextStyle(color: AppColors.metallicGray),
+                  filled: true,
+                  fillColor: controller.currentCardColor.value,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                ),
+              ),
+              SizedBox(height: 12),
+              TextField(
+                controller: weightController,
+                keyboardType: TextInputType.number,
+                style: TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  labelText: controller.isArabic() ? 'الوزن (كغ)' : 'Weight (kg)',
+                  labelStyle: TextStyle(color: AppColors.metallicGray),
+                  filled: true,
+                  fillColor: controller.currentCardColor.value,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                ),
+              ),
+              SizedBox(height: 12),
+
+              Text(
+                controller.isArabic() ? 'المستوى' : 'Level',
+                style: TextStyle(color: Colors.white)
+              ),
+              Wrap(
+                spacing: 8,
+                children: ['مبتدئ', 'متوسط', 'محترف', 'أسطورة'].map((level) {
+                  return Obx(() => GestureDetector(
+                    onTap: () => selectedLevel.value = level,
+                    child: Container(
+                      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: selectedLevel.value == level ? controller.currentAccentColor.value : controller.currentCardColor.value,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Text(level, style: TextStyle(color: selectedLevel.value == level ? Colors.black : Colors.white)),
+                    ),
+                  ));
+                }).toList(),
+              ),
+              SizedBox(height: 12),
+
+              Text(
+                controller.isArabic() ? 'الهدف' : 'Goal',
+                style: TextStyle(color: Colors.white)
+              ),
+              Wrap(
+                spacing: 8,
+                children: ['خسارة وزن', 'بناء عضلات', 'لياقة عامة'].map((goal) {
+                  return Obx(() => GestureDetector(
+                    onTap: () => selectedGoal.value = goal,
+                    child: Container(
+                      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: selectedGoal.value == goal ? AppColors.hotOrange : controller.currentCardColor.value,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Text(goal, style: TextStyle(color: selectedGoal.value == goal ? Colors.white : Colors.white.withOpacity(0.7))),
+                    ),
+                  ));
+                }).toList(),
+              ),
+              SizedBox(height: 20),
+
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Map<String, dynamic> data = {
+                      'name': nameController.text,
+                      'age': int.parse(ageController.text),
+                      'height': double.parse(heightController.text),
+                      'weight': double.parse(weightController.text),
+                      'fitnessLevel': selectedLevel.value,
+                      'goal': selectedGoal.value,
+                    };
+                    controller.updateUserProfile(data);
+                    Get.back();
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: controller.currentAccentColor.value,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  ),
+                  child: Text(
+                    controller.isArabic() ? 'حفظ التغييرات' : 'Save Changes',
+                    style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================================
+// 17. شاشة الدردشة مع AI
+// ============================================================
+class AIChatScreen extends StatelessWidget {
+  final MainController controller;
+  final TextEditingController messageController = TextEditingController();
+
+  AIChatScreen({Key? key, required this.controller}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() => Padding(
+      padding: EdgeInsets.all(16),
+      child: Column(
+        children: [
+          Container(
+            padding: EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: controller.currentCardColor.value,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: controller.currentAccentColor.value.withOpacity(0.3)),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.auto_awesome, color: controller.currentAccentColor.value),
+                SizedBox(width: 8),
+                Text(
+                  '🧠 ${controller.isArabic() ? 'مساعد' : 'Assistant'} ${controller.currentUser.value?.name ?? (controller.isArabic() ? 'الذكي' : 'Smart')}',
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                ),
+                Spacer(),
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: controller.currentAccentColor.value.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    controller.isArabic() ? 'متصل' : 'Online',
+                    style: TextStyle(color: controller.currentAccentColor.value, fontSize: 10)
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(height: 12),
+
+          Expanded(
+            child: Obx(() {
+              if (controller.aiMessages.isEmpty) {
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.chat, color: AppColors.metallicGray, size: 60),
+                      SizedBox(height: 16),
+                      Text(
+                        controller.isArabic() ? 'اسألني عن الصحة واللياقة' : 'Ask me about health and fitness',
+                        style: TextStyle(color: AppColors.metallicGray),
+                      ),
+                      SizedBox(height: 8),
+                      Text(
+                        controller.isArabic() 
+                          ? 'يمكنني مساعدتك في التمارين، التغذية، والنوم'
+                          : 'I can help you with exercises, nutrition, and sleep',
+                        style: TextStyle(color: AppColors.metallicGray, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                );
+              }
+              return ListView.builder(
+                reverse: true,
+                itemCount: controller.aiMessages.length + (controller.aiLoading.value ? 1 : 0),
+                itemBuilder: (context, index) {
+                  if (index == controller.aiMessages.length && controller.aiLoading.value) {
+                    return _buildMessage(
+                      controller.isArabic() ? 'جار التفكير...' : 'Thinking...',
+                      'ai'
+                    );
+                  }
+                  var message = controller.aiMessages.reversed.toList()[index];
+                  return _buildMessage(message['message']!, message['sender']!);
+                },
+              );
+            }),
+          ),
+
+          Container(
+            decoration: BoxDecoration(
+              color: controller.currentCardColor.value,
+              borderRadius: BorderRadius.circular(30),
+              border: Border.all(color: AppColors.metallicGray),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: messageController,
+                    style: TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      hintText: controller.isArabic() 
+                        ? 'اسألني عن الصحة واللياقة...' 
+                        : 'Ask me about health and fitness...',
+                      hintStyle: TextStyle(color: AppColors.metallicGray),
+                      border: InputBorder.none,
+                      contentPadding: EdgeInsets.symmetric(horizontal: 16),
+                    ),
+                    onSubmitted: (value) {
+                      if (value.isNotEmpty) {
+                        controller.askAI(value);
+                        messageController.clear();
+                      }
+                    },
+                  ),
+                ),
+                IconButton(
+                  icon: Icon(Icons.send, color: controller.currentAccentColor.value),
+                  onPressed: () {
+                    if (messageController.text.isNotEmpty) {
+                      controller.askAI(messageController.text);
+                      messageController.clear();
+                    }
+                  },
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    ));
+  }
+
+  Widget _buildMessage(String text, String sender) {
+    bool isUser = sender == 'user';
+    return Align(
+      alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        margin: EdgeInsets.only(bottom: 8),
+        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: isUser ? controller.currentAccentColor.value : controller.currentCardColor.value,
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(16),
+            topRight: Radius.circular(16),
+            bottomLeft: isUser ? Radius.circular(16) : Radius.circular(0),
+            bottomRight: isUser ? Radius.circular(0) : Radius.circular(16),
+          ),
+          border: isUser ? null : Border.all(color: AppColors.metallicGray),
+        ),
+        child: Text(
+          text,
+          style: TextStyle(
+            color: isUser ? AppColors.primaryBlack : AppColors.whiteTransparent,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================================
+// 18. تفاصيل التمرين (Bottom Sheet)
+// ============================================================
+class ExerciseDetailSheet extends StatelessWidget {
+  final Exercise exercise;
+  final MainController controller;
+
+  const ExerciseDetailSheet({
+    Key? key,
+    required this.exercise,
+    required this.controller,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    int caloriesBurned = controller.calculateCaloriesBurned(exercise);
+    bool isCompleted = exercise.isCompleted;
+
+    return Obx(() => Container(
+      padding: EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: controller.currentBackgroundColor.value,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: _getTypeColor(exercise.type).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(_getTypeIcon(exercise.type), color: _getTypeColor(exercise.type)),
+                ),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              exercise.name,
+                              style: TextStyle(
+                                color: isCompleted ? AppColors.metallicGray : Colors.white,
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                decoration: isCompleted ? TextDecoration.lineThrough : null,
+                              ),
+                            ),
+                          ),
+                          if (isCompleted)
+                            Icon(Icons.check_circle, color: AppColors.successGreen, size: 20),
+                        ],
+                      ),
+                      Text(
+                        '${exercise.level} • ${exercise.bodyPart}',
+                        style: TextStyle(color: AppColors.metallicGray),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 16),
+
+            Wrap(
+              spacing: 8,
+              children: [
+                _buildStatChip('⏱️ ${exercise.duration} ${controller.isArabic() ? 'د' : 'min'}', AppColors.electricBlue),
+                _buildStatChip('⭐ ${exercise.rating}', AppColors.neonPink),
+                _buildStatChip('🔥 $caloriesBurned ${controller.isArabic() ? 'سعر' : 'cal'}', AppColors.hotOrange),
+              ],
+            ),
+            SizedBox(height: 16),
+
+            Text(
+              '📋 ${controller.isArabic() ? 'خطوات التمرين' : 'Exercise Steps'}:',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)
+            ),
+            SizedBox(height: 8),
+            ...exercise.steps.map((step) => Padding(
+              padding: EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                children: [
+                  Icon(Icons.check_circle_outline, color: controller.currentAccentColor.value, size: 16),
+                  SizedBox(width: 8),
+                  Text(step, style: TextStyle(color: AppColors.whiteTransparent)),
+                ],
+              ),
+            )).toList(),
+            SizedBox(height: 16),
+
+            if (!isCompleted)
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        controller.startWorkout(exercise);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: controller.currentAccentColor.value,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
+                      child: Text(
+                        '🎯 ${controller.isArabic() ? 'ابدأ التمرين' : 'Start Workout'}',
+                        style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        controller.addExerciseToHistory(exercise);
+                        Get.back();
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: controller.currentCardColor.value,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
+                      child: Text(
+                        '✅ ${controller.isArabic() ? 'أنهيت' : 'Done'}',
+                        style: TextStyle(color: Colors.white)
+                      ),
+                    ),
+                  ),
+                ],
+              )
+            else
+              Container(
+                padding: EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.successGreen.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.successGreen),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.check_circle, color: AppColors.successGreen),
+                    SizedBox(width: 8),
+                    Text(
+                      controller.isArabic() ? 'تم إكمال هذا التمرين ✅' : 'This exercise is completed ✅',
+                      style: TextStyle(color: AppColors.successGreen)
+                    ),
+                  ],
+                ),
+              ),
+            SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () {
+                  controller.speakCommand(
+                    controller.isArabic() 
+                      ? 'تفاصيل تمرين ${exercise.name}'
+                      : 'Details of exercise ${exercise.name}'
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.electricBlue,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                ),
+                child: Text(
+                  '🔊 ${controller.isArabic() ? 'استمع للتعليمات' : 'Listen to Instructions'}',
+                  style: TextStyle(color: Colors.white)
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ));
+  }
+
+  Widget _buildStatChip(String label, Color color) {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      margin: EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Text(label, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.bold)),
+    );
+  }
+
+  Color _getTypeColor(String type) {
+    if (type == 'كارديو') return AppColors.hotOrange;
+    if (type == 'قوة') return AppColors.neonGreen;
+    if (type == 'HIIT') return AppColors.neonPink;
+    if (type == 'يوغا') return AppColors.electricBlue;
+    return AppColors.metallicGray;
+  }
+
+  IconData _getTypeIcon(String type) {
+    if (type == 'كارديو') return Icons.favorite;
+    if (type == 'قوة') return Icons.fitness_center;
+    if (type == 'HIIT') return Icons.flash_on;
+    if (type == 'يوغا') return Icons.self_improvement;
+    return Icons.sports;
+  }
+}
