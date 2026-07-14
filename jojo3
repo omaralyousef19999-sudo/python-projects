@@ -264,7 +264,7 @@ class Meal {
 }
 
 // ============================================================
-// 5. الـ Controller الرئيسي
+// 5. الـ Controller الرئيسي (المصلح)
 // ============================================================
 class MainController extends GetxController {
   // ========== الحالات الأساسية ==========
@@ -369,6 +369,7 @@ class MainController extends GetxController {
     _initTTS();
     loadLanguage();
     loadThemeMode();
+    _ensureDemoUser();
   }
 
   // ========== الخدمات ==========
@@ -404,6 +405,32 @@ class MainController extends GetxController {
     await flutterLocalNotificationsPlugin.initialize(initializationSettings);
   }
 
+  // ========== مستخدم تجريبي ==========
+  void _ensureDemoUser() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? usersJson = prefs.getString('users');
+    
+    if (usersJson == null || (jsonDecode(usersJson) as List).isEmpty) {
+      User demoUser = User(
+        id: 'demo_001',
+        name: 'أحمد',
+        email: 'demo@fit.com',
+        password: '123456',
+        gender: 'ذكر',
+        age: 25,
+        height: 175,
+        weight: 70,
+        fitnessLevel: 'متوسط',
+        goal: 'لياقة عامة',
+        lastLoginTime: DateTime.now().toString(),
+      );
+      
+      List<User> users = [demoUser];
+      await prefs.setString('users', jsonEncode(users.map((u) => u.toJson()).toList()));
+      developer.log('✅ تم إنشاء مستخدم تجريبي: demo@fit.com / 123456');
+    }
+  }
+
   // ========== إدارة اللغة ==========
   void changeLanguage(String langCode) {
     currentLanguage.value = langCode;
@@ -432,7 +459,6 @@ class MainController extends GetxController {
     var hour = DateTime.now().hour;
     
     if (hour >= 5 && hour < 12) {
-      // وضع الصباح
       currentTheme.value = 'morning';
       isMorningMode.value = true;
       isNightMode.value = false;
@@ -441,7 +467,6 @@ class MainController extends GetxController {
       currentCardColor.value = Color(0xFF2A3A4A);
       currentAccentColor.value = Color(0xFFFFB74D);
     } else if (hour >= 12 && hour < 18) {
-      // وضع المساء
       currentTheme.value = 'evening';
       isMorningMode.value = false;
       isNightMode.value = false;
@@ -450,7 +475,6 @@ class MainController extends GetxController {
       currentCardColor.value = Color(0xFF3A2A1A);
       currentAccentColor.value = Color(0xFFFF6B00);
     } else {
-      // وضع الليل
       currentTheme.value = 'night';
       isMorningMode.value = false;
       isNightMode.value = true;
@@ -521,6 +545,7 @@ class MainController extends GetxController {
         isLoggedIn.value = true;
         _loadUserData();
         _loadUserAIContext();
+        _generateRecommendations();
       }
     } catch (e) {
       developer.log('خطأ في التحقق من الحالة: $e');
@@ -529,6 +554,7 @@ class MainController extends GetxController {
 
   Future<bool> login(String email, String password) async {
     isLoading.value = true;
+    
     try {
       SharedPreferences prefs = await SharedPreferences.getInstance();
       String? usersJson = prefs.getString('users');
@@ -539,6 +565,7 @@ class MainController extends GetxController {
           isArabic() ? 'خطأ' : 'Error',
           isArabic() ? 'لا يوجد مستخدمين مسجلين' : 'No registered users',
           backgroundColor: AppColors.dangerRed,
+          duration: Duration(seconds: 3),
         );
         return false;
       }
@@ -567,7 +594,7 @@ class MainController extends GetxController {
       foundUser.lastLoginTime = DateTime.now().toString();
       
       for (int i = 0; i < usersList.length; i++) {
-        if (usersList[i]['id'] == foundUser!.id) {
+        if (usersList[i]['id'] == foundUser.id) {
           usersList[i] = foundUser.toJson();
           break;
         }
@@ -580,20 +607,24 @@ class MainController extends GetxController {
       isLoggedIn.value = true;
       _loadUserData();
       _loadUserAIContext();
+      _generateRecommendations();
       
       isLoading.value = false;
+      
       Get.snackbar(
         isArabic() ? '🎉 مرحباً' : '🎉 Welcome',
         isArabic() ? 'أهلاً بك ${foundUser.name}' : 'Welcome ${foundUser.name}',
         backgroundColor: AppColors.successGreen,
         duration: Duration(seconds: 2),
       );
+      
       return true;
     } catch (e) {
       isLoading.value = false;
+      developer.log('❌ خطأ في تسجيل الدخول: $e');
       Get.snackbar(
         isArabic() ? 'خطأ' : 'Error',
-        isArabic() ? 'حدث خطأ أثناء تسجيل الدخول: ${e.toString()}' : 'Error during login: ${e.toString()}',
+        isArabic() ? 'حدث خطأ أثناء تسجيل الدخول' : 'Error during login',
         backgroundColor: AppColors.dangerRed,
         duration: Duration(seconds: 3),
       );
@@ -603,10 +634,12 @@ class MainController extends GetxController {
 
   Future<bool> register(Map<String, dynamic> userData) async {
     isLoading.value = true;
+    
     try {
       SharedPreferences prefs = await SharedPreferences.getInstance();
       String? usersJson = prefs.getString('users');
       List<User> users = [];
+      
       if (usersJson != null) {
         List<dynamic> usersList = jsonDecode(usersJson);
         users = usersList.map((u) => User.fromJson(u)).toList();
@@ -646,20 +679,24 @@ class MainController extends GetxController {
       currentUser.value = newUser;
       isLoggedIn.value = true;
       _loadUserData();
+      _generateRecommendations();
       
       isLoading.value = false;
+      
       Get.snackbar(
         isArabic() ? '🎉 تهانينا' : '🎉 Congratulations',
         isArabic() ? 'تم إنشاء حسابك بنجاح!' : 'Account created successfully!',
         backgroundColor: AppColors.successGreen,
-        duration: Duration(seconds: 2),
+        duration: Duration(seconds: 3),
       );
+      
       return true;
     } catch (e) {
       isLoading.value = false;
+      developer.log('❌ خطأ في التسجيل: $e');
       Get.snackbar(
         isArabic() ? 'خطأ' : 'Error',
-        isArabic() ? 'حدث خطأ أثناء التسجيل: ${e.toString()}' : 'Error during registration: ${e.toString()}',
+        isArabic() ? 'حدث خطأ أثناء التسجيل' : 'Error during registration',
         backgroundColor: AppColors.dangerRed,
         duration: Duration(seconds: 3),
       );
@@ -723,20 +760,7 @@ class MainController extends GetxController {
       if (data['goal'] != null) updated.goal = data['goal'];
 
       currentUser.value = updated;
-      SharedPreferences prefs = await SharedPreferences.getInstance();
-      await prefs.setString('currentUser', jsonEncode(updated.toJson()));
-
-      String? usersJson = prefs.getString('users');
-      if (usersJson != null) {
-        List<dynamic> usersList = jsonDecode(usersJson);
-        for (int i = 0; i < usersList.length; i++) {
-          if (usersList[i]['id'] == updated.id) {
-            usersList[i] = updated.toJson();
-            break;
-          }
-        }
-        await prefs.setString('users', jsonEncode(usersList));
-      }
+      _saveUserData();
 
       Get.snackbar(
         isArabic() ? '✅ نجاح' : '✅ Success',
@@ -771,7 +795,15 @@ class MainController extends GetxController {
     if (currentUser.value != null) {
       todaySteps.value = currentUser.value!.dailySteps;
       todayCalories.value = currentUser.value!.dailyCaloriesConsumed.toInt();
+      
+      if (currentUser.value!.exerciseHistory.isNotEmpty) {
+        todayExerciseMinutes.value = currentUser.value!.exerciseHistory.fold(
+          0, (sum, e) => sum + (e['duration'] as int? ?? 0)
+        );
+      }
+      
       _loadUserAIContext();
+      _generateRecommendations();
     }
   }
 
@@ -841,6 +873,33 @@ class MainController extends GetxController {
       recommended = exercises.take(3).toList();
     }
     recommendedExercises.value = recommended.take(3).toList();
+  }
+
+  // ========== حفظ بيانات المستخدم ==========
+  void _saveUserData() async {
+    if (currentUser.value == null) return;
+    
+    try {
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      
+      await prefs.setString('currentUser', jsonEncode(currentUser.value!.toJson()));
+
+      String? usersJson = prefs.getString('users');
+      if (usersJson != null) {
+        List<dynamic> usersList = jsonDecode(usersJson);
+        for (int i = 0; i < usersList.length; i++) {
+          if (usersList[i]['id'] == currentUser.value!.id) {
+            usersList[i] = currentUser.value!.toJson();
+            break;
+          }
+        }
+        await prefs.setString('users', jsonEncode(usersList));
+      }
+      
+      developer.log('✅ تم حفظ بيانات المستخدم: ${currentUser.value!.name}');
+    } catch (e) {
+      developer.log('❌ خطأ في حفظ البيانات: $e');
+    }
   }
 
   // ========== فلاتر التمارين ==========
@@ -953,17 +1012,30 @@ class MainController extends GetxController {
   }
 
   void addExerciseToHistory(Exercise exercise) {
-    if (currentUser.value != null) {
+    if (currentUser.value == null) {
+      Get.snackbar(
+        isArabic() ? 'خطأ' : 'Error',
+        isArabic() ? 'يرجى تسجيل الدخول أولاً' : 'Please login first',
+        backgroundColor: AppColors.dangerRed,
+        duration: Duration(seconds: 2),
+      );
+      return;
+    }
+    
+    try {
+      int caloriesBurned = calculateCaloriesBurned(exercise);
+      
       Map<String, dynamic> entry = {
         'exerciseId': exercise.id,
         'name': exercise.name,
         'date': DateTime.now().toString(),
         'duration': exercise.duration,
-        'caloriesBurned': exercise.duration * exercise.caloriesPerMinute,
+        'caloriesBurned': caloriesBurned,
       };
+      
       currentUser.value!.exerciseHistory.add(entry);
       todayExerciseMinutes.value += exercise.duration;
-      _saveUserData();
+      todayCalories.value += caloriesBurned;
       
       for (var e in exercises) {
         if (e.id == exercise.id) {
@@ -972,23 +1044,62 @@ class MainController extends GetxController {
         }
       }
       
+      _saveUserData();
+      
       Get.snackbar(
         isArabic() ? '🎉 أحسنت!' : '🎉 Great job!',
         isArabic() ? 'تم إكمال ${exercise.name}' : 'Completed ${exercise.name}',
         backgroundColor: AppColors.successGreen,
         duration: Duration(seconds: 2),
       );
+      
+      developer.log('✅ تم إضافة تمرين: ${exercise.name}');
+    } catch (e) {
+      developer.log('❌ خطأ في إضافة التمرين: $e');
+      Get.snackbar(
+        isArabic() ? 'خطأ' : 'Error',
+        isArabic() ? 'حدث خطأ أثناء إضافة التمرين' : 'Error adding exercise',
+        backgroundColor: AppColors.dangerRed,
+        duration: Duration(seconds: 2),
+      );
     }
   }
 
   void addMealToHistory(Meal meal) {
-    if (currentUser.value != null) {
+    if (currentUser.value == null) {
+      Get.snackbar(
+        isArabic() ? 'خطأ' : 'Error',
+        isArabic() ? 'يرجى تسجيل الدخول أولاً' : 'Please login first',
+        backgroundColor: AppColors.dangerRed,
+        duration: Duration(seconds: 2),
+      );
+      return;
+    }
+    
+    try {
+      bool alreadyAdded = currentUser.value!.mealHistory.any(
+        (m) => m['mealId'] == meal.id && 
+               DateTime.parse(m['date']).day == DateTime.now().day
+      );
+      
+      if (alreadyAdded) {
+        Get.snackbar(
+          isArabic() ? 'تنبيه' : 'Warning',
+          isArabic() ? 'تم إضافة هذه الوجبة اليوم' : 'This meal was added today',
+          backgroundColor: AppColors.warningYellow,
+          duration: Duration(seconds: 2),
+        );
+        return;
+      }
+      
       Map<String, dynamic> entry = {
         'mealId': meal.id,
         'name': meal.name,
         'date': DateTime.now().toString(),
         'calories': meal.calories,
+        'type': meal.type,
       };
+      
       currentUser.value!.mealHistory.add(entry);
       todayCalories.value += meal.calories.toInt();
       currentUser.value!.dailyCaloriesConsumed = todayCalories.value.toDouble();
@@ -1001,31 +1112,23 @@ class MainController extends GetxController {
       }
       
       _saveUserData();
+      
       Get.snackbar(
         isArabic() ? '🍽️ تم التسجيل' : '🍽️ Recorded',
-        isArabic() ? 'تم إضافة ${meal.name}' : 'Added ${meal.name}',
+        isArabic() ? 'تم إضافة ${meal.name} (${meal.calories.toInt()} سعر)' : 'Added ${meal.name} (${meal.calories.toInt()} cal)',
         backgroundColor: AppColors.electricBlue,
         duration: Duration(seconds: 2),
       );
-    }
-  }
-
-  void _saveUserData() async {
-    if (currentUser.value != null) {
-      SharedPreferences prefs = await SharedPreferences.getInstance();
-      await prefs.setString('currentUser', jsonEncode(currentUser.value!.toJson()));
-
-      String? usersJson = prefs.getString('users');
-      if (usersJson != null) {
-        List<dynamic> usersList = jsonDecode(usersJson);
-        for (int i = 0; i < usersList.length; i++) {
-          if (usersList[i]['id'] == currentUser.value!.id) {
-            usersList[i] = currentUser.value!.toJson();
-            break;
-          }
-        }
-        await prefs.setString('users', jsonEncode(usersList));
-      }
+      
+      developer.log('✅ تم إضافة وجبة: ${meal.name}');
+    } catch (e) {
+      developer.log('❌ خطأ في إضافة الوجبة: $e');
+      Get.snackbar(
+        isArabic() ? 'خطأ' : 'Error',
+        isArabic() ? 'حدث خطأ أثناء إضافة الوجبة' : 'Error adding meal',
+        backgroundColor: AppColors.dangerRed,
+        duration: Duration(seconds: 2),
+      );
     }
   }
 
@@ -1062,7 +1165,7 @@ class MainController extends GetxController {
     }
   }
 
-  // ========== مؤقت التمرين ==========
+  // ========== مؤقت التمرين المصلح ==========
   void startWorkout(Exercise exercise) async {
     if (isWorkoutActive.value) {
       Get.snackbar(
@@ -1079,258 +1182,39 @@ class MainController extends GetxController {
     workoutTimer.value = exercise.duration;
     workoutElapsedSeconds.value = 0;
     workoutProgress.value = 0.0;
-    
     workoutMinutes.value = exercise.duration ~/ 60;
     workoutSeconds.value = exercise.duration % 60;
-    
-    Get.back();
-    
+
     Get.dialog(
-      Dialog(
-        backgroundColor: currentBackgroundColor.value,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        child: Container(
-          padding: EdgeInsets.all(24),
-          width: double.infinity,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                padding: EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: _getTypeColor(exercise.type).withOpacity(0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  _getTypeIcon(exercise.type),
-                  color: _getTypeColor(exercise.type),
-                  size: 40,
-                ),
-              ),
-              SizedBox(height: 16),
-              Text(
-                exercise.name,
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              Text(
-                isArabic() ? '🏋️ جاري التمرين' : '🏋️ Workout in Progress',
-                style: TextStyle(
-                  color: AppColors.electricBlue,
-                  fontSize: 16,
-                ),
-              ),
-              SizedBox(height: 24),
-              Obx(() {
-                int mins = workoutMinutes.value;
-                int secs = workoutSeconds.value;
-                return Column(
-                  children: [
-                    Container(
-                      padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                      decoration: BoxDecoration(
-                        color: currentCardColor.value,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: workoutTimer.value < 10 
-                            ? AppColors.dangerRed 
-                            : currentAccentColor.value,
-                          width: 2,
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.baseline,
-                        textBaseline: TextBaseline.alphabetic,
-                        children: [
-                          Text(
-                            mins.toString().padLeft(2, '0'),
-                            style: TextStyle(
-                              color: workoutTimer.value < 10 
-                                ? AppColors.dangerRed 
-                                : Colors.white,
-                              fontSize: 72,
-                              fontWeight: FontWeight.bold,
-                              fontFamily: 'monospace',
-                            ),
-                          ),
-                          Text(
-                            ':',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 60,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          Text(
-                            secs.toString().padLeft(2, '0'),
-                            style: TextStyle(
-                              color: workoutTimer.value < 10 
-                                ? AppColors.dangerRed 
-                                : Colors.white,
-                              fontSize: 72,
-                              fontWeight: FontWeight.bold,
-                              fontFamily: 'monospace',
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    SizedBox(height: 8),
-                    Text(
-                      workoutTimer.value < 10 
-                        ? (isArabic() ? '⚡ الوقت يقترب من الانتهاء!' : '⚡ Almost done!')
-                        : (isArabic() ? '💪 استمر، أنت قوي!' : '💪 Keep going, you\'re strong!'),
-                      style: TextStyle(
-                        color: workoutTimer.value < 10 
-                          ? AppColors.dangerRed 
-                          : AppColors.warningYellow,
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                );
-              }),
-              SizedBox(height: 16),
-              Obx(() => Column(
-                children: [
-                  Container(
-                    width: double.infinity,
-                    height: 8,
-                    decoration: BoxDecoration(
-                      color: AppColors.metallicGray,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: FractionallySizedBox(
-                      widthFactor: workoutProgress.value,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              currentAccentColor.value,
-                              AppColors.electricBlue,
-                            ],
-                          ),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                      ),
-                    ),
-                  ),
-                  SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        workoutProgress.value > 0 
-                          ? '${(workoutProgress.value * 100).toInt()}%'
-                          : '0%',
-                        style: TextStyle(
-                          color: AppColors.metallicGray,
-                          fontSize: 12,
-                        ),
-                      ),
-                      Text(
-                        isArabic() ? 'متبقي: ${workoutTimer.value}ث' : 'Remaining: ${workoutTimer.value}s',
-                        style: TextStyle(
-                          color: AppColors.metallicGray,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              )),
-              SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () {
-                        _stopWorkout(exercise);
-                        Get.back();
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.dangerRed,
-                        padding: EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                      ),
-                      child: Text(
-                        isArabic() ? '⏹️ إيقاف' : '⏹️ Stop',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
-                  SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () {
-                        _completeWorkout(exercise);
-                        Get.back();
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.successGreen,
-                        padding: EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                      ),
-                      child: Text(
-                        isArabic() ? '✅ إنهاء' : '✅ Finish',
-                        style: TextStyle(
-                          color: Colors.black,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
+      _WorkoutDialog(exercise: exercise, controller: this),
       barrierDismissible: false,
     );
 
     await speakCommand(isArabic() ? 'بدأ التمرين: ${exercise.name}' : 'Starting workout: ${exercise.name}');
     await Future.delayed(Duration(seconds: 2));
-    
+
     int totalDuration = exercise.duration;
     int elapsed = 0;
     
-    for (int i = totalDuration; i > 0; i--) {
-      if (!isWorkoutActive.value) break;
+    while (isWorkoutActive.value && elapsed < totalDuration) {
+      int remaining = totalDuration - elapsed;
       
-      workoutTimer.value = i;
+      workoutTimer.value = remaining;
       workoutElapsedSeconds.value = elapsed;
-      workoutMinutes.value = i ~/ 60;
-      workoutSeconds.value = i % 60;
-      workoutProgress.value = (totalDuration - i) / totalDuration;
+      workoutMinutes.value = remaining ~/ 60;
+      workoutSeconds.value = remaining % 60;
+      workoutProgress.value = elapsed / totalDuration;
       
-      if (i % 30 == 0 && i > 0) {
-        if (i == totalDuration) {
-          await speakCommand(isArabic() ? 'ابدأ!' : 'Start!');
-        } else if (i % 60 == 0) {
+      if (elapsed % 30 == 0 && elapsed > 0) {
+        if (elapsed % 60 == 0) {
           await speakCommand(isArabic() ? 'ممتاز، استمر!' : 'Excellent, keep going!');
         } else {
           await speakCommand(isArabic() ? 'أنت رائع!' : 'You\'re doing great!');
         }
       }
       
-      if (i <= 10 && i > 0) {
-        await speakCommand(i.toString());
+      if (remaining <= 10 && remaining > 0) {
+        await speakCommand(remaining.toString());
       }
       
       elapsed++;
@@ -1340,7 +1224,7 @@ class MainController extends GetxController {
     if (isWorkoutActive.value && workoutTimer.value <= 0) {
       await speakCommand(isArabic() ? 'أحسنت! أكملت التمرين!' : 'Great job! You completed the workout!');
       _completeWorkout(exercise);
-      Get.back();
+      try { Get.back(); } catch (e) {}
     }
   }
 
@@ -1353,6 +1237,8 @@ class MainController extends GetxController {
     workoutElapsedSeconds.value = 0;
     
     speakCommand(isArabic() ? 'تم إيقاف التمرين' : 'Workout stopped');
+    try { Get.back(); } catch (e) {}
+    
     Get.snackbar(
       isArabic() ? '⏹️ تم الإيقاف' : '⏹️ Stopped',
       isArabic() ? 'تم إيقاف التمرين' : 'Workout stopped',
@@ -1371,20 +1257,7 @@ class MainController extends GetxController {
     
     addExerciseToHistory(exercise);
     
-    for (var e in exercises) {
-      if (e.id == exercise.id) {
-        e.isCompleted = true;
-        break;
-      }
-    }
-    
     speakCommand(isArabic() ? 'أحسنت، أكملت التمرين بنجاح!' : 'Great job, you completed the workout!');
-    Get.snackbar(
-      isArabic() ? '🎉 أحسنت!' : '🎉 Great job!',
-      isArabic() ? 'تم إكمال ${exercise.name} بنجاح' : 'Completed ${exercise.name} successfully',
-      backgroundColor: AppColors.successGreen,
-      duration: Duration(seconds: 3),
-    );
   }
 
   Color _getTypeColor(String type) {
@@ -1532,7 +1405,260 @@ class MainController extends GetxController {
 }
 
 // ============================================================
-// 6. التشغيل الرئيسي
+// 6. Widget خاص بالتمرين (لتجنب تجميد التطبيق)
+// ============================================================
+class _WorkoutDialog extends StatelessWidget {
+  final Exercise exercise;
+  final MainController controller;
+
+  const _WorkoutDialog({
+    Key? key,
+    required this.exercise,
+    required this.controller,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: controller.currentBackgroundColor.value,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      child: Container(
+        padding: EdgeInsets.all(24),
+        width: double.infinity,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: _getTypeColor(exercise.type).withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                _getTypeIcon(exercise.type),
+                color: _getTypeColor(exercise.type),
+                size: 40,
+              ),
+            ),
+            SizedBox(height: 16),
+            Text(
+              exercise.name,
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            Text(
+              controller.isArabic() ? '🏋️ جاري التمرين' : '🏋️ Workout in Progress',
+              style: TextStyle(
+                color: AppColors.electricBlue,
+                fontSize: 16,
+              ),
+            ),
+            SizedBox(height: 24),
+            
+            Obx(() {
+              int mins = controller.workoutMinutes.value;
+              int secs = controller.workoutSeconds.value;
+              return Column(
+                children: [
+                  Container(
+                    padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: controller.currentCardColor.value,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: controller.workoutTimer.value < 10 
+                          ? AppColors.dangerRed 
+                          : controller.currentAccentColor.value,
+                        width: 2,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.baseline,
+                      textBaseline: TextBaseline.alphabetic,
+                      children: [
+                        Text(
+                          mins.toString().padLeft(2, '0'),
+                          style: TextStyle(
+                            color: controller.workoutTimer.value < 10 
+                              ? AppColors.dangerRed 
+                              : Colors.white,
+                            fontSize: 72,
+                            fontWeight: FontWeight.bold,
+                            fontFamily: 'monospace',
+                          ),
+                        ),
+                        Text(
+                          ':',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 60,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          secs.toString().padLeft(2, '0'),
+                          style: TextStyle(
+                            color: controller.workoutTimer.value < 10 
+                              ? AppColors.dangerRed 
+                              : Colors.white,
+                            fontSize: 72,
+                            fontWeight: FontWeight.bold,
+                            fontFamily: 'monospace',
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    controller.workoutTimer.value < 10 
+                      ? (controller.isArabic() ? '⚡ الوقت يقترب من الانتهاء!' : '⚡ Almost done!')
+                      : (controller.isArabic() ? '💪 استمر، أنت قوي!' : '💪 Keep going, you\'re strong!'),
+                    style: TextStyle(
+                      color: controller.workoutTimer.value < 10 
+                        ? AppColors.dangerRed 
+                        : AppColors.warningYellow,
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              );
+            }),
+            
+            SizedBox(height: 16),
+            
+            Obx(() => Column(
+              children: [
+                Container(
+                  width: double.infinity,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: AppColors.metallicGray,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: FractionallySizedBox(
+                    widthFactor: controller.workoutProgress.value,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            controller.currentAccentColor.value,
+                            AppColors.electricBlue,
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      '${(controller.workoutProgress.value * 100).toInt()}%',
+                      style: TextStyle(
+                        color: AppColors.metallicGray,
+                        fontSize: 12,
+                      ),
+                    ),
+                    Text(
+                      controller.isArabic() 
+                        ? 'متبقي: ${controller.workoutTimer.value}ث' 
+                        : 'Remaining: ${controller.workoutTimer.value}s',
+                      style: TextStyle(
+                        color: AppColors.metallicGray,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            )),
+            
+            SizedBox(height: 20),
+            
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () {
+                      controller._stopWorkout(exercise);
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.dangerRed,
+                      padding: EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                    child: Text(
+                      controller.isArabic() ? '⏹️ إيقاف' : '⏹️ Stop',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () {
+                      controller._completeWorkout(exercise);
+                      try { Get.back(); } catch (e) {}
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.successGreen,
+                      padding: EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                    child: Text(
+                      controller.isArabic() ? '✅ إنهاء' : '✅ Finish',
+                      style: TextStyle(
+                        color: Colors.black,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Color _getTypeColor(String type) {
+    if (type == 'كارديو') return AppColors.hotOrange;
+    if (type == 'قوة') return AppColors.neonGreen;
+    if (type == 'HIIT') return AppColors.neonPink;
+    if (type == 'يوغا') return AppColors.electricBlue;
+    return AppColors.metallicGray;
+  }
+
+  IconData _getTypeIcon(String type) {
+    if (type == 'كارديو') return Icons.favorite;
+    if (type == 'قوة') return Icons.fitness_center;
+    if (type == 'HIIT') return Icons.flash_on;
+    if (type == 'يوغا') return Icons.self_improvement;
+    return Icons.sports;
+  }
+}
+
+// ============================================================
+// 7. التشغيل الرئيسي
 // ============================================================
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -1565,7 +1691,7 @@ class MyApp extends StatelessWidget {
 }
 
 // ============================================================
-// 7. شاشة البداية
+// 8. شاشة البداية
 // ============================================================
 class SplashScreen extends StatefulWidget {
   @override
@@ -1573,7 +1699,7 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
-  final MainController controller = Get.put(MainController());
+  final MainController controller = Get.find();
 
   @override
   void initState() {
@@ -1624,7 +1750,7 @@ class _SplashScreenState extends State<SplashScreen> {
 }
 
 // ============================================================
-// 8. شاشة تسجيل الدخول
+// 9. شاشة تسجيل الدخول
 // ============================================================
 class LoginScreen extends StatelessWidget {
   final MainController controller = Get.find();
@@ -1764,6 +1890,33 @@ class LoginScreen extends StatelessWidget {
                   ),
                 ],
               ),
+              
+              SizedBox(height: 20),
+              Container(
+                padding: EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.electricBlue.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.electricBlue.withOpacity(0.3)),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.info_outline, color: AppColors.electricBlue, size: 16),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '👤 مستخدم تجريبي: demo@fit.com | 123456',
+                        style: TextStyle(
+                          color: AppColors.electricBlue,
+                          fontSize: 12,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ],
           ),
         ),
@@ -1773,7 +1926,7 @@ class LoginScreen extends StatelessWidget {
 }
 
 // ============================================================
-// 9. شاشة التسجيل
+// 10. شاشة التسجيل
 // ============================================================
 class RegisterScreen extends StatelessWidget {
   final MainController controller = Get.find();
@@ -2145,7 +2298,7 @@ class RegisterScreen extends StatelessWidget {
 }
 
 // ============================================================
-// 10. شاشة استرجاع كلمة المرور
+// 11. شاشة استرجاع كلمة المرور
 // ============================================================
 class ForgotPasswordScreen extends StatelessWidget {
   final MainController controller = Get.find();
@@ -2237,7 +2390,7 @@ class ForgotPasswordScreen extends StatelessWidget {
 }
 
 // ============================================================
-// 11. الشاشة الرئيسية
+// 12. الشاشة الرئيسية
 // ============================================================
 class HomeScreen extends StatelessWidget {
   final MainController controller = Get.find();
@@ -2264,7 +2417,6 @@ class HomeScreen extends StatelessWidget {
           ],
         ),
         actions: [
-          // زر تبديل اللغة
           PopupMenuButton<String>(
             icon: Icon(Icons.language, color: controller.currentAccentColor.value),
             onSelected: (value) {
@@ -2293,7 +2445,6 @@ class HomeScreen extends StatelessWidget {
               ),
             ],
           ),
-          // زر تبديل الوضع
           PopupMenuButton<String>(
             icon: Icon(
               controller.isNightMode.value 
@@ -2428,7 +2579,7 @@ class HomeScreen extends StatelessWidget {
 }
 
 // ============================================================
-// 12. محتوى الصفحة الرئيسية
+// 13. محتوى الصفحة الرئيسية
 // ============================================================
 class HomeContent extends StatelessWidget {
   final MainController controller;
@@ -2810,7 +2961,7 @@ class HomeContent extends StatelessWidget {
 }
 
 // ============================================================
-// 13. شاشة التقدم
+// 14. شاشة التقدم
 // ============================================================
 class ProgressScreen extends StatelessWidget {
   final MainController controller;
@@ -2975,7 +3126,7 @@ class ProgressScreen extends StatelessWidget {
 }
 
 // ============================================================
-// 14. شاشة التمارين
+// 15. شاشة التمارين
 // ============================================================
 class ExercisesScreen extends StatelessWidget {
   final MainController controller;
@@ -3347,7 +3498,7 @@ class ExercisesScreen extends StatelessWidget {
 }
 
 // ============================================================
-// 15. شاشة التغذية
+// 16. شاشة التغذية
 // ============================================================
 class NutritionScreen extends StatelessWidget {
   final MainController controller;
@@ -3533,7 +3684,7 @@ class NutritionScreen extends StatelessWidget {
 }
 
 // ============================================================
-// 16. شاشة الملف الشخصي
+// 17. شاشة الملف الشخصي
 // ============================================================
 class ProfileScreen extends StatelessWidget {
   final MainController controller;
@@ -3866,7 +4017,7 @@ class ProfileScreen extends StatelessWidget {
 }
 
 // ============================================================
-// 17. شاشة الدردشة مع AI
+// 18. شاشة الدردشة مع AI
 // ============================================================
 class AIChatScreen extends StatelessWidget {
   final MainController controller;
@@ -4027,7 +4178,7 @@ class AIChatScreen extends StatelessWidget {
 }
 
 // ============================================================
-// 18. تفاصيل التمرين (Bottom Sheet)
+// 19. تفاصيل التمرين (Bottom Sheet)
 // ============================================================
 class ExerciseDetailSheet extends StatelessWidget {
   final Exercise exercise;
@@ -4131,7 +4282,10 @@ class ExerciseDetailSheet extends StatelessWidget {
                   Expanded(
                     child: ElevatedButton(
                       onPressed: () {
-                        controller.startWorkout(exercise);
+                        Get.back();
+                        Future.delayed(Duration(milliseconds: 300), () {
+                          controller.startWorkout(exercise);
+                        });
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: controller.currentAccentColor.value,
